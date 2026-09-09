@@ -35,6 +35,8 @@ export class GrammarTreeComponent implements OnChanges {
   @Input() selected?: { path: string; line: number };
 
   @Output() entrySelected = new EventEmitter<GrammarNode>();
+  /** Right-click (or ctrl-click on a Mac) on a row, with where to put the menu. */
+  @Output() entryContextMenu = new EventEmitter<{ node: GrammarNode; x: number; y: number }>();
 
   treeControl = new NestedTreeControl<GrammarNode>((node) => node.children);
   dataSource = new MatTreeNestedDataSource<GrammarNode>();
@@ -93,5 +95,18 @@ export class GrammarTreeComponent implements OnChanges {
     if (node.path !== undefined) {
       this.entrySelected.emit(node);
     }
+  }
+
+  /**
+   * Offer the row's menu.
+   *
+   * `contextmenu` covers both gestures: on a Mac, ctrl-click raises it as well as a
+   * right-click, so there is nothing extra to handle for either.
+   */
+  openMenu(event: MouseEvent, node: GrammarNode): void {
+    if (node.path === undefined) return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.entryContextMenu.emit({ node, x: event.clientX, y: event.clientY });
   }
 }

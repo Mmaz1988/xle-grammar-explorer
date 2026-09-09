@@ -109,3 +109,43 @@
 
 .warnings.unresolved summary { color: #b3261e; cursor: pointer; }
 .warnings.unresolved code { color: #b3261e; }
+
+/* --- row menu ----------------------------------------------------------- */
+
+.row-menu {
+  position: fixed;
+  z-index: 40;
+  min-width: 170px;
+  max-width: 320px;
+  padding: 4px;
+  background: #fff;
+  border: 1px solid #d8dee8;
+  border-radius: 4px;
+  box-shadow: 0 6px 20px rgba(36, 50, 71, .18);
+}
+.row-menu-title {
+  padding: 4px 8px 6px;
+  margin-bottom: 3px;
+  border-bottom: 1px solid #eef1f5;
+  font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+  font-size: 11px;
+  color: #7c8ba1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.row-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: #243247;
+  padding: 5px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.row-menu button:hover:not(:disabled) { background: #eef3fa; }
+.row-menu button:disabled { color: #b9c6d4; cursor: default; }

@@ -14,7 +14,8 @@
             [class.selected]="isSelected(node)"
             [class.unreferenced]="node.unreferenced"
             [title]="node.tooltip"
-            (click)="select(node)">
+            (click)="select(node)"
+            (contextmenu)="openMenu($event, node)">
       <mat-icon class="kind">{{ node.icon }}</mat-icon>
       <span class="label"><span *ngFor="let p of node.parts"
                                 [class]="p.cls ? 'p-' + p.cls : ''">{{ p.text }}</span></span>
@@ -33,7 +34,8 @@
               [class.group]="node.level === 'group'"
               [class.unreferenced]="node.unreferenced"
               [title]="node.tooltip"
-              (click)="select(node)">
+              (click)="select(node)"
+              (contextmenu)="openMenu($event, node)">
         <mat-icon class="kind">{{ node.icon }}</mat-icon>
         <span class="label">{{ node.label }}</span>
         <span class="badge" *ngIf="node.badge">{{ node.badge }}</span>

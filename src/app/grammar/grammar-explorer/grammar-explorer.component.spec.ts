@@ -81,6 +81,40 @@ describe('GrammarExplorerComponent', () => {
     expect(component.columns[0]).toBe(component.columns[0]);
   });
 
+  it('opens the row menu on a right-click and closes it on the next click', async () => {
+    const rules = component.tree.find((g) => g.label === 'RULES')!;
+    component.onContextMenu({ node: rules.children[0].children[0], x: 40, y: 60 });
+    fixture.detectChanges();
+
+    const menu = fixture.nativeElement.querySelector('.row-menu');
+    expect(menu).withContext('the menu should render').toBeTruthy();
+    expect([...menu.querySelectorAll('button')].map((b: HTMLElement) => b.textContent!.trim()))
+      .toEqual(['Open', 'Open in split view']);
+
+    component.closeMenu();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.row-menu')).toBeNull();
+  });
+
+  it('opens a second pane on the same file from the row menu', async () => {
+    const rules = component.tree.find((g) => g.label === 'RULES')!;
+    const [first, second] = rules.children[0].children;
+
+    await component.openFromMenu(first, 'here');
+    fixture.detectChanges();
+    expect(component.panes.length).toBe(1);
+
+    // The same file again: a split must still get its own pane, since looking at two
+    // places in one file is the main reason to ask for one.
+    await component.openFromMenu(second, 'split');
+    fixture.detectChanges();
+
+    expect(component.panes.length).toBe(2);
+    expect(component.panes[1].path).toBe(component.panes[0].path);
+    expect(component.panes[0].reveal!.start).not.toBe(component.panes[1].reveal!.start);
+    expect(fixture.nativeElement.querySelectorAll('.cm-editor').length).toBe(2);
+  });
+
   it('keeps one editor per pane after splitting', async () => {
     await openFirstRule();
     component.splitPane();

@@ -1,5 +1,6 @@
 import {
-  Component, EventEmitter, Input, OnDestroy, OnInit, Output, QueryList, ViewChildren,
+  Component, EventEmitter, HostListener, Input, OnDestroy, OnInit, Output,
+  QueryList, ViewChildren,
 } from '@angular/core';
 import { FsAccessService, type PickedGrammar } from '../workspace/fs-access.service';
 import { GrammarStateService } from '../workspace/grammar-state.service';
@@ -63,6 +64,8 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
   rowSizes: number[][] = [];
 
   selected?: { path: string; line: number };
+  /** The open row menu, positioned where the click happened. */
+  menu?: { node: GrammarNode; x: number; y: number };
   busy = false;
   status = '';
   error = '';
@@ -206,11 +209,18 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
    * pane is reused — unless it has unsaved edits, in which case a new pane opens rather
    * than either losing the work or refusing the click.
    */
-  private async show(path: string, span?: { start: number; end: number }, line?: number): Promise<void> {
+  private async show(
+    path: string,
+    span?: { start: number; end: number },
+    line?: number,
+    options: { newPane?: boolean } = {},
+  ): Promise<void> {
     this.error = '';
     this.notice = '';
 
-    const existing = this.panes.find((p) => p.path === path);
+    // Opening deliberately into a split wants a second view even of a file already on
+    // screen — comparing two places in one file is the main reason to ask for it.
+    const existing = options.newPane ? undefined : this.panes.find((p) => p.path === path);
     if (existing) {
       existing.reveal = span ? { ...span } : existing.reveal;
       this.activePaneId = existing.id;
@@ -220,7 +230,7 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
     }
 
     const content = await this.fs.readFile(path);
-    const target = this.activePane;
+    const target = options.newPane ? undefined : this.activePane;
 
     if (target && !target.dirty) {
       target.path = path;
@@ -254,6 +264,42 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
   async openNode(node: GrammarNode): Promise<void> {
     if (node.path === undefined) return;
     await this.show(node.path, node.span, node.line);
+  }
+
+  // --- row menu -------------------------------------------------------------
+
+  onContextMenu(event: { node: GrammarNode; x: number; y: number }): void {
+    // Keep the menu on screen when the click lands near an edge. The size is the
+    // menu's own max-width and its measured height for two items plus the title.
+    const width = 320;
+    const height = 96;
+    this.menu = {
+      node: event.node,
+      x: Math.min(event.x, Math.max(0, window.innerWidth - width - 8)),
+      y: Math.min(event.y, Math.max(0, window.innerHeight - height - 8)),
+    };
+  }
+
+  /** Dismiss the menu on any click elsewhere, or on Escape. */
+  @HostListener('document:click')
+  @HostListener('document:contextmenu')
+  @HostListener('document:keydown.escape')
+  closeMenu(): void {
+    if (this.menu) this.menu = undefined;
+  }
+
+  async openFromMenu(node: GrammarNode, where: 'here' | 'split'): Promise<void> {
+    this.menu = undefined;
+    if (node.path === undefined) return;
+    if (where === 'here') {
+      await this.show(node.path, node.span, node.line);
+      return;
+    }
+    if (this.panes.length >= MAX_PANES) {
+      this.error = `Too many open panes (${MAX_PANES}). Close one first.`;
+      return;
+    }
+    await this.show(node.path, node.span, node.line, { newPane: true });
   }
 
   /** Add an empty pane showing the same file, for looking at two places at once. */

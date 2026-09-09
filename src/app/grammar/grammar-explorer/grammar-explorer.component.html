@@ -34,7 +34,8 @@
 
     <div class="tree-scroll">
       <app-grammar-tree [nodes]="tree" [filter]="filter" [selected]="selected"
-                        (entrySelected)="openNode($event)"></app-grammar-tree>
+                        (entrySelected)="openNode($event)"
+                        (entryContextMenu)="onContextMenu($event)"></app-grammar-tree>
     </div>
 
     <div class="status" *ngIf="status">
@@ -111,7 +112,22 @@
       </ng-container>
     </div>
 
-    <p class="notice" *ngIf="notice">{{ notice }}</p>
+    <!--
+    Row menu. Rendered at the top level rather than inside the tree so it is never
+    clipped by the tree's own scroll container.
+  -->
+  <div class="row-menu" *ngIf="menu"
+       [style.left.px]="menu.x" [style.top.px]="menu.y"
+       (click)="$event.stopPropagation()">
+    <div class="row-menu-title">{{ menu.node.label }}</div>
+    <button type="button" (click)="openFromMenu(menu.node, 'here')">Open</button>
+    <button type="button" (click)="openFromMenu(menu.node, 'split')"
+            [disabled]="panes.length >= 8">
+      Open in split view
+    </button>
+  </div>
+
+  <p class="notice" *ngIf="notice">{{ notice }}</p>
     <p class="error" *ngIf="error">{{ error }}</p>
   </div>
 

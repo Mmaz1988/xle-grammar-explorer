@@ -155,10 +155,13 @@ lists, `@(` inserts the parameters too. Matching is loose, so `dns` finds
 tree. This is usually a real defect: the bundled dev grammar calls `@INTRANS-OBL-EV`
 three times and defines it nowhere.
 
-**Multiple panes** — `Split` opens another pane; `Rows` stacks them, `Grid` tiles them
-into roughly equal squares. Every divider drags, including the ones between panes.
-Clicking a tree entry reuses the active pane, unless it has unsaved changes, in which
-case the file opens in a new pane rather than the click being refused.
+**Multiple panes** — right-click a tree row (ctrl-click on a Mac) and choose **Open in
+split view** to open it in a pane of its own; `Split` on the toolbar does the same for
+the current file. `Rows` stacks the panes, `Grid` tiles them into roughly equal squares,
+and every divider drags. A split always gets its own pane even when the file is already
+open, since reading two places in one file is the main reason to ask for one. A plain
+click reuses the active pane, unless it has unsaved changes, in which case the file
+opens in a new pane rather than the click being refused.
 
 ### The two meanings of `@`
 
