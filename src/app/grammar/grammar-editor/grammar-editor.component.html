@@ -1,0 +1,7 @@
+<div class="editor-header">
+  <span class="path" [title]="path">{{ path || 'No file open' }}</span>
+  <span class="spacer"></span>
+  <span class="hint" *ngIf="readOnly">read-only</span>
+  <ng-content></ng-content>
+</div>
+<div class="editor-host" #host></div>

@@ -1,0 +1,50 @@
+:host { display: block; height: 100%; min-height: 0; }
+
+.explorer { display: flex; height: 100%; min-height: 0; }
+
+.pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.pane.left { flex: 0 0 auto; border-right: 1px solid #d8dee8; background: #fbfcfe; }
+.pane.right { flex: 1 1 auto; }
+
+.divider {
+  flex: none;
+  width: 5px;
+  cursor: col-resize;
+  background: #eef1f5;
+  border-left: 1px solid #d8dee8;
+  border-right: 1px solid #d8dee8;
+}
+.divider:hover { background: #00a9e0; }
+
+.toolbar { display: flex; align-items: center; gap: 8px; padding: 8px; flex: none; }
+.toolbar .name {
+  font-size: 12px; color: #243247; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+.toolbar .mode {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .06em;
+  background: #e9f1fb; color: #0b6ea8; border-radius: 8px; padding: 1px 7px; flex: none;
+}
+
+button.primary { background: #00a9e0; color: #fff; border: 0; border-radius: 3px; padding: 5px 10px; cursor: pointer; }
+button.primary:disabled { background: #b9c6d4; cursor: default; }
+
+.filter {
+  margin: 0 8px 8px;
+  padding: 5px 8px;
+  border: 1px solid #d8dee8;
+  border-radius: 3px;
+  font: inherit;
+  font-size: 12px;
+  flex: none;
+}
+
+.tree-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0 4px 8px; }
+
+.status, .unsupported { padding: 6px 10px; font-size: 11px; color: #7c8ba1; flex: none; }
+.unsupported { color: #b3261e; }
+
+.warnings { flex: none; max-height: 150px; overflow: auto; padding: 0 10px 8px; font-size: 11px; }
+.warnings ul { margin: 4px 0 0; padding-left: 16px; color: #8a6d3b; }
+
+.error { margin: 0; padding: 6px 10px; background: #fdecea; color: #b3261e; font-size: 12px; flex: none; }

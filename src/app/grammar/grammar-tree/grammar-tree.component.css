@@ -1,0 +1,55 @@
+.grammar-tree {
+  font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+  font-size: 12px;
+  background: transparent;
+}
+
+.branch { display: flex; align-items: center; }
+.children { padding-left: 14px; }
+.children.hidden { display: none; }
+.leaf { padding-left: 34px; }
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;              /* lets long labels ellipsis instead of forcing scroll */
+  border: 0;
+  background: none;
+  padding: 2px 6px;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 3px;
+  color: #243247;
+}
+.row:hover { background: #eef3fa; }
+.row.selected { background: #00a9e0; color: #fff; }
+.row.selected .kind { color: #fff; }
+
+.row.group { font-weight: 600; letter-spacing: .04em; }
+.row.section { font-weight: 500; }
+
+.label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.kind { font-size: 15px; width: 15px; height: 15px; color: #7c8ba1; flex: none; }
+.row.group .kind { color: #00a9e0; }
+
+.badge {
+  margin-left: auto;
+  flex: none;
+  font-size: 10px;
+  color: #7c8ba1;
+  background: #eef1f5;
+  border-radius: 8px;
+  padding: 0 6px;
+}
+.row.selected .badge { background: rgba(255,255,255,.25); color: #fff; }
+
+/* A file no CONFIG reaches is still shown, but marked: it is not part of what XLE
+   would load, which is usually a mistake worth seeing. */
+.unreferenced .label { opacity: .55; font-style: italic; }
+
+.twisty { width: 20px; height: 20px; line-height: 20px; flex: none; }
+.twisty mat-icon { font-size: 16px; width: 16px; height: 16px; color: #7c8ba1; }

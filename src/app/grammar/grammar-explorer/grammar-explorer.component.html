@@ -1,0 +1,54 @@
+<div class="explorer" (mousemove)="onDrag($event)" (mouseup)="endDrag()" (mouseleave)="endDrag()">
+
+  <div class="pane left" [style.flex-basis.%]="splitFraction * 100">
+    <div class="toolbar">
+      <button type="button" class="primary" (click)="pick()" [disabled]="busy || !supported">
+        Open grammar folder…
+      </button>
+      <span class="name" *ngIf="index" [title]="index.name">{{ index.name }}</span>
+      <span class="mode" *ngIf="index">{{ index.mode }}</span>
+    </div>
+
+    <p class="unsupported" *ngIf="!supported">
+      This browser cannot open a local folder. The File System Access API is
+      available in Chrome and Edge.
+    </p>
+
+    <input class="filter"
+           type="search"
+           placeholder="Filter entries…"
+           [(ngModel)]="filter"
+           *ngIf="index" />
+
+    <div class="tree-scroll">
+      <app-grammar-tree [nodes]="tree"
+                        [filter]="filter"
+                        [selected]="selected"
+                        (entrySelected)="openNode($event)"></app-grammar-tree>
+    </div>
+
+    <div class="status" *ngIf="status">{{ status }}</div>
+    <details class="warnings" *ngIf="index && index.warnings.length">
+      <summary>{{ index.warnings.length }} warning(s)</summary>
+      <ul><li *ngFor="let w of index.warnings">{{ w }}</li></ul>
+    </details>
+  </div>
+
+  <div class="divider" (mousedown)="startDrag($event)" title="Drag to resize"></div>
+
+  <div class="pane right">
+    <app-grammar-editor [content]="openContent"
+                        [path]="openPath"
+                        [reveal]="reveal"
+                        [readOnly]="readOnly"
+                        (contentChange)="onContentChange($event)"
+                        (save)="save()">
+      <button type="button" (click)="save()" [disabled]="!dirty || busy || readOnly">
+        {{ dirty ? 'Save' : 'Saved' }}
+      </button>
+      <button type="button" (click)="revert()" [disabled]="!dirty || busy">Revert</button>
+    </app-grammar-editor>
+    <p class="error" *ngIf="error">{{ error }}</p>
+  </div>
+
+</div>

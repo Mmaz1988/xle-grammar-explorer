@@ -6,10 +6,20 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "outDir": ".harness",
     "rootDir": ".",
     "sourceMap": true
   },
-  "include": ["src/app/grammar/lfg/**/*.ts", "src/app/grammar/workspace/**/*.ts", "tools/**/*.ts"]
+  "include": [
+    "src/app/grammar/lfg/**/*.ts",
+    "src/app/grammar/workspace/grammar-index.ts",
+    "tools/**/*.ts"
+  ],
+  "exclude": [
+    "src/app/grammar/lfg/lfg-language.ts",
+    "src/app/grammar/lfg/lfg-commands.ts"
+  ]
 }

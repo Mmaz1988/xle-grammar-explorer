@@ -1,0 +1,45 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;      /* without this the editor refuses to shrink in a flex split */
+  min-height: 0;
+  height: 100%;
+}
+
+.editor-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid #d8dee8;
+  background: #f7f9fc;
+  font-size: 12px;
+  flex: none;
+}
+.path {
+  font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #243247;
+}
+.spacer { flex: 1; }
+.hint { color: #7c8ba1; font-style: italic; }
+
+.editor-host {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* CodeMirror 6 brings no chrome of its own; give it the surrounding look. */
+:host ::ng-deep .cm-editor { height: 100%; font-size: 12.5px; }
+:host ::ng-deep .cm-scroller {
+  font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+  line-height: 1.5;
+}
+:host ::ng-deep .cm-gutters { background: #f7f9fc; border-right: 1px solid #e4e9f0; color: #9aa7ba; }
+:host ::ng-deep .cm-activeLine { background: #f2f7fd; }
+:host ::ng-deep .cm-activeLineGutter { background: #e9f1fb; }
+:host ::ng-deep .cm-selectionBackground,
+:host ::ng-deep .cm-editor.cm-focused .cm-selectionBackground { background: #cfe6ff; }
