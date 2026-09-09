@@ -166,6 +166,30 @@ function sectionNode(section: LfgSection, file: LfgFile): GrammarNode {
   };
 }
 
+/** How the tree displays entries. Neither setting changes anything on disk. */
+export type SortMode = 'file' | 'alpha';
+
+/**
+ * Sort a tree's entries for display only.
+ *
+ * Kept separate from the file's own order on purpose: choosing to look at a lexicon
+ * alphabetically is a way of *finding* something, and finding something should never
+ * rewrite a grammar. Writing that order back is a separate, explicit command.
+ */
+export function sortTree(nodes: GrammarNode[], mode: SortMode): GrammarNode[] {
+  if (mode === 'file') return nodes;
+  const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+  const walk = (node: GrammarNode): GrammarNode => {
+    if (node.children.length === 0) return node;
+    const children = node.children.map(walk);
+    if (children[0]?.level === 'entry') {
+      children.sort((a, b) => collator.compare(a.name, b.name));
+    }
+    return { ...node, children };
+  };
+  return nodes.map(walk);
+}
+
 /** Turn one grammar into the tree the UI binds to. */
 export function buildTree(unit: GrammarUnit): GrammarNode[] {
   return unit.groups.map((group) => {

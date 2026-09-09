@@ -178,6 +178,19 @@ files at once, and there is no undo across files, so you get to read it and eith
 or revert. Moving in or out of a file with unsaved changes is refused, because the
 offsets driving the splice describe what is on disk.
 
+**Ordering** — the tree's **File order / A–Z** control is a *view* setting: sorting to
+find something never touches a grammar. Dragging an entry within its section moves it
+in the file, and is offered only in file order with no filter — in a sorted or filtered
+tree the rows either side of the pointer are not the entry's neighbours on disk, so
+"drop between these two" would name no real position. To write alphabetical order into
+a file, use **Sort A–Z in file** on a section's right-click menu.
+
+Reordering is lossless by construction. A section's entry spans are contiguous — 3165
+adjacent pairs across the corpus with no gaps — so its entries are a partition of its
+body, and the separators between them stay put while only the entries move through
+them. That keeps blank-line grouping where the author left it and confines the diff to
+the lines that actually moved.
+
 **Multiple panes** — right-click a tree row (ctrl-click on a Mac) and choose **Open in
 split view** to open it in a pane of its own. `Rows` stacks the panes, `Grid` tiles them into roughly equal squares,
 and every divider drags. A split always gets its own pane even when the file is already

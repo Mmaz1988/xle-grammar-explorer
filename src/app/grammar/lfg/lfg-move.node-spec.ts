@@ -11,7 +11,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { moveEntry, detachEntry, applyEdits } from './lfg-move';
+import { moveEntry, detachEntry, applyEdits, reorderEntries, movePermutation, sortPermutation } from './lfg-move';
 import { parseLfgFile } from './lfg-parser';
 
 const GRAMMARS = join(process.cwd(), 'grammars');
@@ -140,5 +140,62 @@ describe('moveEntry on a real grammar file', () => {
     const landed = entryNames(result.targetText, nounKey);
     assert.equal(landed[landed.length - 1], 'hug', 'it arrived at the end of the target');
     assert.equal(landed.length, entryNames(nouns, nounKey).length + 1);
+  });
+});
+
+describe('reorderEntries', () => {
+  const doc = 'A ENGLISH LEXICON (1.0)\ncharlie N * @C.\n\nalpha N * @A.\nbravo N * @B.\n----\n';
+  const spans = () => sectionOf(doc, 'A ENGLISH').entries.map((e) => ({ start: e.start, end: e.end }));
+
+  it('sorts entries without losing or duplicating any', () => {
+    const names = sectionOf(doc, 'A ENGLISH').entries.map((e) => e.name);
+    const out = reorderEntries(doc, spans(), sortPermutation(names));
+    assert.deepEqual(entryNames(out, 'A ENGLISH'), ['alpha', 'bravo', 'charlie']);
+    assert.ok(out.includes('@A') && out.includes('@B') && out.includes('@C'), 'bodies survived');
+  });
+
+  it('leaves the separators between entries where they were', () => {
+    // The blank line after the first entry stays after the *first* entry, rather than
+    // travelling with the entry that used to follow it.
+    const names = sectionOf(doc, 'A ENGLISH').entries.map((e) => e.name);
+    const out = reorderEntries(doc, spans(), sortPermutation(names));
+    assert.ok(/alpha N \* @A\.\n\nbravo/.test(out), out);
+  });
+
+  it('never glues two entries onto one line, whatever the permutation', () => {
+    // The first span carries no leading newline, so permuting the spans themselves
+    // would run whichever entry lands first straight into the one after it.
+    const s = spans();
+    for (const order of [[2, 1, 0], [1, 2, 0], [2, 0, 1], [0, 2, 1]]) {
+      const out = reorderEntries(doc, s, order);
+      assert.deepEqual(entryNames(out, 'A ENGLISH').length, 3, `order ${order}`);
+      // Every entry must start a line of its own.
+      const perLine = out.split('\n').map((line) => (line.match(/N \* @/g) ?? []).length);
+      assert.ok(perLine.every((n) => n <= 1), `order ${order} put two entries on one line: ${out}`);
+    }
+  });
+
+  it('moves one entry to a new position', () => {
+    const out = reorderEntries(doc, spans(), movePermutation(3, 0, 3));
+    assert.deepEqual(entryNames(out, 'A ENGLISH'), ['alpha', 'bravo', 'charlie']);
+  });
+
+  it('sorts a real lexicon losslessly', () => {
+    const path = join(GRAMMARS, 'dev/lfgxdrt_inference_grammar/lexica/nounlex_fracas.lfg.glue');
+    const text = readFileSync(path, 'utf8');
+    const key = text.match(/^(\S+)\s+(\S+)\s+LEXICON/m)!;
+    const sectionKey = `${key[1]} ${key[2]}`;
+    const entries = sectionOf(text, sectionKey).entries;
+
+    const out = reorderEntries(
+      text,
+      entries.map((e) => ({ start: e.start, end: e.end })),
+      sortPermutation(entries.map((e) => e.name)),
+    );
+
+    const before = entries.map((e) => e.name).slice().sort();
+    const after = entryNames(out, sectionKey).slice().sort();
+    assert.deepEqual(after, before, 'the same entries, no more and no fewer');
+    assert.equal(out.length, text.length, 'not one character gained or lost');
   });
 });

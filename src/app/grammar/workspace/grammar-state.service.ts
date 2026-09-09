@@ -17,12 +17,14 @@ export interface GrammarWorkspaceState {
   filter: string;
   splitFraction: number;
   layout: 'rows' | 'grid';
+  sortMode: 'file' | 'alpha';
 }
 
 const DEFAULTS: GrammarWorkspaceState = {
   filter: '',
   splitFraction: 0.34,
   layout: 'rows',
+  sortMode: 'file',
 };
 
 function clone<T>(value: T): T {

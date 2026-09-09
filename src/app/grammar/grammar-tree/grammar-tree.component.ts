@@ -3,7 +3,7 @@ import {
 } from '@angular/core';
 import { NestedTreeControl } from '@angular/cdk/tree';
 import { MatTreeNestedDataSource } from '@angular/material/tree';
-import { GrammarNode, canDrop, countEntries, filterTreeDetailed } from './grammar-node';
+import { GrammarNode, canDrop, countEntries, filterTreeDetailed, sortTree, type SortMode } from './grammar-node';
 
 /**
  * How many entries may be auto-expanded when a filter is applied.
@@ -31,6 +31,8 @@ const AUTO_EXPAND_BUDGET = 300;
 export class GrammarTreeComponent implements OnChanges {
   @Input() nodes: GrammarNode[] = [];
   @Input() filter = '';
+  /** Display order. Purely visual; the file is untouched. */
+  @Input() sortMode: SortMode = 'file';
   /** Path+line of the entry currently open, so the tree can mark it. */
   @Input() selected?: { path: string; line: number };
 
@@ -39,6 +41,8 @@ export class GrammarTreeComponent implements OnChanges {
   @Output() entryContextMenu = new EventEmitter<{ node: GrammarNode; x: number; y: number }>();
   /** An entry dragged onto a section. `copy` when the pointer was holding Alt. */
   @Output() entryDropped = new EventEmitter<{ source: GrammarNode; target: GrammarNode; copy: boolean }>();
+  /** An entry dropped next to another, to reorder it within its section. */
+  @Output() entryReordered = new EventEmitter<{ source: GrammarNode; before: GrammarNode }>();
 
   /**
    * Expansion is tracked by node id, not object identity.
@@ -71,9 +75,10 @@ export class GrammarTreeComponent implements OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (!changes['nodes'] && !changes['filter']) return;
+    if (!changes['nodes'] && !changes['filter'] && !changes['sortMode']) return;
 
-    const { nodes: visible, matches } = filterTreeDetailed(this.nodes, this.filter);
+    const ordered = sortTree(this.nodes, this.sortMode);
+    const { nodes: visible, matches } = filterTreeDetailed(ordered, this.filter);
     this.matchCount = matches;
     // Only reset expansion when the filter changed. A rebuild of the same grammar —
     // what a save produces — must leave the tree exactly as the user left it.
@@ -116,6 +121,18 @@ export class GrammarTreeComponent implements OnChanges {
   /** The entry being dragged, and the section currently under the pointer. */
   dragging?: GrammarNode;
   dropTarget?: GrammarNode;
+  /** The entry the dragged one would be placed above, while reordering. */
+  insertBefore?: GrammarNode;
+
+  /**
+   * Reordering is only offered in file order with no filter.
+   *
+   * In a sorted or filtered tree the rows either side of the pointer are not the
+   * entry's neighbours in the file, so "drop between these two" names no position.
+   */
+  get canReorder(): boolean {
+    return this.sortMode === 'file' && this.filter.trim() === '';
+  }
 
   hasChild = (_: number, node: GrammarNode): boolean => node.children.length > 0;
 
@@ -130,6 +147,44 @@ export class GrammarTreeComponent implements OnChanges {
   onDragEnd(): void {
     this.dragging = undefined;
     this.dropTarget = undefined;
+    this.insertBefore = undefined;
+  }
+
+  /** Hovering an entry while dragging another: offer to drop above or below it. */
+  onEntryDragOver(event: DragEvent, node: GrammarNode): void {
+    const source = this.dragging;
+    if (!source || !this.canReorder || node === source) return;
+    if (source.path !== node.path || node.level !== 'entry') return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    // Above or below, by which half of the row the pointer is in.
+    const box = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    this.insertBefore = event.clientY < box.top + box.height / 2 ? node : this.nextSibling(node);
+  }
+
+  onEntryDrop(event: DragEvent, node: GrammarNode): void {
+    const source = this.dragging;
+    const before = this.insertBefore;
+    this.onDragEnd();
+    if (!source || !this.canReorder || node.level !== 'entry' || source.path !== node.path) return;
+    event.preventDefault();
+    if (before === source) return;
+    this.entryReordered.emit({ source, before: before as GrammarNode });
+  }
+
+  /** The entry after `node` in the same section, or undefined at the end. */
+  private nextSibling(node: GrammarNode): GrammarNode | undefined {
+    for (const group of this.dataSource.data) {
+      for (const section of group.children) {
+        const i = section.children.indexOf(node);
+        if (i >= 0) return section.children[i + 1];
+      }
+    }
+    return undefined;
+  }
+
+  isInsertionPoint(node: GrammarNode): boolean {
+    return this.dragging !== undefined && this.insertBefore === node;
   }
 
   onDragOver(event: DragEvent, node: GrammarNode): void {

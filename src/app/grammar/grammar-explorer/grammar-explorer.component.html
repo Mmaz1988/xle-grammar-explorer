@@ -41,14 +41,26 @@
       <button type="button" (click)="pickFolder()">Open the folder instead</button>
     </div>
 
-    <input class="filter" type="search" placeholder="Filter entries…"
-           [(ngModel)]="filter" *ngIf="index" />
+    <div class="filter-row" *ngIf="index">
+      <input class="filter" type="search" placeholder="Filter entries…" [(ngModel)]="filter" />
+      <!--
+        A view setting only. Writing this order into a file is the section menu's
+        "Sort A–Z in file", so browsing alphabetically never rewrites a grammar.
+      -->
+      <select class="sort" [(ngModel)]="sortMode"
+              title="Display order — does not change the file">
+        <option value="file">File order</option>
+        <option value="alpha">A–Z</option>
+      </select>
+    </div>
 
     <div class="tree-scroll">
       <app-grammar-tree [nodes]="tree" [filter]="filter" [selected]="selected"
                         (entrySelected)="openNode($event)"
                         (entryContextMenu)="onContextMenu($event)"
-                        (entryDropped)="dropEntry($event)"></app-grammar-tree>
+                        (entryDropped)="dropEntry($event)"
+                        (entryReordered)="reorderEntry($event)"
+                        [sortMode]="sortMode"></app-grammar-tree>
     </div>
 
     <div class="status" *ngIf="status">
@@ -141,6 +153,10 @@
     <button type="button" (click)="openFromMenu(menu.node, 'split')"
             [disabled]="panes.length >= 8">
       Open in split view
+    </button>
+    <button type="button" *ngIf="menu.node.level === 'section'"
+            (click)="sortSectionInFile(menu.node)">
+      Sort A–Z in file
     </button>
   </div>
 

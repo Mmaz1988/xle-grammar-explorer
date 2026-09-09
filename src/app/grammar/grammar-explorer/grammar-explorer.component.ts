@@ -8,8 +8,8 @@ import { GrammarStateService } from '../workspace/grammar-state.service';
 import { buildGroups, indexGrammar, type GrammarIndex, type GrammarUnit } from '../workspace/grammar-index';
 import { buildDefinitionIndex, lookup, type Definition, type DefinitionIndex } from '../workspace/definition-index';
 import { parseLfgFile } from '../lfg/lfg-parser';
-import { buildTree, canDrop, type GrammarNode } from '../grammar-tree/grammar-node';
-import { moveEntry } from '../lfg/lfg-move';
+import { buildTree, canDrop, type GrammarNode, type SortMode } from '../grammar-tree/grammar-node';
+import { moveEntry, movePermutation, reorderEntries, sortPermutation } from '../lfg/lfg-move';
 import type { CompletionEntry } from '../lfg/lfg-completion';
 import { GrammarEditorComponent, type GotoRequest } from '../grammar-editor/grammar-editor.component';
 import { GrammarTreeComponent } from '../grammar-tree/grammar-tree.component';
@@ -49,6 +49,8 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
   completions: CompletionEntry[] = [];
   tree: GrammarNode[] = [];
   filter = '';
+  /** Display order only; writing it to the file is a separate command. */
+  sortMode: SortMode = 'file';
 
   panes: EditorPane[] = [];
   /**
@@ -97,6 +99,7 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
     this.filter = saved.filter;
     this.splitFraction = saved.splitFraction;
     this.layout = saved.layout ?? 'rows';
+    this.sortMode = saved.sortMode ?? 'file';
 
     if (this.directory) {
       await this.load(await this.fs.useDirectory(this.directory));
@@ -106,7 +109,12 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    this.state.save({ filter: this.filter, splitFraction: this.splitFraction, layout: this.layout });
+    this.state.save({
+      filter: this.filter,
+      splitFraction: this.splitFraction,
+      layout: this.layout,
+      sortMode: this.sortMode,
+    });
     void this.persist();
   }
 
@@ -437,6 +445,91 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
     pane.dirty = text !== pane.saved;
     if (reveal) pane.reveal = { ...reveal };
     this.reindexFile(path, text);
+  }
+
+  /**
+   * Reorder an entry within its own section, dragged in the tree.
+   *
+   * Only reachable in file order with no filter, so "above this entry" is a real
+   * position in the file rather than a position in a view of it.
+   */
+  async reorderEntry(event: { source: GrammarNode; before?: GrammarNode }): Promise<void> {
+    const { source, before } = event;
+    this.error = '';
+    this.notice = '';
+    if (source.path === undefined) return;
+    const section = this.sectionContaining(source);
+    if (!section) return;
+    if (!(await this.ensureSaved(source.path))) return;
+
+    const entries = section.children;
+    const from = entries.indexOf(source);
+    const to = before ? entries.indexOf(before) : entries.length;
+    if (from < 0 || to < 0 || from === to) return;
+
+    const text = this.index?.all.get(source.path)?.text;
+    if (text === undefined) return;
+    const spans = entries.map((e) => e.span!).filter(Boolean);
+    if (spans.length !== entries.length) return;
+
+    const reordered = reorderEntries(text, spans, movePermutation(entries.length, from, to));
+    await this.stageEdit(source.path, reordered);
+    this.notice = `Moved ${source.name} within ${section.name}. Unsaved — review and save.`;
+  }
+
+  /**
+   * Write the alphabetical order into the file for one section.
+   *
+   * Separate from the A–Z *view* on purpose: looking at a lexicon alphabetically is a
+   * way of finding something and must not rewrite anything, while this rewrites and
+   * says so.
+   */
+  async sortSectionInFile(section: GrammarNode): Promise<void> {
+    this.menu = undefined;
+    this.error = '';
+    this.notice = '';
+    if (section.level !== 'section' || section.path === undefined) return;
+    if (!(await this.ensureSaved(section.path))) return;
+
+    const text = this.index?.all.get(section.path)?.text;
+    if (text === undefined) return;
+    // Take the section straight from the index: the tree may be showing a sorted or
+    // filtered view, which is not the order on disk.
+    const parsed = this.index?.all.get(section.path)?.sections
+      .find((s) => s.key === section.name && s.kind === section.sectionKind);
+    const entries = parsed?.entries ?? [];
+    if (entries.length < 2) return;
+
+    const sorted = reorderEntries(
+      text,
+      entries.map((e) => ({ start: e.start, end: e.end })),
+      sortPermutation(entries.map((e) => e.name)),
+    );
+    if (sorted === text) {
+      this.notice = `${section.name} is already in alphabetical order.`;
+      return;
+    }
+    await this.stageEdit(section.path, sorted);
+    this.notice = `Sorted ${section.name} alphabetically. Unsaved — review and save.`;
+  }
+
+  /** The section node holding `entry` in the current tree. */
+  private sectionContaining(entry: GrammarNode): GrammarNode | undefined {
+    for (const group of this.tree) {
+      for (const section of group.children) {
+        if (section.children.includes(entry)) return section;
+      }
+    }
+    return undefined;
+  }
+
+  /** Refuse to splice a file whose buffer has moved on from what the index holds. */
+  private async ensureSaved(path: string): Promise<boolean> {
+    if (this.panes.some((p) => p.path === path && p.dirty)) {
+      this.error = `Save ${path} before reordering its entries.`;
+      return false;
+    }
+    return true;
   }
 
   // --- row menu -------------------------------------------------------------

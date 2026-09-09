@@ -25,17 +25,22 @@ import { GrammarEditorComponent } from '../grammar-editor/grammar-editor.compone
 import { FsAccessService } from '../workspace/fs-access.service';
 import { WorkspaceStore } from '../workspace/workspace-store';
 
-const FILES: Record<string, string> = {
+/** Pristine fixture. Specs that save mutate their copy, never this. */
+const SOURCE_FILES: Record<string, string> = {
   'main.lfg': 'DEMO ENGLISH CONFIG (1.0)\n  ROOTCAT ROOT.\n  FILES rules.lfg lex.lfg.\n----\n',
   'rules.lfg': 'VERB ENGLISH RULES (1.0)\nVP --> V (NP).\nS --> NP VP.\n----\n',
   'lex.lfg': 'A ENGLISH LEXICON (1.0)\nhug V-S XLE @X.\n----\nB ENGLISH LEXICON (1.0)\nowl N * @Y.\n----\n',
 };
+
+/** Reset for every spec, so one that saves cannot leak into the next. */
+let FILES: Record<string, string>;
 
 describe('GrammarExplorerComponent', () => {
   let fixture: ComponentFixture<GrammarExplorerComponent>;
   let component: GrammarExplorerComponent;
 
   beforeEach(async () => {
+    FILES = { ...SOURCE_FILES };
     await TestBed.configureTestingModule({
       declarations: [GrammarExplorerComponent, GrammarTreeComponent, GrammarEditorComponent],
       imports: [CommonModule, FormsModule, MatTreeModule, MatIconModule, MatButtonModule],
@@ -226,6 +231,45 @@ describe('GrammarExplorerComponent', () => {
 
     expect(component.tree.find((g) => g.label === 'RULES')!.children[0].children.length)
       .withContext('nothing moved').toBe(section.children.length);
+  });
+
+  it('sorts the view without touching the file', async () => {
+    const lexicon = () => component.tree.find((g) => g.label === 'LEXICON')!;
+    const before = FILES['lex.lfg'];
+
+    component.sortMode = 'alpha';
+    fixture.detectChanges();
+
+    // The tree is a view; the model and the file both keep their own order.
+    expect(FILES['lex.lfg']).withContext('a sorted view writes nothing').toBe(before);
+    expect(component.dirtyPanes.length).toBe(0);
+    expect(lexicon()).toBeTruthy();
+  });
+
+  it('writes alphabetical order into the file only when asked', async () => {
+    const lexicon = component.tree.find((g) => g.label === 'LEXICON')!;
+    const section = lexicon.children.find((s) => s.label === 'B ENGLISH')!;
+    // Give the section something to sort.
+    await component.dropEntry({
+      source: lexicon.children.find((s) => s.label === 'A ENGLISH')!.children[0],
+      target: section,
+      copy: false,
+    });
+    fixture.detectChanges();
+    for (const pane of component.dirtyPanes.slice()) await component.save(pane);
+    fixture.detectChanges();
+
+    const target = component.tree.find((g) => g.label === 'LEXICON')!
+      .children.find((s) => s.label === 'B ENGLISH')!;
+    expect(target.children.map((e) => e.name)).toEqual(['owl', 'hug']);
+
+    await component.sortSectionInFile(target);
+    fixture.detectChanges();
+
+    const after = component.tree.find((g) => g.label === 'LEXICON')!
+      .children.find((s) => s.label === 'B ENGLISH')!;
+    expect(after.children.map((e) => e.name)).toEqual(['hug', 'owl']);
+    expect(component.dirtyPanes.length).withContext('staged, not written').toBeGreaterThan(0);
   });
 
   it('keeps one editor per pane after splitting', async () => {

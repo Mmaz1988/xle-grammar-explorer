@@ -111,3 +111,6 @@
 /* Sections that cannot take the entry being dragged — a lexical entry has no business
    in a RULES section — are dimmed rather than silently inert. */
 .row.drop-rejects { opacity: .4; }
+
+/* Where a reordered entry would land. */
+.row.insert-above { box-shadow: inset 0 2px 0 #00a9e0; }
