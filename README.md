@@ -20,8 +20,11 @@ npm install
 npm start          # http://localhost:4200
 ```
 
-Then click **Open grammar folder…** and pick a grammar directory, e.g.
-`grammars/dev/lfgxdrt_inference_grammar`.
+Then click **Open folder…** and pick a directory, e.g. `grammars/dev`. A folder may
+hold several grammars — `grammars/dev` holds two — so a selector above the tree chooses
+which one to view. **Open file…** opens a single `.lfg`/`.lfg.glue` directly; that works
+fully for a self-contained grammar, and for a multi-file one the app says so and offers
+to open the containing folder instead.
 
 **Chrome or Edge only.** The app reads and writes files directly through the File
 System Access API, which Firefox and Safari do not implement. There is no server and
@@ -99,6 +102,22 @@ One wrinkle: a `.glue` grammar's own CONFIG `FILES` block still lists `.lfg` pat
 because the compiler does not rewrite the names it emits. The explorer works around
 this by preferring an `X.lfg.glue` sibling whenever one exists. Fixing it upstream in
 LiGER would make that preference a no-op rather than break it.
+
+## Performance notes
+
+Parsing is not the bottleneck and never was: indexing the entire corpus (71 files,
+500 KB, 3444 entries) takes **21 ms**, and one grammar about 13 ms. The cost is all in
+rendering, and two things keep it bounded:
+
+- **Tree children are rendered lazily** (`*ngIf` on the outlet, not a CSS class).
+  Angular Material's nested tree renders children into the outlet as soon as the parent
+  renders — the usual examples merely hide them with CSS — so a grammar with ~1300
+  entries instantiated every node at once and froze the tab. Only expanded subtrees are
+  built now: opening a grammar renders 2-6 nodes, and expanding a 200-entry section
+  costs ~100 ms.
+- **Filter expansion is capped** at 300 entries. A filter matching most of a grammar
+  would otherwise re-create the same freeze; past the cap the tree expands to section
+  level and says so.
 
 ## Status
 

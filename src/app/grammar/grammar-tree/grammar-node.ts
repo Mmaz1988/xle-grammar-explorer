@@ -7,7 +7,7 @@
  */
 
 import type { EntryKind, LfgEntry, LfgFile, LfgSection, SectionKind } from '../lfg/lfg-model';
-import type { GrammarIndex } from '../workspace/grammar-index';
+import type { GrammarUnit } from '../workspace/grammar-index';
 
 export type NodeLevel = 'group' | 'section' | 'entry';
 
@@ -94,9 +94,9 @@ function sectionNode(section: LfgSection, file: LfgFile): GrammarNode {
   };
 }
 
-/** Turn an index into the tree the UI binds to. */
-export function buildTree(index: GrammarIndex): GrammarNode[] {
-  return index.groups.map((group) => {
+/** Turn one grammar into the tree the UI binds to. */
+export function buildTree(unit: GrammarUnit): GrammarNode[] {
+  return unit.groups.map((group) => {
     const children = group.sections.map(({ section, file }) => sectionNode(section, file));
     const total = children.reduce((n, c) => n + c.children.length, 0);
     return {
@@ -136,6 +136,6 @@ export function filterTree(nodes: GrammarNode[], query: string): GrammarNode[] {
   return nodes.map(walk).filter((n): n is GrammarNode => n !== undefined);
 }
 
-function countEntries(nodes: GrammarNode[]): number {
+export function countEntries(nodes: GrammarNode[]): number {
   return nodes.reduce((n, c) => n + (c.level === 'entry' ? 1 : countEntries(c.children)), 0);
 }

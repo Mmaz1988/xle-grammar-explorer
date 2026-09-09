@@ -1,7 +1,8 @@
 import { Component, EventEmitter, Input, OnDestroy, OnInit, Output } from '@angular/core';
 import { FsAccessService } from '../workspace/fs-access.service';
 import { GrammarStateService } from '../workspace/grammar-state.service';
-import { indexGrammar, type GrammarIndex, type GrammarSource } from '../workspace/grammar-index';
+import { buildGroups, indexGrammar, type GrammarIndex, type GrammarUnit } from '../workspace/grammar-index';
+import type { PickedGrammar } from '../workspace/fs-access.service';
 import { parseLfgFile } from '../lfg/lfg-parser';
 import { buildTree, type GrammarNode } from '../grammar-tree/grammar-node';
 
@@ -28,6 +29,8 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
 
   supported = FsAccessService.isSupported();
   index?: GrammarIndex;
+  /** The grammar currently shown. A folder may contain several. */
+  active?: GrammarUnit;
   tree: GrammarNode[] = [];
   filter = '';
 
@@ -68,7 +71,7 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
     });
   }
 
-  async pick(): Promise<void> {
+  async pickFolder(): Promise<void> {
     this.error = '';
     try {
       const picked = await this.fs.pickDirectory();
@@ -78,29 +81,51 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
     }
   }
 
-  private async load(picked: { name: string; source: GrammarSource }): Promise<void> {
+  async pickFile(): Promise<void> {
+    this.error = '';
+    try {
+      const picked = await this.fs.pickFile();
+      if (picked) await this.load(picked);
+    } catch (err) {
+      this.error = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  private async load(picked: PickedGrammar): Promise<void> {
     this.busy = true;
     this.status = 'Reading grammar…';
     try {
       const index = await indexGrammar(picked.source, picked.name);
       this.index = index;
-      this.tree = buildTree(index);
       this.openPath = '';
       this.openContent = '';
       this.selected = undefined;
       this.dirty = false;
+      // Prefer a real grammar over the unreferenced-files bucket as the initial view.
+      this.selectGrammar(index.grammars.find((g) => g.kind === 'grammar') ?? index.grammars[0]);
 
       const hidden = [...index.all.values()].filter((f) => f.shadowed).length;
+      const real = index.grammars.filter((g) => g.kind === 'grammar').length;
       this.status =
-        `${index.files.length} file(s)` +
-        (hidden ? `, ${hidden} generated .lfg hidden` : '') +
-        (index.warnings.length ? `, ${index.warnings.length} warning(s)` : '');
+        `${real} grammar${real === 1 ? '' : 's'}` +
+        (hidden ? `, ${hidden} generated .lfg hidden` : '');
       this.grammarOpened.emit(index);
     } catch (err) {
       this.error = err instanceof Error ? err.message : String(err);
     } finally {
       this.busy = false;
     }
+  }
+
+  /** Switch which grammar the tree shows. */
+  selectGrammar(unit: GrammarUnit | undefined): void {
+    this.active = unit;
+    this.tree = unit ? buildTree(unit) : [];
+  }
+
+  /** Bound to the selector; `id` identifies the grammar. */
+  onGrammarChange(id: string): void {
+    this.selectGrammar(this.index?.grammars.find((g) => g.id === id));
   }
 
   /**
@@ -151,12 +176,17 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
         reparsed.shadowed = file.shadowed;
         reparsed.unreferenced = file.unreferenced;
         this.index.all.set(this.openPath, reparsed);
-        const i = this.index.files.findIndex((f) => f.path === this.openPath);
-        if (i >= 0) this.index.files[i] = reparsed;
-        // Rebuild from the visible files so section counts and offsets follow the edit.
-        const { buildGroups } = await import('../workspace/grammar-index');
-        this.index.groups = buildGroups(this.index.files);
-        this.tree = buildTree(this.index);
+        // Refresh every grammar holding this file — a shared templates file can belong
+        // to more than one — so section counts and entry offsets follow the edit.
+        for (const unit of this.index.grammars) {
+          const i = unit.files.findIndex((f) => f.path === this.openPath);
+          if (i < 0) continue;
+          unit.files[i] = reparsed;
+          unit.groups = buildGroups(unit.files);
+          unit.entryCount = unit.files.reduce(
+            (n, f) => n + f.sections.reduce((m, s) => m + s.entries.length, 0), 0);
+        }
+        if (this.active) this.tree = buildTree(this.active);
       }
       this.status = `Saved ${this.openPath}`;
     } catch (err) {

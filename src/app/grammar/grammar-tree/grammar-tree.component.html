@@ -1,6 +1,14 @@
+<!--
+  Say so when a filter matched more than we were willing to expand at once, rather than
+  leaving a half-open tree looking arbitrary.
+-->
+<p class="expand-note" *ngIf="truncatedExpansion">
+  Too many matches to expand at once — open a section to see the rest.
+</p>
+
 <mat-tree [dataSource]="dataSource" [treeControl]="treeControl" class="grammar-tree">
 
-  <mat-tree-node *matTreeNodeDef="let node" matTreeNodeToggle class="leaf">
+  <mat-tree-node *matTreeNodeDef="let node" class="leaf">
     <button type="button"
             class="row"
             [class.selected]="isSelected(node)"
@@ -14,7 +22,7 @@
 
   <mat-nested-tree-node *matTreeNodeDef="let node; when: hasChild">
     <div class="branch">
-      <button type="button" mat-icon-button matTreeNodeToggle class="twisty"
+      <button type="button" class="twisty" matTreeNodeToggle
               [attr.aria-label]="'toggle ' + node.label">
         <mat-icon>{{ treeControl.isExpanded(node) ? 'expand_more' : 'chevron_right' }}</mat-icon>
       </button>
@@ -30,7 +38,17 @@
         <span class="badge" *ngIf="node.badge">{{ node.badge }}</span>
       </button>
     </div>
-    <div class="children" [class.hidden]="!treeControl.isExpanded(node)" role="group">
+
+    <!--
+      *ngIf, not a CSS class. Material's nested tree renders children into the outlet
+      as soon as the parent renders and the usual examples merely hide them with CSS,
+      which means opening a grammar instantiates every entry at once — ~1300 nodes for
+      lfgxdrt_inference_grammar, enough to freeze the tab. Creating the outlet only
+      while expanded keeps the rendered node count to what is actually on screen.
+      CdkNestedTreeNode subscribes to its outlet QueryList, so children appear
+      correctly when the outlet is created later.
+    -->
+    <div class="children" *ngIf="treeControl.isExpanded(node)" role="group">
       <ng-container matTreeNodeOutlet></ng-container>
     </div>
   </mat-nested-tree-node>

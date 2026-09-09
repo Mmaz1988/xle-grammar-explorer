@@ -1,14 +1,14 @@
 /**
  * Builds the working tree for a grammar directory.
  *
- * Two jobs beyond parsing individual files:
+ * The unit of organisation is a **CONFIG section, not a directory**. A folder can hold
+ * several unrelated grammars — `grammars/dev` holds two (a loose single-file grammar
+ * and a 15-file one in a subdirectory), and `grammars-fstr-notation` holds four — so
+ * indexing produces a list of grammars, each with its own file closure and section
+ * tree, rather than one merged pile.
  *
- *  - decide which files belong to the grammar, by following each CONFIG's `FILES`
- *    list and falling back to a folder scan for anything no config reaches;
- *  - decide which files a human should *see*, which is not the same set.
- *
- * File access is abstracted behind {@link GrammarSource} so the same logic runs
- * against the File System Access API in the browser and against `node:fs` in tests.
+ * File access is abstracted behind {@link GrammarSource} so the same logic runs against
+ * the File System Access API in the browser and against `node:fs` in tests.
  */
 
 import { parseLfgFile } from '../lfg/lfg-parser';
@@ -21,32 +21,49 @@ export interface GrammarSource {
   readFile(path: string): Promise<string>;
 }
 
-export interface GrammarIndex {
-  /** Display name of the grammar, normally the directory name. */
-  name: string;
-  /**
-   * `glue` when the directory contains any `.lfg.glue`. In glue mode the `.lfg` files
-   * are compiler output and are hidden.
-   */
-  mode: 'glue' | 'lfg';
-  /** Files a human should see, in path order. */
-  files: LfgFile[];
-  /** Every parsed file including hidden ones, keyed by path. */
-  all: Map<string, LfgFile>;
-  /** The section tree, grouped by section kind then by named section. */
-  groups: SectionGroup[];
-  warnings: string[];
-}
-
 export interface SectionGroup {
   kind: SectionKind;
   sections: Array<{ section: LfgSection; file: LfgFile }>;
 }
 
+/**
+ * One grammar: a CONFIG section plus the transitive closure of its `FILES` list.
+ *
+ * `kind: 'unreferenced'` is the catch-all for files no CONFIG reaches — a real case
+ * (`kascha/xleplusglue-default-testfile.lfg`), kept visible without being folded into a
+ * grammar it is not part of.
+ */
+export interface GrammarUnit {
+  id: string;
+  name: string;
+  kind: 'grammar' | 'unreferenced';
+  mode: 'glue' | 'lfg';
+  mainPath?: string;
+  configKey?: string;
+  files: LfgFile[];
+  groups: SectionGroup[];
+  entryCount: number;
+  /**
+   * True when the grammar's `FILES` list could not be resolved — the case where a
+   * single file was opened directly and there is no access to its containing folder.
+   */
+  partial?: boolean;
+  /** Paths listed in FILES that could not be found. */
+  missing: string[];
+}
+
+export interface GrammarIndex {
+  /** Name of what was opened (the folder, or the file for a direct file open). */
+  name: string;
+  grammars: GrammarUnit[];
+  /** Every parsed file including hidden ones, keyed by path. */
+  all: Map<string, LfgFile>;
+  warnings: string[];
+}
+
 /** Order the tree shows section kinds in — configuration first, then the big three. */
 const GROUP_ORDER: SectionKind[] = ['CONFIG', 'RULES', 'TEMPLATES', 'LEXICON', 'MORPHOLOGY', 'FEATURES'];
 
-/** Directory part of a relative path, '' for a top-level file. */
 function dirOf(path: string): string {
   const i = path.lastIndexOf('/');
   return i < 0 ? '' : path.slice(0, i);
@@ -68,13 +85,12 @@ export function resolvePath(base: string, rel: string): string {
  * Resolve a path as listed in a CONFIG `FILES` block.
  *
  * A `.lfg.glue` grammar still lists `.lfg` paths in its own FILES block, because the
- * two variants are byte-identical for any file that carries no glue premises and the
- * compiler does not rewrite the list. So prefer an `X.lfg.glue` sibling whenever one
- * exists, and fall back to the literal path otherwise.
+ * two variants are byte-identical for any file carrying no glue premises and the
+ * compiler does not rewrite the list. So prefer an `X.lfg.glue` sibling when one
+ * exists, and fall back to the literal path.
  *
  * (Fixing this upstream — having `-glue2lfg` rewrite the names it emits — would make
- * this a no-op rather than break it, since the preference simply stops finding
- * anything to rewrite. That work lives in LiGER and is deliberately out of scope.)
+ * this preference a no-op rather than break it. That work lives in LiGER, out of scope.)
  */
 export function resolveConfigFile(base: string, rel: string, exists: (p: string) => boolean): string | undefined {
   const direct = resolvePath(base, rel);
@@ -84,15 +100,32 @@ export function resolveConfigFile(base: string, rel: string, exists: (p: string)
   return undefined;
 }
 
+/**
+ * Name a grammar the way a person would refer to it.
+ *
+ * The CONFIG key is unusable on its own: `grammars-fstr-notation` holds four distinct
+ * grammars all keyed `GLUE BASIC`. So use the containing subdirectory when the grammar
+ * has one to itself, and the main file's basename otherwise. Checked against all ten
+ * grammars in the corpus, this produces the expected name for each.
+ */
+export function nameGrammar(mainPath: string, files: string[]): string {
+  const dirs = new Set(files.map(dirOf));
+  const mainDir = dirOf(mainPath);
+  if (mainDir !== '' && [...dirs].every((d) => d === mainDir || d.startsWith(`${mainDir}/`))) {
+    const segments = mainDir.split('/');
+    return segments[segments.length - 1];
+  }
+  const base = mainPath.slice(mainPath.lastIndexOf('/') + 1);
+  return base.replace(/\.lfg(\.glue)?$/, '');
+}
+
 export async function indexGrammar(source: GrammarSource, name = 'grammar'): Promise<GrammarIndex> {
   const paths = (await source.listFiles()).slice().sort();
   const present = new Set(paths);
   const warnings: string[] = [];
 
-  const mode: 'glue' | 'lfg' = paths.some((p) => p.endsWith('.lfg.glue')) ? 'glue' : 'lfg';
-
-  // A `.lfg` with a `.lfg.glue` sibling is generated output. Hide it: it is regenerated
-  // by `-glue2lfg` on the next grammar load, and editing it would be lost.
+  // A `.lfg` with a `.lfg.glue` sibling is compiler output. Hide it: it is regenerated
+  // by `-glue2lfg` on the next grammar load, so an edit to it would be lost.
   const shadowed = new Set(paths.filter((p) => p.endsWith('.lfg') && present.has(`${p}.glue`)));
 
   const all = new Map<string, LfgFile>();
@@ -103,55 +136,113 @@ export async function indexGrammar(source: GrammarSource, name = 'grammar'): Pro
     for (const d of file.diagnostics ?? []) warnings.push(`${path}: ${d}`);
   }
 
-  // Walk the FILES graph from every config-bearing file. Transitive, because an
-  // included file may itself carry a CONFIG.
-  const reachable = new Set<string>();
-  const queue: string[] = [];
-  for (const [path, file] of all) {
-    if (shadowed.has(path)) continue;
-    if (file.sections.some((s) => s.kind === 'CONFIG')) {
-      reachable.add(path);
-      queue.push(path);
+  const visible = paths.filter((p) => !shadowed.has(p));
+  const grammars: GrammarUnit[] = [];
+  const covered = new Set<string>();
+
+  // One grammar per CONFIG section, each taking the transitive closure of its FILES.
+  for (const path of visible) {
+    for (const section of all.get(path)!.sections) {
+      if (section.kind !== 'CONFIG') continue;
+      const { closure, missing } = closureOf(path, section.key, all, present, shadowed);
+      for (const f of closure) covered.add(f);
+
+      const files = [...closure].sort().map((p) => all.get(p)!);
+      const listed = section.config?.find((f) => f.keyword === 'FILES')?.items ?? [];
+      grammars.push(makeUnit({
+        id: `${path}::${section.key}`,
+        name: nameGrammar(path, [...closure]),
+        kind: 'grammar',
+        mainPath: path,
+        configKey: section.key,
+        files,
+        // Every listed include failed to resolve: this is a file opened without access
+        // to its folder, not a broken grammar.
+        partial: listed.length > 0 && missing.length === listed.length,
+        missing,
+      }));
+      for (const m of missing) warnings.push(`${path}: FILES lists "${m}", which was not found`);
     }
   }
+
+  // Disambiguate grammars that ended up sharing a name (two CONFIGs in one file).
+  const counts = new Map<string, number>();
+  for (const g of grammars) counts.set(g.name, (counts.get(g.name) ?? 0) + 1);
+  for (const g of grammars) {
+    if ((counts.get(g.name) ?? 0) > 1 && g.configKey) g.name = `${g.name} (${g.configKey})`;
+  }
+
+  const orphans = visible.filter((p) => !covered.has(p));
+  if (grammars.length === 0 && orphans.length > 0) {
+    // No CONFIG anywhere — e.g. someone picked `lexica/`. Fall back to treating the
+    // whole folder as one implicit grammar, which is the folder-scan path.
+    grammars.push(makeUnit({
+      id: 'implicit',
+      name,
+      kind: 'grammar',
+      files: orphans.map((p) => all.get(p)!),
+      missing: [],
+    }));
+  } else if (orphans.length > 0) {
+    for (const p of orphans) all.get(p)!.unreferenced = true;
+    grammars.push(makeUnit({
+      id: 'unreferenced',
+      name: `Unreferenced files (${orphans.length})`,
+      kind: 'unreferenced',
+      files: orphans.map((p) => all.get(p)!),
+      missing: [],
+    }));
+  }
+
+  return { name, grammars, all, warnings };
+}
+
+function makeUnit(init: Omit<GrammarUnit, 'groups' | 'entryCount' | 'mode'>): GrammarUnit {
+  const groups = buildGroups(init.files);
+  return {
+    ...init,
+    groups,
+    mode: init.files.some((f) => f.path.endsWith('.lfg.glue')) ? 'glue' : 'lfg',
+    entryCount: init.files.reduce((n, f) => n + f.sections.reduce((m, s) => m + s.entries.length, 0), 0),
+  };
+}
+
+/** Transitive FILES closure starting from one CONFIG section. */
+function closureOf(
+  mainPath: string,
+  key: string,
+  all: Map<string, LfgFile>,
+  present: Set<string>,
+  shadowed: Set<string>,
+): { closure: Set<string>; missing: string[] } {
+  const closure = new Set<string>([mainPath]);
+  const missing: string[] = [];
+  const queue = [mainPath];
+  let first = true;
   while (queue.length) {
     const path = queue.shift()!;
-    const file = all.get(path)!;
-    for (const section of file.sections) {
+    for (const section of all.get(path)!.sections) {
       if (section.kind !== 'CONFIG') continue;
-      const files = section.config?.find((f) => f.keyword === 'FILES');
-      for (const rel of files?.items ?? []) {
-        const target = resolveConfigFile(dirOf(path), rel, (p) => present.has(p));
-        if (!target) {
-          warnings.push(`${path}: FILES lists "${rel}", which does not exist`);
-          continue;
-        }
-        if (!reachable.has(target)) {
-          reachable.add(target);
-          queue.push(target);
-        }
+      // Only the originating CONFIG defines this grammar's extent; a different CONFIG
+      // in the same file belongs to a different grammar.
+      if (first && section.key !== key) continue;
+      for (const rel of section.config?.find((f) => f.keyword === 'FILES')?.items ?? []) {
+        const target = resolveConfigFile(dirOf(path), rel, (p) => present.has(p) && !shadowed.has(p));
+        if (!target) { missing.push(rel); continue; }
+        if (!closure.has(target)) { closure.add(target); queue.push(target); }
       }
     }
+    first = false;
   }
-
-  const visible: LfgFile[] = [];
-  for (const path of paths) {
-    if (shadowed.has(path)) continue;
-    const file = all.get(path)!;
-    if (!reachable.has(path)) file.unreferenced = true;
-    visible.push(file);
-  }
-
-  return { name, mode, files: visible, all, groups: buildGroups(visible), warnings };
+  return { closure, missing };
 }
 
 /**
- * Group sections by kind, then by the order they were found.
+ * Group a grammar's sections by kind.
  *
  * This is the inversion the app exists for: a grammar's logical structure is its
  * sections, not its files. `VERB ENGLISH LEXICON` and `NOUN ENGLISH LEXICON` sit
- * together under LEXICON even though they live in different files, and the file
- * becomes a tag on the section rather than the thing you navigate.
+ * together under LEXICON even though they live in different files.
  */
 export function buildGroups(files: LfgFile[]): SectionGroup[] {
   const byKind = new Map<SectionKind, SectionGroup['sections']>();

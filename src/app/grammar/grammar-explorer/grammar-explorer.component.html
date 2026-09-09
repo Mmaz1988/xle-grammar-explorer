@@ -2,17 +2,40 @@
 
   <div class="pane left" [style.flex-basis.%]="splitFraction * 100">
     <div class="toolbar">
-      <button type="button" class="primary" (click)="pick()" [disabled]="busy || !supported">
-        Open grammar folder…
+      <button type="button" class="primary" (click)="pickFolder()" [disabled]="busy || !supported">
+        Open folder…
       </button>
-      <span class="name" *ngIf="index" [title]="index.name">{{ index.name }}</span>
-      <span class="mode" *ngIf="index">{{ index.mode }}</span>
+      <button type="button" (click)="pickFile()" [disabled]="busy || !supported">
+        Open file…
+      </button>
     </div>
 
     <p class="unsupported" *ngIf="!supported">
-      This browser cannot open a local folder. The File System Access API is
+      This browser cannot open local files. The File System Access API is
       available in Chrome and Edge.
     </p>
+
+    <div class="grammar-select" *ngIf="index && index.grammars.length">
+      <label for="grammar">Grammar</label>
+      <select id="grammar"
+              [ngModel]="active?.id"
+              (ngModelChange)="onGrammarChange($event)">
+        <option *ngFor="let g of index.grammars" [value]="g.id">
+          {{ g.name }}{{ g.kind === 'grammar' ? ' (' + g.files.length + ' file' + (g.files.length === 1 ? '' : 's') + ')' : '' }}
+        </option>
+      </select>
+      <span class="mode" *ngIf="active && active.kind === 'grammar'">{{ active.mode }}</span>
+    </div>
+
+    <!--
+      A grammar opened as a single file cannot resolve its own FILES list, because a
+      file handle gives no access to the containing folder. Say so, and offer the fix.
+    -->
+    <div class="partial" *ngIf="active?.partial">
+      This grammar includes {{ active?.missing?.length }} other file(s), which cannot be
+      read without access to the containing folder.
+      <button type="button" (click)="pickFolder()">Open the folder instead</button>
+    </div>
 
     <input class="filter"
            type="search"
@@ -27,7 +50,9 @@
                         (entrySelected)="openNode($event)"></app-grammar-tree>
     </div>
 
-    <div class="status" *ngIf="status">{{ status }}</div>
+    <div class="status" *ngIf="status">
+      {{ status }}<span *ngIf="active && active.kind === 'grammar'">, {{ active.entryCount }} entries</span>
+    </div>
     <details class="warnings" *ngIf="index && index.warnings.length">
       <summary>{{ index.warnings.length }} warning(s)</summary>
       <ul><li *ngFor="let w of index.warnings">{{ w }}</li></ul>

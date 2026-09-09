@@ -26,8 +26,11 @@ const IGNORED_DIR_SUFFIX = '.fileindexdir';
 
 export interface PickedGrammar {
   name: string;
-  handle: FileSystemDirectoryHandle;
   source: GrammarSource;
+  /** Absent when a single file was opened directly rather than a folder. */
+  handle?: FileSystemDirectoryHandle;
+  /** True when only one file was opened, so `FILES` includes cannot be resolved. */
+  singleFile?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -65,6 +68,51 @@ export class FsAccessService {
       throw err;
     }
     return this.useDirectory(handle);
+  }
+
+  /**
+   * Ask the user for a single grammar file.
+   *
+   * A file handle carries no access to its parent directory, so a multi-file grammar
+   * opened this way cannot resolve its own `FILES` list. That is surfaced rather than
+   * hidden: the resulting grammar is marked `partial`, and the UI offers to open the
+   * containing folder instead. A self-contained grammar (`FILES .`) works fully,
+   * including save.
+   */
+  async pickFile(): Promise<PickedGrammar | undefined> {
+    if (!FsAccessService.isSupported()) {
+      throw new Error(
+        'This browser cannot open a local file this way. The File System Access API is available in Chrome and Edge.',
+      );
+    }
+    const picker = (globalThis as unknown as {
+      showOpenFilePicker(o?: unknown): Promise<FileSystemFileHandle[]>;
+    }).showOpenFilePicker;
+
+    let handles: FileSystemFileHandle[];
+    try {
+      handles = await picker({
+        multiple: false,
+        types: [{ description: 'XLE grammar', accept: { 'text/plain': ['.lfg', '.glue'] } }],
+      });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return undefined;
+      throw err;
+    }
+    const handle = handles[0];
+    if (!handle) return undefined;
+
+    this.root = undefined;
+    this.handles.clear();
+    this.handles.set(handle.name, handle);
+    return {
+      name: handle.name,
+      singleFile: true,
+      source: {
+        listFiles: async () => [handle.name],
+        readFile: (path) => this.readFile(path),
+      },
+    };
   }
 
   /** Adopt an already-granted directory handle (e.g. one restored from IndexedDB). */

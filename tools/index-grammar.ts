@@ -33,18 +33,21 @@ const source: GrammarSource = {
 };
 
 indexGrammar(source, relative(ROOT, dir)).then((index) => {
-  console.log(`\n${index.name}   [${index.mode}]`);
-  const hidden = [...index.all.values()].filter((f) => f.shadowed);
-  console.log(`  ${index.files.length} visible file(s), ${hidden.length} hidden as generated .lfg\n`);
+  const hidden = [...index.all.values()].filter((f) => f.shadowed).length;
+  console.log(`\n${index.name}`);
+  console.log(`  ${index.grammars.length} grammar(s), ${hidden} hidden as generated .lfg\n`);
 
-  for (const group of index.groups) {
-    console.log(`  ${group.kind}`);
-    for (const { section, file } of group.sections) {
-      const flag = file.unreferenced ? '  [unreferenced]' : '';
-      console.log(`    ${section.key}  (${section.entries.length})   ${file.path}:${section.line}${flag}`);
-      if (showEntries) {
-        for (const e of section.entries) {
-          console.log(`        ${(e.display ?? e.name)}`);
+  for (const unit of index.grammars) {
+    const tag = unit.kind === 'unreferenced' ? '' : `  [${unit.mode}]`;
+    console.log(`  ${unit.name}${tag}   ${unit.files.length} file(s), ${unit.entryCount} entries` +
+      (unit.partial ? '   [partial: FILES unresolved]' : ''));
+    if (unit.mainPath) console.log(`    main: ${unit.mainPath}   config: ${unit.configKey}`);
+    for (const group of unit.groups) {
+      console.log(`    ${group.kind}`);
+      for (const { section, file } of group.sections) {
+        console.log(`      ${section.key}  (${section.entries.length})   ${file.path}:${section.line}`);
+        if (showEntries) {
+          for (const e of section.entries) console.log(`          ${e.display ?? e.name}`);
         }
       }
     }

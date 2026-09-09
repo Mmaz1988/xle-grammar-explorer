@@ -51,5 +51,20 @@
    would load, which is usually a mistake worth seeing. */
 .unreferenced .label { opacity: .55; font-style: italic; }
 
-.twisty { width: 20px; height: 20px; line-height: 20px; flex: none; }
+.twisty {
+  width: 20px; height: 20px; flex: none;
+  border: 0; background: none; padding: 0; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
 .twisty mat-icon { font-size: 16px; width: 16px; height: 16px; color: #7c8ba1; }
+
+.expand-note {
+  margin: 0 0 6px;
+  padding: 4px 8px;
+  font-family: Roboto, sans-serif;
+  font-size: 11px;
+  color: #7a5b00;
+  background: #fff8e1;
+  border: 1px solid #ffe0a3;
+  border-radius: 3px;
+}
