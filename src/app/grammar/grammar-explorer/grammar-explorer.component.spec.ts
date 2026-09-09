@@ -1,0 +1,93 @@
+/**
+ * Change-detection stability tests.
+ *
+ * These exist because of a specific bug class the Node tests structurally cannot see.
+ * The pane arrangement was once computed by a getter, so `*ngFor` received freshly
+ * built arrays on every change-detection pass, destroyed every pane and rebuilt its
+ * editor — and a rebuilt editor focuses itself, which schedules the next pass. Inside
+ * Angular's zone that is an infinite loop; outside it, where scripted tests run,
+ * nothing happens at all. Only a test that runs real change detection catches it.
+ *
+ * Two independent things now prevent it: the arrangement is a stored field rather than
+ * a getter, and the `*ngFor` over columns has a `trackBy`. Either alone is enough, so
+ * the identity test below is what actually fails if the field becomes a getter again.
+ */
+
+import { TestBed, type ComponentFixture } from '@angular/core/testing';
+import { FormsModule } from '@angular/forms';
+import { MatTreeModule } from '@angular/material/tree';
+import { MatIconModule } from '@angular/material/icon';
+import { MatButtonModule } from '@angular/material/button';
+import { CommonModule } from '@angular/common';
+import { GrammarExplorerComponent } from './grammar-explorer.component';
+import { GrammarTreeComponent } from '../grammar-tree/grammar-tree.component';
+import { GrammarEditorComponent } from '../grammar-editor/grammar-editor.component';
+import { FsAccessService } from '../workspace/fs-access.service';
+
+const FILES: Record<string, string> = {
+  'main.lfg': 'DEMO ENGLISH CONFIG (1.0)\n  ROOTCAT ROOT.\n  FILES rules.lfg.\n----\n',
+  'rules.lfg': 'VERB ENGLISH RULES (1.0)\nVP --> V (NP).\nS --> NP VP.\n----\n',
+};
+
+describe('GrammarExplorerComponent', () => {
+  let fixture: ComponentFixture<GrammarExplorerComponent>;
+  let component: GrammarExplorerComponent;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      declarations: [GrammarExplorerComponent, GrammarTreeComponent, GrammarEditorComponent],
+      imports: [CommonModule, FormsModule, MatTreeModule, MatIconModule, MatButtonModule],
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(GrammarExplorerComponent);
+    component = fixture.componentInstance;
+
+    const fs = TestBed.inject(FsAccessService);
+    spyOn(fs, 'readFile').and.callFake(async (p: string) => FILES[p]);
+
+    fixture.detectChanges();
+    await component['load']({
+      name: 'test',
+      source: { listFiles: async () => Object.keys(FILES), readFile: async (p) => FILES[p] },
+    });
+    fixture.detectChanges();
+  });
+
+  function openFirstRule(): Promise<void> {
+    const rules = component.tree.find((g) => g.label === 'RULES')!;
+    return component.openNode(rules.children[0].children[0]);
+  }
+
+  it('does not rebuild editors on repeated change detection', async () => {
+    await openFirstRule();
+    fixture.detectChanges();
+
+    const editor = fixture.nativeElement.querySelector('.cm-editor');
+    expect(editor).withContext('an editor should be rendered').toBeTruthy();
+
+    for (let i = 0; i < 5; i++) fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('.cm-editor'))
+      .withContext('the same editor DOM node must survive change detection')
+      .toBe(editor);
+  });
+
+  it('keeps the column arrangement identical between reads', async () => {
+    await openFirstRule();
+    component.splitPane();
+    fixture.detectChanges();
+    // A getter would fail this, and a getter is what caused the loop.
+    expect(component.columns).toBe(component.columns);
+    expect(component.columns[0]).toBe(component.columns[0]);
+  });
+
+  it('keeps one editor per pane after splitting', async () => {
+    await openFirstRule();
+    component.splitPane();
+    component.setLayout('grid');
+    fixture.detectChanges();
+
+    expect(component.panes.length).toBe(2);
+    expect(fixture.nativeElement.querySelectorAll('.cm-editor').length).toBe(2);
+  });
+});

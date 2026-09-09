@@ -78,7 +78,7 @@
     </p>
 
     <div class="panes" *ngIf="panes.length">
-      <ng-container *ngFor="let column of columns; let c = index">
+      <ng-container *ngFor="let column of columns; let c = index; trackBy: trackColumn">
         <div class="col-divider" *ngIf="c > 0"
              (mousedown)="startDrag($event, { axis: 'col', i: c - 1 })" title="Drag to resize"></div>
         <div class="pane-column" [style.flex-basis.%]="columnWidth(c)">

@@ -103,7 +103,10 @@ export class GrammarEditorComponent implements AfterViewInit, OnChanges, OnDestr
             if (update.docChanged && !this.applying) {
               this.contentChange.emit(update.state.doc.toString());
             }
-            if (update.focusChanged && update.view.hasFocus) {
+            // Only announce a real change of focus, and only into a pane that is not
+            // already the active one; an unconditional emit here feeds change detection
+            // on every click inside the editor.
+            if (update.focusChanged && update.view.hasFocus && !this.active) {
               this.focused.emit();
             }
           }),
@@ -181,6 +184,8 @@ export class GrammarEditorComponent implements AfterViewInit, OnChanges, OnDestr
       selection: { anchor: from, head: to },
       effects: EditorView.scrollIntoView(from, { y: 'start', yMargin: 40 }),
     });
-    view.focus();
+    // Taking focus is only right for the pane the user is working in. Doing it
+    // unconditionally means several panes fight over focus as they render.
+    if (this.active) view.focus();
   }
 }

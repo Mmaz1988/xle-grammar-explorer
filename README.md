@@ -76,9 +76,19 @@ own parse budget never fires and the run just hangs.
 
 ### Two test conventions
 
-- `*.node-spec.ts` — plain `node:test` specs for the Angular-free parser. Run by
-  `npm test`, no browser needed.
-- `*.spec.ts` — Karma/Jasmine specs for Angular components. Run by `npm run test:ng`.
+- `*.node-spec.ts` — plain `node:test` specs for the Angular-free parser and layout
+  maths. Run by `npm test`; fast, no browser.
+- `*.spec.ts` — Karma/Jasmine component specs, run by `npm run test:ng`
+  (`npm run test:all` runs both).
+
+The component specs are not decoration. One class of bug here is invisible to
+everything else: the pane arrangement was once computed by a getter, so `*ngFor` saw
+new arrays on every change-detection pass, destroyed every pane and rebuilt its editor
+— and a rebuilt editor focuses itself, which schedules the next pass. Inside Angular's
+zone that is an infinite loop that freezes the tab on the first click; outside it,
+where scripted browser testing runs, nothing happens at all. Only real change detection
+shows it, so `grammar-explorer.component.spec.ts` asserts that repeated passes leave
+the editor DOM node and the column arrays identical.
 
 ## Layout
 

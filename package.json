@@ -11,10 +11,11 @@
     "watch": "ng build --watch --configuration development",
     "test": "npm run test:parser && npm run test:tokens && npm run harness",
     "test:parser": "tsc -p tsconfig.harness.json && node --test .harness/src/app/grammar/lfg/*.node-spec.js",
-    "test:ng": "ng test",
+    "test:ng": "ng test --watch=false --browsers=ChromeHeadlessNoSandbox",
     "harness": "tsc -p tsconfig.harness.json && node .harness/tools/parse-all-grammars.js",
     "index": "tsc -p tsconfig.harness.json && node .harness/tools/index-grammar.js",
-    "test:tokens": "tsc -p tsconfig.harness.json && node .harness/tools/tokenize-all-grammars.js && node tools/parse-with-codemirror.mjs"
+    "test:tokens": "tsc -p tsconfig.harness.json && node .harness/tools/tokenize-all-grammars.js && node tools/parse-with-codemirror.mjs",
+    "test:all": "npm test && npm run test:ng"
   },
   "devDependencies": {
     "@types/node": "^26.5.0",

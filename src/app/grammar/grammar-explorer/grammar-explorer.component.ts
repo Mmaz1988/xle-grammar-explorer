@@ -46,6 +46,16 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
   filter = '';
 
   panes: EditorPane[] = [];
+  /**
+   * Panes arranged into columns.
+   *
+   * A stored field, never a getter. A getter returning freshly built arrays makes
+   * `*ngFor` see every column as new on each change-detection pass, so it destroys and
+   * recreates every pane — and a recreated editor focuses itself, which triggers the
+   * next pass. That is an infinite loop that renders the app unusable, and it only
+   * appears inside Angular's zone, so it hides from programmatic testing.
+   */
+  columns: EditorPane[][] = [];
   activePaneId = 0;
   layout: PaneLayout = 'rows';
   /** Column widths, then pane heights within each column. Fractions summing to 1. */
@@ -111,6 +121,7 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
       const index = await indexGrammar(picked.source, picked.name);
       this.index = index;
       this.panes = [];
+      this.columns = [];
       this.rowSizes = [];
       this.colSizes = [];
       this.selected = undefined;
@@ -149,10 +160,6 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
 
   // --- panes ----------------------------------------------------------------
 
-  get columns(): EditorPane[][] {
-    return toColumns(this.panes, columnCount(this.layout, this.panes.length));
-  }
-
   get activePane(): EditorPane | undefined {
     return this.panes.find((p) => p.id === this.activePaneId);
   }
@@ -168,14 +175,19 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
     this.layout = layout;
     this.colSizes = [];
     this.rowSizes = [];
-    this.resetSizes();
+    this.relayout();
   }
 
-  /** Recompute track sizes for the current arrangement, keeping proportions. */
-  private resetSizes(): void {
-    const columns = this.columns;
-    this.colSizes = fitSizes(this.colSizes, columns.length);
-    this.rowSizes = columns.map((col, i) => fitSizes(this.rowSizes[i] ?? [], col.length));
+  /**
+   * Rebuild the column arrangement and fit the track sizes to it.
+   *
+   * Called whenever panes are added or removed, or the layout changes — never from a
+   * template binding.
+   */
+  private relayout(): void {
+    this.columns = toColumns(this.panes, columnCount(this.layout, this.panes.length));
+    this.colSizes = fitSizes(this.colSizes, this.columns.length);
+    this.rowSizes = this.columns.map((col, i) => fitSizes(this.rowSizes[i] ?? [], col.length));
   }
 
   columnWidth(i: number): number {
@@ -233,7 +245,7 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
       };
       this.panes.push(pane);
       this.activePaneId = pane.id;
-      this.resetSizes();
+      this.relayout();
     }
     this.selected = { path, line: line ?? 1 };
     setTimeout(() => this.focusActive());
@@ -261,18 +273,20 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
     };
     this.panes.push(pane);
     this.activePaneId = pane.id;
-    this.resetSizes();
+    this.relayout();
   }
 
   closePane(pane: EditorPane): void {
     if (pane.dirty && !confirm(`${pane.path} has unsaved changes. Close it anyway?`)) return;
     this.panes = this.panes.filter((p) => p !== pane);
     if (this.activePaneId === pane.id) this.activePaneId = this.panes[this.panes.length - 1]?.id ?? 0;
-    this.resetSizes();
+    this.relayout();
   }
 
   onPaneFocused(pane: EditorPane): void {
-    this.activePaneId = pane.id;
+    // Guard the assignment: writing the same value still counts as work to change
+    // detection, and this fires on every focus event.
+    if (this.activePaneId !== pane.id) this.activePaneId = pane.id;
   }
 
   onContentChange(pane: EditorPane, text: string): void {
@@ -417,6 +431,9 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
   }
 
   trackPane = (_: number, pane: EditorPane): number => pane.id;
+
+  /** Columns are identified by their first pane, so a stable column keeps its views. */
+  trackColumn = (index: number, column: EditorPane[]): number => column[0]?.id ?? index;
 
   private messageOf(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
