@@ -37,9 +37,10 @@ that repo's `git status`.
 ## Verification
 
 ```sh
-npm test           # unit tests + the full-corpus harness
+npm test           # unit tests + tokenizer checks + the full-corpus harness
 npm run harness    # parse every file under grammars/ and assert every entry is named
-npm run index -- grammars/dev/lfgxdrt_inference_grammar [--entries]
+npm run test:tokens # tokenize every file, then re-check with CodeMirror's real parser
+npm run index -- grammars/dev [--entries]
 npm run build      # production build
 ```
 
@@ -48,6 +49,22 @@ and fails if any entry chunk yields no identifier. Current baseline: **3266/3266
 
 `npm run index` prints the working tree for a grammar without opening a browser, which
 is the quickest way to see what the UI will show.
+
+### Why there are two tokenizer checks
+
+`tools/tokenize-all-grammars.ts` drives the mode through a hand-written StringStream
+shim — fast, dependency-free, and only ever as faithful as the shim.
+`tools/parse-with-codemirror.mjs` runs CodeMirror's *real* parser over the same files
+in a child process under a wall-clock timeout.
+
+The second exists because the first once passed on all 71 files while the app hung on
+the first file it opened. CodeMirror's `StringStream.peek()` returns `undefined` past
+end of line; the shim returned `null`; the comment scanner looped on `!== null` and so
+never terminated on any line ending inside a `"..."` comment — which is every
+multi-line comment in every grammar here. A shim can always drift from the API it
+imitates, so the real parser gets a vote too. The timeout matters as much as the check:
+a tokenizer that loops inside one `token()` call never returns to CodeMirror, so its
+own parse budget never fires and the run just hangs.
 
 ### Two test conventions
 

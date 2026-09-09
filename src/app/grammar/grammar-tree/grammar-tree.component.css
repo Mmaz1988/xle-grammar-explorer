@@ -68,3 +68,13 @@
   border: 1px solid #ffe0a3;
   border-radius: 3px;
 }
+
+/* Material's tree nodes default to 48px, which is list-item height, not code height.
+   These rows are one line of monospace each and there can be hundreds of them. */
+.grammar-tree mat-tree-node,
+.grammar-tree mat-nested-tree-node > .branch {
+  min-height: 0;
+  height: 22px;
+}
+.grammar-tree mat-tree-node { display: flex; align-items: center; }
+.grammar-tree mat-nested-tree-node { display: block; }

@@ -9,11 +9,12 @@
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "npm run test:parser && npm run harness",
+    "test": "npm run test:parser && npm run test:tokens && npm run harness",
     "test:parser": "tsc -p tsconfig.harness.json && node --test .harness/src/app/grammar/lfg/*.node-spec.js",
     "test:ng": "ng test",
     "harness": "tsc -p tsconfig.harness.json && node .harness/tools/parse-all-grammars.js",
-    "index": "tsc -p tsconfig.harness.json && node .harness/tools/index-grammar.js"
+    "index": "tsc -p tsconfig.harness.json && node .harness/tools/index-grammar.js",
+    "test:tokens": "tsc -p tsconfig.harness.json && node .harness/tools/tokenize-all-grammars.js && node tools/parse-with-codemirror.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.5.0",

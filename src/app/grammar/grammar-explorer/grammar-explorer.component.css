@@ -44,8 +44,11 @@
   background: #e9f1fb; color: #0b6ea8; border-radius: 8px; padding: 1px 7px; flex: none;
 }
 
-button.primary { background: #00a9e0; color: #fff; border: 0; border-radius: 3px; padding: 5px 10px; cursor: pointer; }
-button.primary:disabled { background: #b9c6d4; cursor: default; }
+/* Specific enough to beat the `.toolbar button` reset above, which was overriding the
+   background and leaving white text on a white button. */
+.toolbar button.primary { background: #00a9e0; color: #fff; border-color: #00a9e0; }
+.toolbar button.primary:disabled { background: #b9c6d4; border-color: #b9c6d4; cursor: default; }
+.toolbar button:disabled { color: #9aa7ba; cursor: default; }
 
 .filter {
   margin: 0 8px 8px;

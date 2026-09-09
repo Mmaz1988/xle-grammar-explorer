@@ -31,8 +31,14 @@ export type LfgToken =
 
 interface StreamLike {
   sol(): boolean;
-  peek(): string | null;
-  next(): string | null;
+  eol(): boolean;
+  /**
+   * CodeMirror's StringStream returns `undefined` at end of line, not `null`.
+   * Getting this wrong is not a type nicety: a `!== null` loop condition never
+   * terminates, and the tokenizer spins the renderer.
+   */
+  peek(): string | undefined;
+  next(): string | undefined;
   eat(match: string | RegExp): string | undefined | void;
   match(pattern: string | RegExp, consume?: boolean): boolean | RegExpMatchArray | null;
   skipToEnd(): void;
@@ -54,7 +60,11 @@ export interface LfgState {
  * is enough; we call it `comment` because that is what it means in a grammar.
  */
 function tokenComment(stream: StreamLike, state: LfgState): LfgToken {
-  while (stream.peek() !== null) {
+  // Loop on eol(), never on `peek() !== null`: StringStream.peek() yields `undefined`
+  // past the end of a line, so a null comparison is always true and the loop never
+  // ends. Any line finishing inside an unterminated comment hits this, which is every
+  // multi-line comment in every grammar here.
+  while (!stream.eol()) {
     const c = stream.next();
     // A backquote escapes the next character, including a closing quote.
     if (c === '`') {
@@ -82,13 +92,23 @@ export const lfgStreamMode = {
 
   token(stream: StreamLike, state: LfgState): LfgToken {
     if (state.inComment) {
+      if (stream.sol()) {
+        state.atLineStart = true;
+      }
       return tokenComment(stream, state);
     }
 
-    const lineStart = stream.sol();
+    // Track "nothing but whitespace so far on this line" rather than using sol():
+    // every template and lexical entry in these grammars is indented, and testing
+    // sol() alone means the line-start rules never fire for them.
+    if (stream.sol()) {
+      state.atLineStart = true;
+    }
     if (stream.eatSpace()) {
       return null;
     }
+    const lineStart = state.atLineStart;
+    state.atLineStart = false;
 
     // Rule 0: `#` comments a line, but only at the start of one. This is the
     // MORPHOLOGY section's comment syntax; elsewhere `#` is not special.

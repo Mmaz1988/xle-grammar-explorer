@@ -172,6 +172,15 @@ export async function indexGrammar(source: GrammarSource, name = 'grammar'): Pro
     if ((counts.get(g.name) ?? 0) > 1 && g.configKey) g.name = `${g.name} (${g.configKey})`;
   }
 
+  // When the picked folder *is* one grammar's own directory, its main file sits at the
+  // root and the basename fallback gives something like `main_lfgxdrt_inference_grammar`.
+  // The folder name is what the user just chose, so prefer it — but only when it is
+  // unambiguous, since a folder of sibling grammars needs them told apart.
+  const rooted = grammars.filter((g) => g.kind === 'grammar' && !(g.mainPath ?? '').includes('/'));
+  if (rooted.length === 1 && grammars.filter((g) => g.kind === 'grammar').length === 1) {
+    rooted[0].name = name;
+  }
+
   const orphans = visible.filter((p) => !covered.has(p));
   if (grammars.length === 0 && orphans.length > 0) {
     // No CONFIG anywhere — e.g. someone picked `lexica/`. Fall back to treating the
