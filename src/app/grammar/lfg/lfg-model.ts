@@ -34,6 +34,26 @@ export interface Span {
   end: number;
 }
 
+/**
+ * A rule reduced to its phrase-structure skeleton.
+ *
+ * Kept as a small tree rather than a string so the display can be shortened
+ * intelligently — eliding the inside of a disjunction rather than chopping characters
+ * off the end — and coloured without re-parsing.
+ */
+export type RuleSkeleton =
+  | { kind: 'seq'; items: RuleSkeleton[] }
+  | { kind: 'disj'; alts: RuleSkeleton[] }
+  | { kind: 'opt'; body: RuleSkeleton }
+  | { kind: 'cat'; name: string; kleene?: string }
+  | { kind: 'call'; text: string };
+
+/** A run of label text with a role, so the tree can colour it like the editor does. */
+export interface LabelPart {
+  text: string;
+  cls?: 'name' | 'arrow' | 'disj' | 'opt' | 'call' | 'elide' | 'muted';
+}
+
 export interface LfgEntry extends Span {
   kind: EntryKind;
   /** The identifier shown in the tree, e.g. `PASS(FRAME)`, `hug`, `VP[_form]`. */
@@ -50,6 +70,8 @@ export interface LfgEntry extends Span {
   morphcode?: string;
   /** True when the entry contains a glue premise (`:$ ...`) or a lollipop. */
   hasGlue?: boolean;
+  /** Rules only: the phrase-structure skeleton behind {@link display}. */
+  skeleton?: RuleSkeleton;
 }
 
 export interface LfgSection extends Span {

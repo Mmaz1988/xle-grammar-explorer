@@ -9,7 +9,9 @@
  */
 
 import { maskComments, splitEntries, lineIndex, lineAtIndexed } from './lfg-lexer';
-import type { ConfigField, EntryKind, LfgEntry, LfgFile, LfgSection, SectionKind } from './lfg-model';
+import type {
+  ConfigField, EntryKind, LabelPart, LfgEntry, LfgFile, LfgSection, RuleSkeleton, SectionKind,
+} from './lfg-model';
 
 /**
  * Section header, e.g. `SENTENCE ENGLISH RULES (1.0)`.
@@ -176,7 +178,14 @@ function nameEntry(
   if (kind === 'RULES' || kind === 'TEMPLATES') {
     const rule = RULE_HEAD.exec(trimmed);
     if (rule) {
-      return { ...base, kind: 'rule', name: rule[1], display: reduceRule(trimmed) };
+      const skeleton = parseRuleSkeleton(trimmed);
+      return {
+        ...base,
+        kind: 'rule',
+        name: rule[1],
+        skeleton: skeleton?.body,
+        display: reduceRule(trimmed),
+      };
     }
     const macro = MACRO_HEAD.exec(trimmed);
     if (macro) {
@@ -200,98 +209,95 @@ function nameEntry(
 }
 
 /**
- * Reduce a rule to its phrase-structure skeleton: `S --> (ADVP) NP VP[fin]`.
+ * Parse a rule's right-hand side into a phrase-structure skeleton.
  *
- * Walks the masked RHS and keeps daughter categories while skipping their `:`
- * annotation blocks, preserving `{ | }` disjunction and `( )` optionality as
- * structure. Annotations are what make a rule unreadable at a glance, and they are
- * exactly what the editor pane is for.
+ * Keeps the daughters and the `{ | }` / `( )` structure; drops everything that makes a
+ * rule unreadable at a glance and is better seen in the editor pane:
  *
- * This is display-only and never round-trips. When the result looks degenerate the
- * caller falls back to the rule's first physical line.
+ * - **annotations** — the `:` block after a daughter, up to the `;` that ends it;
+ * - **category subscripts** — `VP[fin]` shows as `VP`, and the parameter machinery in
+ *   `AP[_type $ {attributive predicative}]` as plain `AP`. The full form stays in the
+ *   entry's name and tooltip.
+ *
+ * Display-only; it never round-trips back to the file.
  */
-export function reduceRule(chunk: string): string | undefined {
+export function parseRuleSkeleton(chunk: string): { lhs: string; body: RuleSkeleton } | undefined {
   const arrow = chunk.indexOf('-->');
-  if (arrow < 0) {
-    return undefined;
-  }
-  const lhs = chunk.slice(0, arrow).trim();
-  const rhs = chunk.slice(arrow + 3);
-  const parts: string[] = [];
-  let i = 0;
+  if (arrow < 0) return undefined;
+  // Category subscripts go from the left-hand side too: `VP[_form $ {...}]` -> `VP`.
+  const lhs = chunk.slice(0, arrow).trim().replace(/\[[^\]]*\]/g, '');
+  const { node } = parseSeq(chunk.slice(arrow + 3), 0, '');
+  return { lhs, body: node };
+}
 
-  while (i < rhs.length) {
-    const c = rhs[i];
+function parseSeq(src: string, i: number, stop: string): { node: RuleSkeleton; i: number } {
+  const items: RuleSkeleton[] = [];
+  while (i < src.length) {
+    const c = src[i];
     if (c === '`') { i += 2; continue; }
     if (/\s/.test(c)) { i++; continue; }
-    if (c === '.' ) { break; }
-
-    if (c === '{' || c === '}' || c === '|') {
-      parts.push(c);
-      i++;
+    if (c === '.' || stop.includes(c)) break;
+    if (c === ';') { i++; continue; }
+    // A daughter's annotation block: skip to the `;` that closes it.
+    if (c === ':') { i = skipAnnotation(src, i + 1); continue; }
+    if (c === '{') { const r = parseDisj(src, i + 1); items.push(r.node); i = r.i; continue; }
+    if (c === '(') {
+      const r = parseSeq(src, i + 1, ')');
+      items.push({ kind: 'opt', body: r.node });
+      i = src[r.i] === ')' ? r.i + 1 : r.i;
       continue;
     }
-    // A template call is a single daughter, not a paren group: `@(CP-COORD CP)`.
     if (c === '@') {
-      const call = /^@\(?[^\s()]*\)?/.exec(rhs.slice(i));
-      if (call && rhs[i + 1] === '(') {
-        const close = matchParen(rhs, i + 1);
+      // A template call is one daughter, not a paren group.
+      if (src[i + 1] === '(') {
+        const close = matchParen(src, i + 1);
         if (close > 0) {
-          parts.push(rhs.slice(i, close + 1).replace(/\s+/g, ' '));
+          items.push({ kind: 'call', text: src.slice(i, close + 1).replace(/\s+/g, ' ') });
           i = close + 1;
           continue;
         }
       }
-      if (call) { parts.push(call[0]); i += call[0].length; continue; }
-    }
-
-    if (c === '(') { parts.push('('); i++; continue; }
-    if (c === ')') { parts.push(')'); i++; continue; }
-
-    if (c === ':') {
-      // Skip this daughter's annotation block: everything up to the `;` that ends it,
-      // or to a delimiter that closes the enclosing group.
+      const m = /^@[A-Za-z_][A-Za-z0-9_'-]*/.exec(src.slice(i));
+      if (m) { items.push({ kind: 'call', text: m[0] }); i += m[0].length; continue; }
       i++;
-      let depth = 0;
-      while (i < rhs.length) {
-        const a = rhs[i];
-        if (a === '`') { i += 2; continue; }
-        if (a === '(' || a === '{' || a === '[') { depth++; }
-        else if (a === ')' || a === '}' || a === ']') {
-          if (depth === 0) { break; }
-          depth--;
-        } else if (depth === 0 && (a === ';' || a === '|')) { break; }
-        else if (depth === 0 && a === '.') { break; }
-        i++;
-      }
-      if (rhs[i] === ';') { i++; }
       continue;
     }
-    if (c === ';') { i++; continue; }
-
-    // A category: identifier, optional [params], optional Kleene marker.
-    const cat = /^[^\s:;(){}|[\].]+(?:\[[^\]]*\])?[*+]?/.exec(rhs.slice(i));
-    if (cat) {
-      parts.push(cat[0]);
+    const cat = /^([^\s:;(){}|[\].@]+)(\[[^\]]*\])?([*+])?/.exec(src.slice(i));
+    if (cat && cat[1]) {
+      items.push({ kind: 'cat', name: cat[1], kleene: cat[3] });
       i += cat[0].length;
       continue;
     }
     i++;
   }
+  return { node: { kind: 'seq', items }, i };
+}
 
-  const rendered = parts
-    .join(' ')
-    .replace(/\(\s+/g, '(')
-    .replace(/\s+\)/g, ')')
-    .replace(/\{\s+/g, '{ ')
-    .replace(/\s+\}/g, ' }')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  if (rendered === '' || /^[(){}|\s]*$/.test(rendered)) {
-    return undefined;
+function parseDisj(src: string, i: number): { node: RuleSkeleton; i: number } {
+  const alts: RuleSkeleton[] = [];
+  while (i < src.length) {
+    const r = parseSeq(src, i, '|}');
+    alts.push(r.node);
+    i = r.i;
+    if (src[i] === '|') { i++; continue; }
+    if (src[i] === '}') { i++; }
+    break;
   }
-  return `${lhs} --> ${rendered}`;
+  return { node: { kind: 'disj', alts }, i };
+}
+
+/** Skip a daughter's annotation, stopping at the `;` or delimiter that ends it. */
+function skipAnnotation(src: string, i: number): number {
+  let depth = 0;
+  while (i < src.length) {
+    const c = src[i];
+    if (c === '`') { i += 2; continue; }
+    if (c === '(' || c === '{' || c === '[') { depth++; }
+    else if (c === ')' || c === '}' || c === ']') { if (depth === 0) break; depth--; }
+    else if (depth === 0 && (c === ';' || c === '|' || c === '.')) break;
+    i++;
+  }
+  return src[i] === ';' ? i + 1 : i;
 }
 
 /** Index of the `)` matching the `(` at `open`, or -1. Skips backquote escapes. */
@@ -304,6 +310,103 @@ function matchParen(text: string, open: number): number {
     else if (c === ')') { depth--; if (depth === 0) { return i; } }
   }
   return -1;
+}
+
+const DEFAULT_MAX_LABEL = 58;
+
+/**
+ * Render a rule skeleton as coloured label parts, short enough to read in the tree.
+ *
+ * Long rules are shortened by collapsing disjunctions to their first alternative
+ * (`{ D N | ... }`) rather than by truncating text, so the shape of the rule survives
+ * even when its detail does not. Nested disjunctions collapse first, since those are
+ * what usually make a rule unreadable; only if that is still too long does the
+ * top-level one collapse too.
+ *
+ * `maxLen` is a target rather than a hard cap. Once every disjunction is collapsed
+ * there is nothing left to drop except real daughters, and a label cut mid-category
+ * reads worse than one that overflows into the pane's ellipsis.
+ */
+export function renderRuleParts(
+  lhs: string,
+  body: RuleSkeleton,
+  maxLen = DEFAULT_MAX_LABEL,
+): LabelPart[] {
+  const candidates: LabelPart[][] = [];
+  for (const elideFrom of [Infinity, 1, 0]) {
+    const parts: LabelPart[] = [
+      { text: lhs, cls: 'name' },
+      { text: ' --> ', cls: 'arrow' },
+    ];
+    emit(body, 0, elideFrom, parts);
+    if (partsLength(parts) <= maxLen) return merge(parts);
+    candidates.push(parts);
+  }
+  // Nothing fits. Collapsing is not monotonic — replacing a one-character alternative
+  // with `...` makes a label longer — so take whichever attempt came out shortest
+  // rather than assuming the most aggressive one did.
+  candidates.sort((a, b) => partsLength(a) - partsLength(b));
+  return merge(candidates[0]);
+}
+
+function partsLength(parts: LabelPart[]): number {
+  return parts.reduce((n, p) => n + p.text.length, 0);
+}
+
+function emit(node: RuleSkeleton, depth: number, elideFrom: number, out: LabelPart[]): void {
+  switch (node.kind) {
+    case 'seq':
+      node.items.forEach((item, idx) => {
+        if (idx > 0) out.push({ text: ' ' });
+        emit(item, depth, elideFrom, out);
+      });
+      return;
+    case 'opt':
+      out.push({ text: '(', cls: 'opt' });
+      emit(node.body, depth, elideFrom, out);
+      out.push({ text: ')', cls: 'opt' });
+      return;
+    case 'disj': {
+      out.push({ text: '{ ', cls: 'disj' });
+      if (depth >= elideFrom && node.alts.length > 1) {
+        emit(node.alts[0], depth + 1, elideFrom, out);
+        out.push({ text: ' | ', cls: 'disj' });
+        out.push({ text: '...', cls: 'elide' });
+      } else {
+        node.alts.forEach((alt, idx) => {
+          if (idx > 0) out.push({ text: ' | ', cls: 'disj' });
+          emit(alt, depth + 1, elideFrom, out);
+        });
+      }
+      out.push({ text: ' }', cls: 'disj' });
+      return;
+    }
+    case 'call':
+      out.push({ text: node.text, cls: 'call' });
+      return;
+    case 'cat':
+      out.push({ text: node.name + (node.kleene ?? '') });
+      return;
+  }
+}
+
+/** Join neighbouring parts that share a class, to keep the rendered DOM small. */
+function merge(parts: LabelPart[]): LabelPart[] {
+  const out: LabelPart[] = [];
+  for (const part of parts) {
+    const last = out[out.length - 1];
+    if (last && last.cls === part.cls) last.text += part.text;
+    else out.push({ ...part });
+  }
+  return out;
+}
+
+/** The reduced rule as plain text, for the CLI tools and tests. */
+export function reduceRule(chunk: string, maxLen = DEFAULT_MAX_LABEL): string | undefined {
+  const parsed = parseRuleSkeleton(chunk);
+  if (!parsed) return undefined;
+  const text = renderRuleParts(parsed.lhs, parsed.body, maxLen).map((p) => p.text).join('');
+  return /-->\s*$/.test(text) ? undefined : text;
 }
 
 /**

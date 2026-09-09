@@ -16,7 +16,8 @@
             [title]="node.tooltip"
             (click)="select(node)">
       <mat-icon class="kind">{{ node.icon }}</mat-icon>
-      <span class="label">{{ node.label }}</span>
+      <span class="label"><span *ngFor="let p of node.parts"
+                                [class]="p.cls ? 'p-' + p.cls : ''">{{ p.text }}</span></span>
     </button>
   </mat-tree-node>
 

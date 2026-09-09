@@ -6,7 +6,8 @@
  * and the secondary text, both decided here rather than in the template.
  */
 
-import type { EntryKind, LfgEntry, LfgFile, LfgSection, SectionKind } from '../lfg/lfg-model';
+import type { EntryKind, LabelPart, LfgEntry, LfgFile, LfgSection, SectionKind } from '../lfg/lfg-model';
+import { renderRuleParts } from '../lfg/lfg-parser';
 import type { GrammarUnit } from '../workspace/grammar-index';
 
 export type NodeLevel = 'group' | 'section' | 'entry';
@@ -15,6 +16,11 @@ export interface GrammarNode {
   level: NodeLevel;
   /** The one-line identifier shown in the tree. Kept minimal on purpose. */
   label: string;
+  /**
+   * The label split into coloured runs. Rules get several so they read like the editor
+   * does; everything else is a single part.
+   */
+  parts: LabelPart[];
   /** Small glyph indicating what kind of thing this is. */
   icon: string;
   /** Extra detail, shown on hover rather than inline. */
@@ -59,6 +65,8 @@ const KIND_WORD: Record<EntryKind, string> = {
 
 function entryNode(entry: LfgEntry, file: LfgFile): GrammarNode {
   const detail = [
+    // The full name, since the label drops category subscripts and elides disjunctions.
+    entry.name,
     KIND_WORD[entry.kind],
     entry.category ? `category ${entry.category}` : '',
     entry.morphcode ? `morphcode ${entry.morphcode}` : '',
@@ -66,10 +74,11 @@ function entryNode(entry: LfgEntry, file: LfgFile): GrammarNode {
     `${file.path}:${entry.line}`,
   ].filter(Boolean);
 
+  const parts = entryParts(entry);
   return {
     level: 'entry',
-    // The reduced phrase-structure form when we have one, otherwise the bare name.
-    label: entry.display ?? entry.name,
+    label: parts.map((p) => p.text).join(''),
+    parts,
     icon: KIND_ICON[entry.kind],
     tooltip: detail.join(' · '),
     path: file.path,
@@ -79,10 +88,32 @@ function entryNode(entry: LfgEntry, file: LfgFile): GrammarNode {
   };
 }
 
+/** Split an entry's label into coloured runs, matching the editor's palette. */
+function entryParts(entry: LfgEntry): LabelPart[] {
+  if (entry.kind === 'rule' && entry.skeleton) {
+    // The stored name keeps its category subscript; the label does not.
+    return renderRuleParts(entry.name.replace(/\[[^\]]*\]/g, ''), entry.skeleton);
+  }
+  if (entry.kind === 'template' || entry.kind === 'macro') {
+    // Colour the name but leave the parameter list plain, so the name stands out.
+    const open = entry.name.indexOf('(');
+    return open < 0
+      ? [{ text: entry.name, cls: 'name' }]
+      : [{ text: entry.name.slice(0, open), cls: 'name' }, { text: entry.name.slice(open) }];
+  }
+  if (entry.kind === 'config-field' || entry.kind === 'morph-field') {
+    const label = entry.display ?? entry.name;
+    const rest = label.slice(entry.name.length);
+    return [{ text: entry.name, cls: 'name' }, { text: rest, cls: 'muted' }];
+  }
+  return [{ text: entry.display ?? entry.name }];
+}
+
 function sectionNode(section: LfgSection, file: LfgFile): GrammarNode {
   return {
     level: 'section',
     label: section.key,
+    parts: [{ text: section.key }],
     icon: GROUP_ICON[section.kind] ?? 'folder',
     tooltip: `${section.key} ${section.kind} (${section.version}) — ${file.path}:${section.line}`,
     badge: String(section.entries.length),
@@ -102,6 +133,7 @@ export function buildTree(unit: GrammarUnit): GrammarNode[] {
     return {
       level: 'group' as const,
       label: group.kind,
+      parts: [{ text: group.kind }],
       icon: GROUP_ICON[group.kind] ?? 'folder',
       tooltip: `${group.sections.length} ${group.kind} section(s), ${total} entries`,
       badge: String(total),

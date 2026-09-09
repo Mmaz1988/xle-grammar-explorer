@@ -78,3 +78,22 @@
 }
 .grammar-tree mat-tree-node { display: flex; align-items: center; }
 .grammar-tree mat-nested-tree-node { display: block; }
+
+/* Label colouring, using the same roles as the editor so the two panes read as one
+   system: the lfg-mode palette, with X11 Purple for names and Red for structure. */
+.p-name  { color: #A020F0; }
+.p-arrow { color: #9aa7ba; }
+.p-disj  { color: #FF0000; }
+.p-opt   { color: #9aa7ba; }
+.p-call  { color: #c2410c; }
+.p-elide { color: #9aa7ba; font-style: italic; }
+.p-muted { color: #7c8ba1; }
+
+/* On the selected row everything inverts to white, or it becomes unreadable. */
+.row.selected .p-name,
+.row.selected .p-arrow,
+.row.selected .p-disj,
+.row.selected .p-opt,
+.row.selected .p-call,
+.row.selected .p-elide,
+.row.selected .p-muted { color: #fff; }

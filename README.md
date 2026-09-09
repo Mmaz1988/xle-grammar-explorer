@@ -9,9 +9,17 @@ An XLE grammar's logical structure is not file-shaped. `lfgxdrt_inference_gramma
 `SENTENCE ENGLISH RULES (1.0)`, `VERB ENGLISH LEXICON (1.0)`. This app inverts the
 usual view — sections are the tree, and the file becomes a tag on the entry.
 
-Rules are shown reduced to their phrase-structure skeleton (`S --> (ADVP) NP VP[fin]`),
-templates as their signature (`PASS(FRAME)`), lexical entries as their headword.
-Clicking an entry opens its file at that entry.
+Rules are shown reduced to their phrase-structure skeleton (`S --> (ADVP) NP VP`),
+templates as their signature (`PASS(FRAME)`), lexical entries as their headword, and
+each is coloured with the same palette as the editor. Clicking an entry opens its file
+at that entry.
+
+Rule labels drop what makes a rule unreadable at a glance and is better seen in the
+editor pane: annotations, category subscripts (`VP[fin]` shows as `VP`, and
+`AP[_type $ {attributive predicative}]` as `AP`), and — once a label runs long — the
+tail of each disjunction, which collapses to `{ D N | ... }`. Innermost disjunctions
+collapse first, since those are usually the noise. The full form stays in the tooltip
+and, of course, in the file.
 
 ## Running it
 

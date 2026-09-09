@@ -186,7 +186,47 @@ describe('CONFIG', () => {
 describe('reduceRule', () => {
   it('strips annotations and keeps the category skeleton', () => {
     const out = reduceRule('S --> (ADVP: ! $ (^ ADJUNCT))\n NP: (^ SUBJ)=!\n (! CASE)=nom;\n VP[fin]: (^ TNS-ASP TENSE).');
-    assert.equal(out, 'S --> (ADVP) NP VP[fin]');
+    assert.equal(out, 'S --> (ADVP) NP VP');
+  });
+
+  it('drops category subscripts on both sides of the arrow', () => {
+    // `VP[fin]` and the parameter machinery in `AP[_type $ {...}]` are noise in a tree.
+    assert.equal(reduceRule('VP[_form $ {cop fin}] --> V[fin] NP.'), 'VP --> V NP');
+    assert.equal(
+      reduceRule('AP[_type $ {attributive predicative}] --> e ADV* A.'),
+      'AP --> e ADV* A',
+    );
+  });
+
+  it('elides a long disjunction instead of truncating it', () => {
+    const long = 'NP --> (ADV) (NEG) { ({ D | PRON | NUMBER | DComp }) AP* (NMod) N (CPnom) PP* | PRON | { NUMBER | D } PP }.';
+    const out = reduceRule(long)!;
+    // Each disjunction keeps its first alternative and drops the rest, so the shape of
+    // the rule survives. The budget is a target, not a hard cap: a single alternative
+    // can be longer than it, and cutting mid-category would read worse than overflowing.
+    assert.equal(out, 'NP --> (ADV) (NEG) { ({ D | ... }) AP* (NMod) N (CPnom) PP* | ... }');
+    assert.ok(out.length < long.length - 30, `expected a much shorter label: ${out}`);
+  });
+
+  it('elides the innermost disjunction first', () => {
+    // At a budget the rule misses only slightly, the nested disjunction collapses and
+    // the top-level alternatives survive.
+    const rule = 'VP --> V { { NP | PP | AP | CP } ADV | S }.';
+    assert.equal(reduceRule(rule, 35), 'VP --> V { { NP | ... } ADV | S }');
+    // Given room, nothing is elided at all.
+    assert.equal(reduceRule(rule, 99), 'VP --> V { { NP | PP | AP | CP } ADV | S }');
+  });
+
+  it('never returns a longer label than a less aggressive elision would', () => {
+    // Collapsing `| S` to `| ...` costs characters, so the most aggressive attempt is
+    // not always the shortest one.
+    const rule = 'VP --> V { { NP | PP | AP | CP } ADV | S }.';
+    const out = reduceRule(rule, 10)!;
+    assert.ok(out.length <= 33, `expected the shortest candidate, got ${out.length}: ${out}`);
+  });
+
+  it('leaves a short rule alone', () => {
+    assert.equal(reduceRule('CPnom --> { CPrel | CPComp | CPto }.'), 'CPnom --> { CPrel | CPComp | CPto }');
   });
 
   it('keeps disjunction structure', () => {
