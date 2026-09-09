@@ -218,22 +218,28 @@ rendering, and two things keep it bounded:
   would otherwise re-create the same freeze; past the cap the tree expands to section
   level and says so.
 
-## Known gaps
+## Filtering
 
-**The filter is a plain case-insensitive substring match over the visible label**, and
-it has two behaviours worth changing:
+The filter ranks matches rather than listing whatever contains the query, and it
+searches each entry's **identifier** first — a rule's left-hand side, a template's
+name, a headword — falling back to the rendered label. That is what makes typing `VP`
+find the rule *named* VP instead of every rule that mentions one.
 
-- *No ranking.* Typing an exact lexical headword shows that entry, but also every
-  other label containing it as a substring. `hug` happens to be unique so it gives one
-  hit; `he` gives 27, mostly template names like `CHECK` and `SCHEMATA`. Exact matches,
-  then word-boundary and prefix matches, should sort first — or short queries should
-  match on word boundaries rather than anywhere.
-- *A matching section is returned whole.* Because a section keeps all its children when
-  its own name matches, `VERB` yields 94 entries — every entry of both `VERB ENGLISH`
-  sections — rather than the entries that match. Defensible, but surprising.
+Ranking runs exact → prefix → word boundary (the segment starts in a name like
+`DEFAULT-NOUN-SEM`) → plain substring, and sections sort by their best match, so the
+section holding the exact hit comes first.
 
-Worth adding alongside: restricting a search to one entry kind (lexical entries only,
-say), and searching entry *bodies* rather than only labels.
+Queries of three characters or fewer only match at a word boundary. Short names are
+everywhere in a grammar — `he`, `it`, `to`, `if`, `VP` — and a bare substring test
+turns them into noise: `he` used to return 27 rows led by `CHECK` and `SCHEMATA`, and
+now returns the five pronoun entries.
+
+A section whose own *name* matches keeps its children, so `VERB` still lets you browse
+`VERB ENGLISH` — but it counts as a container match, not as 94 results, so the tree
+leaves it closed instead of burying whatever you were looking for.
+
+Still missing, and worth adding: restricting a search to one entry kind (lexical
+entries only, say), and searching entry *bodies* rather than only identifiers.
 
 ## Status
 

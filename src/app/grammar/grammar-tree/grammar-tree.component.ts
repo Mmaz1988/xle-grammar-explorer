@@ -3,7 +3,7 @@ import {
 } from '@angular/core';
 import { NestedTreeControl } from '@angular/cdk/tree';
 import { MatTreeNestedDataSource } from '@angular/material/tree';
-import { GrammarNode, countEntries, filterTree } from './grammar-node';
+import { GrammarNode, countEntries, filterTreeDetailed } from './grammar-node';
 
 /**
  * How many entries may be auto-expanded when a filter is applied.
@@ -51,6 +51,8 @@ export class GrammarTreeComponent implements OnChanges {
 
   /** Set when a filter matched more than we are willing to expand at once. */
   truncatedExpansion = false;
+  /** How many entries the current filter matched, for the result line. */
+  matchCount = 0;
 
   /** Reuse rendered rows across a rebuild, so the tree does not flash or lose scroll. */
   trackNode = (_: number, node: GrammarNode): string => node.id;
@@ -69,7 +71,8 @@ export class GrammarTreeComponent implements OnChanges {
   ngOnChanges(changes: SimpleChanges): void {
     if (!changes['nodes'] && !changes['filter']) return;
 
-    const visible = filterTree(this.nodes, this.filter);
+    const { nodes: visible, matches } = filterTreeDetailed(this.nodes, this.filter);
+    this.matchCount = matches;
     // Only reset expansion when the filter changed. A rebuild of the same grammar —
     // what a save produces — must leave the tree exactly as the user left it.
     if (changes['filter']) this.treeControl.collapseAll();
@@ -91,8 +94,12 @@ export class GrammarTreeComponent implements OnChanges {
   private expandWithinBudget(nodes: GrammarNode[]): void {
     let budget = AUTO_EXPAND_BUDGET;
     for (const group of nodes) {
+      if (!group.matched) continue;
       this.treeControl.expand(group);
       for (const section of group.children) {
+        // A section shown only because its own name matched is left closed: its
+        // entries are not results, and expanding them buries the ones that are.
+        if (!section.matched) continue;
         const cost = countEntries([section]);
         if (cost > budget) {
           this.truncatedExpansion = true;

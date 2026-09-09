@@ -2,6 +2,9 @@
   Say so when a filter matched more than we were willing to expand at once, rather than
   leaving a half-open tree looking arbitrary.
 -->
+<p class="expand-note" *ngIf="filter.trim() && !matchCount">
+  No entries match. Sections shown below matched by name.
+</p>
 <p class="expand-note" *ngIf="truncatedExpansion">
   Too many matches to expand at once — open a section to see the rest.
 </p>

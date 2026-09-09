@@ -23,6 +23,13 @@ export interface GrammarNode {
    */
   id: string;
   level: NodeLevel;
+  /**
+   * The entry's own identifier — a rule's left-hand side, a template's name, a
+   * headword — as opposed to {@link label}, which for a rule is the whole reduced
+   * form. Searching this first is what makes typing `VP` find the rule *named* VP
+   * rather than every rule that mentions it.
+   */
+  name: string;
   /** The one-line identifier shown in the tree. Kept minimal on purpose. */
   label: string;
   /**
@@ -42,6 +49,13 @@ export interface GrammarNode {
   span?: { start: number; end: number };
   /** True for a file no CONFIG reaches. */
   unreferenced?: boolean;
+  /** Match rank while filtering; lower is better. */
+  score?: number;
+  /**
+   * Whether this node is a result or merely a container that matched by name.
+   * Only a container of real results is worth auto-expanding.
+   */
+  matched?: boolean;
   children: GrammarNode[];
 }
 
@@ -85,6 +99,7 @@ function entryNode(entry: LfgEntry, file: LfgFile, sectionId: string, occurrence
 
   const parts = entryParts(entry);
   return {
+    name: entry.name,
     // Names repeat within a section — a lexicon can define the same headword under
     // two categories — so the occurrence disambiguates.
     id: `${sectionId}/${entry.kind}:${entry.name}#${occurrence}`,
@@ -126,6 +141,7 @@ function sectionNode(section: LfgSection, file: LfgFile): GrammarNode {
   const seen = new Map<string, number>();
   return {
     id,
+    name: section.key,
     level: 'section',
     label: section.key,
     parts: [{ text: section.key }],
@@ -152,6 +168,7 @@ export function buildTree(unit: GrammarUnit): GrammarNode[] {
     const total = children.reduce((n, c) => n + c.children.length, 0);
     return {
       id: `g:${group.kind}`,
+      name: group.kind,
       level: 'group' as const,
       label: group.kind,
       parts: [{ text: group.kind }],
@@ -164,29 +181,115 @@ export function buildTree(unit: GrammarUnit): GrammarNode[] {
 }
 
 /**
- * Filter the tree to nodes matching `query`, keeping ancestors of any match.
+ * How well a string matches a query, lower being better.
  *
- * Matching is case-insensitive substring over the label. A section or group is kept
- * whole when its own name matches, so typing `VERB` shows both `VERB ENGLISH` sections
- * with all their entries rather than nothing.
+ * Ranking matters here because a plain substring test floods the tree: in this
+ * corpus `he` matches 27 labels, most of them template names like `CHECK` and
+ * `SCHEMATA` that merely contain those letters. An exact hit should not be buried
+ * under them.
+ */
+export function scoreText(text: string, needle: string): number | undefined {
+  const haystack = text.toLowerCase();
+  if (haystack === needle) return 0;
+  if (haystack.startsWith(needle)) return 1;
+  // A word boundary: the start of a segment inside a hyphenated or underscored name,
+  // which is how XLE names are built (`DEFAULT-NOUN-SEM`, `ADJUNCT-TYPE_desig`).
+  if (new RegExp(`(^|[^A-Za-z0-9])${escapeRegExp(needle)}`).test(haystack)) return 2;
+  return haystack.includes(needle) ? 3 : undefined;
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Below this length, a query only matches at a word boundary.
+ *
+ * Two- and three-letter names are common here — `he`, `it`, `to`, `if`, `VP` — and a
+ * bare substring test turns them into noise: `he` matched 27 labels, nearly all of them
+ * template names like `CHECK` and `SCHEMATA` that merely contain those letters.
+ */
+const SHORT_QUERY = 3;
+/** Worst score still counted as a match, given the query length. */
+function scoreLimit(needle: string): number {
+  return needle.length <= SHORT_QUERY ? 2 : 3;
+}
+
+/** A node's score: its own name first, then its rendered label as a weaker match. */
+export function scoreNode(node: GrammarNode, needle: string): number | undefined {
+  const limit = scoreLimit(needle);
+  const byName = scoreText(node.name, needle);
+  if (byName !== undefined && byName <= limit) return byName;
+  const byLabel = scoreText(node.label, needle);
+  return byLabel !== undefined && byLabel <= limit ? byLabel + 4 : undefined;
+}
+
+export interface FilterResult {
+  nodes: GrammarNode[];
+  /** Entries that matched, as opposed to being shown because their parent did. */
+  matches: number;
+}
+
+/**
+ * Filter the tree to what matches `query`, best matches first.
+ *
+ * Two rules that are easy to get wrong:
+ *
+ * - A **section** whose own name matches keeps its children, so `VERB` still lets you
+ *   browse `VERB ENGLISH` — but it is reported as a container match, not as 94 entry
+ *   matches, so the tree does not auto-expand it and bury whatever you were after.
+ * - **Entries are ordered by score**, so an exact hit sits at the top of its section
+ *   instead of wherever the file happens to put it.
  */
 export function filterTree(nodes: GrammarNode[], query: string): GrammarNode[] {
+  return filterTreeDetailed(nodes, query).nodes;
+}
+
+export function filterTreeDetailed(nodes: GrammarNode[], query: string): FilterResult {
   const needle = query.trim().toLowerCase();
-  if (needle === '') return nodes;
+  if (needle === '') return { nodes, matches: 0 };
+
+  let matches = 0;
 
   const walk = (node: GrammarNode): GrammarNode | undefined => {
-    const selfMatch = node.label.toLowerCase().includes(needle);
-    if (selfMatch && node.level !== 'group') {
-      return node;
+    if (node.level === 'entry') {
+      const score = scoreNode(node, needle);
+      if (score === undefined) return undefined;
+      matches++;
+      return { ...node, score, matched: true };
     }
-    const children = node.children.map(walk).filter((c): c is GrammarNode => c !== undefined);
+
+    const children = node.children
+      .map(walk)
+      .filter((c): c is GrammarNode => c !== undefined)
+      .sort((a, b) => (a.score ?? 9) - (b.score ?? 9));
+
     if (children.length > 0) {
-      return { ...node, children, badge: node.level === 'entry' ? node.badge : String(countEntries(children)) };
+      return {
+        ...node,
+        children,
+        matched: true,
+        // A container ranks by its best descendant, so the section holding the exact
+        // hit sorts above one that merely contains a weak match.
+        score: Math.min(...children.map((c) => c.score ?? 9)),
+        badge: String(countEntries(children)),
+      };
     }
-    return selfMatch ? { ...node, children: [] } : undefined;
+
+    // Nothing inside matched, but the container itself might. Keep it browsable
+    // without pretending its contents are results.
+    const own = scoreNode(node, needle);
+    if (own === undefined) return undefined;
+    return { ...node, score: own, matched: false };
   };
 
-  return nodes.map(walk).filter((n): n is GrammarNode => n !== undefined);
+  return {
+    nodes: nodes
+      .map(walk)
+      .filter((n): n is GrammarNode => n !== undefined)
+      .sort((a, b) => (a.score ?? 9) - (b.score ?? 9)),
+    matches,
+  };
 }
 
 export function countEntries(nodes: GrammarNode[]): number {
