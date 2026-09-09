@@ -16,10 +16,11 @@
  * each hue to stay legible on a dark ground while keeping the same role mapping.
  */
 
-import { StreamLanguage, HighlightStyle, syntaxHighlighting } from '@codemirror/language';
+import { StreamLanguage, HighlightStyle, syntaxHighlighting, indentService } from '@codemirror/language';
 import { tags as t } from '@lezer/highlight';
 import type { Extension } from '@codemirror/state';
 import { lfgStreamMode } from './lfg-stream-mode';
+import { hangingOutdent, netDelimiters } from './lfg-indent';
 
 /** Map our token names onto lezer highlight tags. */
 const TOKEN_TAGS: Record<string, ReturnType<typeof t.special> | typeof t.comment> = {
@@ -64,11 +65,31 @@ const DARK = HighlightStyle.define([
   { tag: t.typeName, color: '#5cb8f0' },
 ]);
 
+/**
+ * Auto-indent for a newly opened line, following the same rule as `M-q`.
+ *
+ * Computed from the previous non-empty line rather than by re-parsing the enclosing
+ * expression: the rule is incremental — each line contributes `2 × (opens − closes)`
+ * to the next — so a local answer is the same answer, and it stays cheap while typing.
+ */
+export const lfgIndent = indentService.of((context, pos) => {
+  const doc = context.state.doc;
+  const line = doc.lineAt(pos);
+  for (let previous = line.number - 1; previous >= 1; previous--) {
+    const candidate = doc.line(previous);
+    if (candidate.text.trim() === '') continue;
+    const indent = /^[ \t]*/.exec(candidate.text)![0].length;
+    const base = indent + 2 * netDelimiters(candidate.text);
+    return Math.max(0, base - hangingOutdent(line.text.replace(/^[ \t]*/, '')));
+  }
+  return null;
+});
+
 export function lfgHighlighting(dark = false): Extension {
   return syntaxHighlighting(dark ? DARK : LIGHT, { fallback: true });
 }
 
 /** Everything needed to show LFG text: the language plus its colours. */
 export function lfg(dark = false): Extension[] {
-  return [lfgLanguage, lfgHighlighting(dark)];
+  return [lfgLanguage, lfgIndent, lfgHighlighting(dark)];
 }

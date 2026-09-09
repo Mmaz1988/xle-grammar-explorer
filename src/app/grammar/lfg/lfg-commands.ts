@@ -3,6 +3,7 @@
  */
 
 import type { EditorView } from '@codemirror/view';
+import { expressionRangeAt, reindentExpression } from './lfg-format';
 
 /**
  * Comment or uncomment the selection, mirroring `lfg-comment-region` (C-c C-c).
@@ -32,5 +33,32 @@ export function commentRegion(view: EditorView): boolean {
     };
   });
   view.dispatch(state.update(changes, { scrollIntoView: true, userEvent: 'input' }));
+  return true;
+}
+
+/**
+ * Reindent the rule, template or lexical entry around the caret — lfg-mode's `M-q`.
+ *
+ * Reindents only; line content is untouched. See `lfg-format.ts` for why this stops
+ * short of what the emacs command does.
+ */
+export function formatExpression(view: EditorView): boolean {
+  const { state } = view;
+  const doc = state.doc.toString();
+  const range = expressionRangeAt(doc, state.selection.main.head);
+  if (!range) return false;
+
+  const before = doc.slice(range.from, range.to);
+  const after = reindentExpression(before);
+  if (after === before) return true;
+
+  // Keep the caret on the same line, since its column has moved.
+  const line = state.doc.lineAt(state.selection.main.head).number;
+  view.dispatch({
+    changes: { from: range.from, to: range.to, insert: after },
+    userEvent: 'format',
+  });
+  const target = view.state.doc.line(Math.min(line, view.state.doc.lines));
+  view.dispatch({ selection: { anchor: target.to }, scrollIntoView: true });
   return true;
 }

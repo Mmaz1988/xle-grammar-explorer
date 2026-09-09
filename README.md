@@ -150,6 +150,15 @@ once the CONFIG `TEMPLATES`/`RULES` order decides which wins — exactly as it d
 XLE — and the alternatives are named rather than silently dropped. (In
 `lfgxdrt_inference_grammar`, `CASE`, `PRED` and `OT-MARK` are each defined twice.)
 
+**Reindent** — `⌥Q` (lfg-mode's `M-q`) reindents the rule, template or lexical entry
+around the caret: two columns per open `{` or `[`, with `|` and `}` hanging back to the
+left, ported from `lfg-next-fill-col`. Newlines auto-indent by the same rule.
+
+Unlike the emacs command it changes *only* leading whitespace — lfg-mode's `M-q` also
+collapses runs of spaces and rewrites the inside of comments, and in grammars whose
+comments hold commented-out entries that is a way to lose work. A test asserts the
+no-content-change property across all 3266 entries in the corpus.
+
 **Completion** — typing `@` offers the grammar's template names with their parameter
 lists, `@(` inserts the parameters too. Matching is loose, so `dns` finds
 `DEFAULT-NOUN-SEM`.
@@ -209,7 +218,25 @@ rendering, and two things keep it bounded:
   would otherwise re-create the same freeze; past the cap the tree expands to section
   level and says so.
 
+## Known gaps
+
+**The filter is a plain case-insensitive substring match over the visible label**, and
+it has two behaviours worth changing:
+
+- *No ranking.* Typing an exact lexical headword shows that entry, but also every
+  other label containing it as a substring. `hug` happens to be unique so it gives one
+  hit; `he` gives 27, mostly template names like `CHECK` and `SCHEMATA`. Exact matches,
+  then word-boundary and prefix matches, should sort first — or short queries should
+  match on word boundaries rather than anywhere.
+- *A matching section is returned whole.* Because a section keeps all its children when
+  its own name matches, `VERB` yields 94 entries — every entry of both `VERB ENGLISH`
+  sections — rather than the entries that match. Defensible, but surprising.
+
+Worth adding alongside: restricting a search to one entry kind (lexical entries only,
+say), and searching entry *bodies* rather than only labels.
+
 ## Status
 
-v1 covers navigate, edit and save. Drag-and-drop of entries between sections is
-designed for — every entry carries its exact character range — but not implemented.
+v1 covers navigate, edit and save, with go-to-definition, completion, multiple panes
+and `M-q` reindenting. Drag-and-drop of entries between sections is designed for —
+every entry carries its exact character range — but not implemented.

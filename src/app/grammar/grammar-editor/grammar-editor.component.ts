@@ -11,7 +11,7 @@ import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { autocompletion, completionKeymap } from '@codemirror/autocomplete';
 import { bracketMatching, indentUnit } from '@codemirror/language';
 import { lfg } from '../lfg/lfg-language';
-import { commentRegion } from '../lfg/lfg-commands';
+import { commentRegion, formatExpression } from '../lfg/lfg-commands';
 import { lfgCompletions, type CompletionEntry } from '../lfg/lfg-completion';
 import { identifierAt, templateCallAt } from '../lfg/lfg-references';
 
@@ -90,6 +90,8 @@ export class GrammarEditorComponent implements AfterViewInit, OnChanges, OnDestr
             { key: 'Mod-s', preventDefault: true, run: () => { this.save.emit(); return true; } },
             // Mirrors C-c C-c (lfg-comment-region) in the emacs mode.
             { key: 'Mod-;', preventDefault: true, run: commentRegion },
+            // Mirrors M-q (lfg-format-expression): reindent the enclosing entry.
+            { key: 'Alt-q', preventDefault: true, run: formatExpression },
             // Mirrors M-" (imenu-go-find-at-position), plus the usual F12 and Mod-click.
             { key: 'Alt-\'', preventDefault: true, run: () => this.requestGoto() },
             { key: 'F12', preventDefault: true, run: () => this.requestGoto() },
