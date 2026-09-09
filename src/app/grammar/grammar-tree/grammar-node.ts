@@ -203,25 +203,16 @@ function escapeRegExp(text: string): string {
 }
 
 /**
- * Below this length, a query only matches at a word boundary.
+ * A node's score: its own name first, then its rendered label as a weaker match.
  *
- * Two- and three-letter names are common here — `he`, `it`, `to`, `if`, `VP` — and a
- * bare substring test turns them into noise: `he` matched 27 labels, nearly all of them
- * template names like `CHECK` and `SCHEMATA` that merely contain those letters.
+ * Every substring hit is a match — nothing is hidden — and the score only decides the
+ * order, so an exact hit leads and the rest stay reachable below it.
  */
-const SHORT_QUERY = 3;
-/** Worst score still counted as a match, given the query length. */
-function scoreLimit(needle: string): number {
-  return needle.length <= SHORT_QUERY ? 2 : 3;
-}
-
-/** A node's score: its own name first, then its rendered label as a weaker match. */
 export function scoreNode(node: GrammarNode, needle: string): number | undefined {
-  const limit = scoreLimit(needle);
   const byName = scoreText(node.name, needle);
-  if (byName !== undefined && byName <= limit) return byName;
+  if (byName !== undefined) return byName;
   const byLabel = scoreText(node.label, needle);
-  return byLabel !== undefined && byLabel <= limit ? byLabel + 4 : undefined;
+  return byLabel === undefined ? undefined : byLabel + 4;
 }
 
 export interface FilterResult {
@@ -233,13 +224,15 @@ export interface FilterResult {
 /**
  * Filter the tree to what matches `query`, best matches first.
  *
- * Two rules that are easy to get wrong:
+ * Matching is a plain case-insensitive substring test, so nothing is hidden. Two rules
+ * decide what is presented as a *hit*:
  *
- * - A **section** whose own name matches keeps its children, so `VERB` still lets you
- *   browse `VERB ENGLISH` — but it is reported as a container match, not as 94 entry
- *   matches, so the tree does not auto-expand it and bury whatever you were after.
- * - **Entries are ordered by score**, so an exact hit sits at the top of its section
- *   instead of wherever the file happens to put it.
+ * - **The most fine-grained match wins.** If a query matches entries inside a section,
+ *   those entries are the hits and the section is only their container. The section
+ *   itself is offered as a hit solely when nothing inside it matched — so `VERB` lets
+ *   you browse `VERB ENGLISH` rather than reporting all 94 of its entries as results.
+ * - **Order is by score**, not by position in the file: exact, then prefix, then word
+ *   boundary, then plain substring, with containers ranked by their best descendant.
  */
 export function filterTree(nodes: GrammarNode[], query: string): GrammarNode[] {
   return filterTreeDetailed(nodes, query).nodes;

@@ -220,26 +220,24 @@ rendering, and two things keep it bounded:
 
 ## Filtering
 
-The filter ranks matches rather than listing whatever contains the query, and it
-searches each entry's **identifier** first — a rule's left-hand side, a template's
-name, a headword — falling back to the rendered label. That is what makes typing `VP`
-find the rule *named* VP instead of every rule that mentions one.
+Matching is a plain case-insensitive substring test — nothing is hidden — over each
+entry's **identifier** first (a rule's left-hand side, a template's name, a headword)
+and then its rendered label. Searching the identifier is what makes `VP` find the rule
+*named* VP rather than every rule that mentions one.
 
-Ranking runs exact → prefix → word boundary (the segment starts in a name like
-`DEFAULT-NOUN-SEM`) → plain substring, and sections sort by their best match, so the
-section holding the exact hit comes first.
+Two rules decide what is presented:
 
-Queries of three characters or fewer only match at a word boundary. Short names are
-everywhere in a grammar — `he`, `it`, `to`, `if`, `VP` — and a bare substring test
-turns them into noise: `he` used to return 27 rows led by `CHECK` and `SCHEMATA`, and
-now returns the five pronoun entries.
-
-A section whose own *name* matches keeps its children, so `VERB` still lets you browse
-`VERB ENGLISH` — but it counts as a container match, not as 94 results, so the tree
-leaves it closed instead of burying whatever you were looking for.
+- **The finest match wins.** When a query matches entries inside a section, those
+  entries are the hits and the section is just their container. A section is offered as
+  a hit only when nothing inside it matched — so `VERB` lets you browse `VERB ENGLISH`
+  instead of reporting all 94 of its entries as results, and the tree leaves it closed.
+- **Order is by score, not by file position**: exact, then prefix, then word boundary
+  (a segment start in a name like `DEFAULT-NOUN-SEM`), then plain substring, with
+  containers ranked by their best descendant. `he` still finds everything containing
+  those letters, but leads with `He`, `he`, `Her`, `her`, `herself`.
 
 Still missing, and worth adding: restricting a search to one entry kind (lexical
-entries only, say), and searching entry *bodies* rather than only identifiers.
+entries only, say), and searching entry *bodies* rather than identifiers.
 
 ## Status
 

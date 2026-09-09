@@ -62,19 +62,35 @@ describe('filterTreeDetailed', () => {
     assert.deepEqual(names(filterTreeDetailed(tree, 'VP').nodes).slice(0, 2), ['VP', 'VPinf']);
   });
 
-  it('ignores mid-word hits for a short query', () => {
-    // `he` must not drag in `the`, nor template names that merely contain those
-    // letters — the single biggest source of filter noise.
+  it('keeps every substring hit but leads with the best', () => {
+    // Nothing is hidden — `the` still matches `he` — but the exact and prefix hits
+    // come first rather than being buried wherever the file happens to put them.
     const result = filterTreeDetailed(tree, 'he');
-    assert.deepEqual(names(result.nodes), ['he', 'her']);
-    assert.equal(result.matches, 2);
+    assert.deepEqual(names(result.nodes).slice(0, 2), ['he', 'her']);
+    assert.ok(names(result.nodes).includes('the'), 'a mid-word hit is still reachable');
   });
 
-  it('still allows mid-word hits once a query is specific enough', () => {
-    assert.deepEqual(names(filterTreeDetailed(tree, 'hugg').nodes), ['hugged']);
+  it('matches on a substring anywhere', () => {
+    assert.deepEqual(names(filterTreeDetailed(tree, 'ugg').nodes), ['hugged']);
   });
 
-  it('keeps a section browsable when its own name matches, without counting its entries', () => {
+  it('prefers the finest match: an entry is the hit, its section only the container', () => {
+    // `VP` matches both the VERB ENGLISH section's entries and nothing in its name,
+    // so entries are the hits. The reverse case is covered below.
+    const result = filterTreeDetailed(tree, 'VP');
+    assert.ok(result.matches > 0, 'entries are reported as matches');
+    const sections: GrammarNode[] = [];
+    const walk = (ns: GrammarNode[]): void => {
+      for (const n of ns) {
+        if (n.level === 'section') sections.push(n);
+        else walk(n.children);
+      }
+    };
+    walk(result.nodes);
+    assert.ok(sections.every((s) => s.matched === true), 'sections carry the hits, not are them');
+  });
+
+  it('offers a section as the hit only when nothing inside it matched', () => {
     // `VERB` should not report 94 results; it reports none, and leaves the sections
     // there to open. `matched: false` is what stops the tree auto-expanding them.
     const result = filterTreeDetailed(tree, 'VERB ENGLISH');
