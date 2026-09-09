@@ -8,7 +8,8 @@ import { GrammarStateService } from '../workspace/grammar-state.service';
 import { buildGroups, indexGrammar, type GrammarIndex, type GrammarUnit } from '../workspace/grammar-index';
 import { buildDefinitionIndex, lookup, type Definition, type DefinitionIndex } from '../workspace/definition-index';
 import { parseLfgFile } from '../lfg/lfg-parser';
-import { buildTree, type GrammarNode } from '../grammar-tree/grammar-node';
+import { buildTree, canDrop, type GrammarNode } from '../grammar-tree/grammar-node';
+import { moveEntry } from '../lfg/lfg-move';
 import type { CompletionEntry } from '../lfg/lfg-completion';
 import { GrammarEditorComponent, type GotoRequest } from '../grammar-editor/grammar-editor.component';
 import { GrammarTreeComponent } from '../grammar-tree/grammar-tree.component';
@@ -372,6 +373,70 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
   async openNode(node: GrammarNode): Promise<void> {
     if (node.path === undefined) return;
     await this.show(node.path, node.span, node.line);
+  }
+
+  /**
+   * Move (or copy) an entry into another section, dragged in the tree.
+   *
+   * The edit is left **unsaved** in panes rather than written straight to disk. A drag
+   * is easy to do by accident, it rewrites two files at once, and there is no undo
+   * across files — so the change is shown in the editor where it can be read, reverted
+   * or saved deliberately.
+   */
+  async dropEntry(event: { source: GrammarNode; target: GrammarNode; copy: boolean }): Promise<void> {
+    const { source, target, copy } = event;
+    this.error = '';
+    this.notice = '';
+    if (!canDrop(source, target) || source.path === undefined || target.path === undefined) return;
+    if (!source.span || !target.span) return;
+
+    // Offsets come from the index, which reflects what is on disk. Splicing them into
+    // a buffer that has moved on would cut in the wrong place.
+    for (const path of new Set([source.path, target.path])) {
+      const pane = this.panes.find((p) => p.path === path && p.dirty);
+      if (pane) {
+        this.error = `Save ${path} before moving entries in or out of it.`;
+        return;
+      }
+    }
+
+    const sameFile = source.path === target.path;
+    const sourceText = this.index?.all.get(source.path)?.text;
+    const targetText = this.index?.all.get(target.path)?.text;
+    if (sourceText === undefined || targetText === undefined) return;
+
+    const result = moveEntry({
+      sourceText,
+      from: source.span.start,
+      to: source.span.end,
+      targetText,
+      at: target.span.end,
+      copy,
+      sameFile,
+    });
+
+    if (!sameFile && !copy) await this.stageEdit(source.path, result.sourceText);
+    await this.stageEdit(target.path, sameFile ? result.targetText : result.targetText, result.insertedAt);
+
+    const verb = copy ? 'Copied' : 'Moved';
+    this.notice = `${verb} ${source.name} into ${target.name}. Unsaved — review and save.`;
+  }
+
+  /**
+   * Put edited text into a pane, opening one if the file is not on screen, and refresh
+   * the index from it so the tree shows the entry in its new home immediately.
+   */
+  private async stageEdit(path: string, text: string, reveal?: { start: number; end: number }): Promise<void> {
+    let pane = this.panes.find((p) => p.path === path);
+    if (!pane) {
+      await this.show(path, reveal, undefined, { newPane: this.panes.length > 0 });
+      pane = this.panes.find((p) => p.path === path);
+      if (!pane) return;
+    }
+    pane.content = text;
+    pane.dirty = text !== pane.saved;
+    if (reveal) pane.reveal = { ...reveal };
+    this.reindexFile(path, text);
   }
 
   // --- row menu -------------------------------------------------------------

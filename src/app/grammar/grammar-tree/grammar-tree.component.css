@@ -97,3 +97,17 @@
 .row.selected .p-call,
 .row.selected .p-elide,
 .row.selected .p-muted { color: #fff; }
+
+/* --- drag and drop ------------------------------------------------------- */
+
+.row[draggable="true"] { cursor: grab; }
+.row.dragging { opacity: .45; }
+
+/* The section that would receive the drop. */
+.row.drop-target {
+  background: #d7f0fb;
+  box-shadow: inset 0 0 0 1px #00a9e0;
+}
+/* Sections that cannot take the entry being dragged — a lexical entry has no business
+   in a RULES section — are dimmed rather than silently inert. */
+.row.drop-rejects { opacity: .4; }

@@ -167,6 +167,17 @@ lists, `@(` inserts the parameters too. Matching is loose, so `dns` finds
 tree. This is usually a real defect: the bundled dev grammar calls `@INTRANS-OBL-EV`
 three times and defines it nowhere.
 
+**Moving entries** — drag an entry onto another section to move it there; hold ⌥ to
+copy instead. Only sections that can take it will accept the drop — a lexical entry has
+no business in a RULES section — and the rest dim while you drag.
+
+The entry travels with whatever comments sit above it, since that is what its parsed
+span covers, and it lands at the end of the target section. The edit is left **unsaved**
+in panes rather than written to disk: a drag is easy to do by accident, it rewrites two
+files at once, and there is no undo across files, so you get to read it and either save
+or revert. Moving in or out of a file with unsaved changes is refused, because the
+offsets driving the splice describe what is on disk.
+
 **Multiple panes** — right-click a tree row (ctrl-click on a Mac) and choose **Open in
 split view** to open it in a pane of its own. `Rows` stacks the panes, `Grid` tiles them into roughly equal squares,
 and every divider drags. A split always gets its own pane even when the file is already
@@ -241,6 +252,6 @@ entries only, say), and searching entry *bodies* rather than identifiers.
 
 ## Status
 
-v1 covers navigate, edit and save, with go-to-definition, completion, multiple panes
-and `M-q` reindenting. Drag-and-drop of entries between sections is designed for —
-every entry carries its exact character range — but not implemented.
+v1 covers navigate, edit and save, with go-to-definition, completion, multiple panes,
+`M-q` reindenting and drag-and-drop moves. What is still open is listed under
+*Filtering* above: scoping a search to one entry kind, and searching entry bodies.

@@ -49,6 +49,9 @@ export interface GrammarNode {
   span?: { start: number; end: number };
   /** True for a file no CONFIG reaches. */
   unreferenced?: boolean;
+  /** For an entry, what kind it is; for a section, which kind of section. */
+  entryKind?: EntryKind;
+  sectionKind?: SectionKind;
   /** Match rank while filtering; lower is better. */
   score?: number;
   /**
@@ -100,6 +103,7 @@ function entryNode(entry: LfgEntry, file: LfgFile, sectionId: string, occurrence
   const parts = entryParts(entry);
   return {
     name: entry.name,
+    entryKind: entry.kind,
     // Names repeat within a section — a lexicon can define the same headword under
     // two categories — so the occurrence disambiguates.
     id: `${sectionId}/${entry.kind}:${entry.name}#${occurrence}`,
@@ -142,6 +146,7 @@ function sectionNode(section: LfgSection, file: LfgFile): GrammarNode {
   return {
     id,
     name: section.key,
+    sectionKind: section.kind,
     level: 'section',
     label: section.key,
     parts: [{ text: section.key }],
@@ -287,4 +292,29 @@ export function filterTreeDetailed(nodes: GrammarNode[], query: string): FilterR
 
 export function countEntries(nodes: GrammarNode[]): number {
   return nodes.reduce((n, c) => n + (c.level === 'entry' ? 1 : countEntries(c.children)), 0);
+}
+
+/**
+ * Which section kind an entry belongs in.
+ *
+ * Dropping a lexical entry into a RULES section would produce a grammar XLE cannot
+ * load, so a move is only offered where it makes sense.
+ */
+export function sectionKindFor(entry: EntryKind): SectionKind | undefined {
+  switch (entry) {
+    case 'lex': return 'LEXICON';
+    case 'template': return 'TEMPLATES';
+    case 'rule':
+    case 'macro': return 'RULES';
+    default: return undefined;
+  }
+}
+
+/** Whether `source` may be dropped onto `target`. */
+export function canDrop(source: GrammarNode, target: GrammarNode): boolean {
+  if (source.level !== 'entry' || target.level !== 'section') return false;
+  if (source.entryKind === undefined || target.sectionKind === undefined) return false;
+  if (sectionKindFor(source.entryKind) !== target.sectionKind) return false;
+  // Dropping an entry back into the section it already lives in is a no-op.
+  return !target.children.some((child) => child.id === source.id);
 }

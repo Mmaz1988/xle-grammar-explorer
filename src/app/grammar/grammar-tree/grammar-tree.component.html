@@ -16,7 +16,11 @@
             class="row"
             [class.selected]="isSelected(node)"
             [class.unreferenced]="node.unreferenced"
+            [class.dragging]="dragging === node"
             [title]="node.tooltip"
+            [attr.draggable]="node.level === 'entry' ? true : null"
+            (dragstart)="onDragStart($event, node)"
+            (dragend)="onDragEnd()"
             (click)="select(node)"
             (contextmenu)="openMenu($event, node)">
       <mat-icon class="kind">{{ node.icon }}</mat-icon>
@@ -36,7 +40,12 @@
               [class.section]="node.level === 'section'"
               [class.group]="node.level === 'group'"
               [class.unreferenced]="node.unreferenced"
+              [class.drop-target]="isDropTarget(node)"
+              [class.drop-rejects]="isRejectingDrop(node)"
               [title]="node.tooltip"
+              (dragover)="onDragOver($event, node)"
+              (dragleave)="onDragLeave(node)"
+              (drop)="onDrop($event, node)"
               (click)="select(node)"
               (contextmenu)="openMenu($event, node)">
         <mat-icon class="kind">{{ node.icon }}</mat-icon>

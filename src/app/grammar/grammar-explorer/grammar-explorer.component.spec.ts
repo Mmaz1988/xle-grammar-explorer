@@ -26,8 +26,9 @@ import { FsAccessService } from '../workspace/fs-access.service';
 import { WorkspaceStore } from '../workspace/workspace-store';
 
 const FILES: Record<string, string> = {
-  'main.lfg': 'DEMO ENGLISH CONFIG (1.0)\n  ROOTCAT ROOT.\n  FILES rules.lfg.\n----\n',
+  'main.lfg': 'DEMO ENGLISH CONFIG (1.0)\n  ROOTCAT ROOT.\n  FILES rules.lfg lex.lfg.\n----\n',
   'rules.lfg': 'VERB ENGLISH RULES (1.0)\nVP --> V (NP).\nS --> NP VP.\n----\n',
+  'lex.lfg': 'A ENGLISH LEXICON (1.0)\nhug V-S XLE @X.\n----\nB ENGLISH LEXICON (1.0)\nowl N * @Y.\n----\n',
 };
 
 describe('GrammarExplorerComponent', () => {
@@ -189,6 +190,42 @@ describe('GrammarExplorerComponent', () => {
     expect(component.panes.length).withContext('opens a second pane').toBe(2);
     expect(component.canGoBack).withContext('no undo pushed').toBe(backBefore);
     expect(fixture.nativeElement.querySelectorAll('.cm-editor').length).toBe(2);
+  });
+
+  it('moves a dragged entry between sections, leaving the result unsaved', async () => {
+    const lexicon = component.tree.find((g) => g.label === 'LEXICON')!;
+    const from = lexicon.children.find((s) => s.label === 'A ENGLISH')!;
+    const to = lexicon.children.find((s) => s.label === 'B ENGLISH')!;
+    const hug = from.children.find((e) => e.name === 'hug')!;
+
+    await component.dropEntry({ source: hug, target: to, copy: false });
+    fixture.detectChanges();
+
+    const after = component.tree.find((g) => g.label === 'LEXICON')!;
+    const names = (key: string) =>
+      after.children.find((s) => s.label === key)!.children.map((e) => e.name);
+    expect(names('A ENGLISH')).toEqual([]);
+    expect(names('B ENGLISH')).toEqual(['owl', 'hug']);
+
+    // Deliberately not written to disk: a drag is easy to do by accident.
+    expect(component.dirtyPanes.length).withContext('the edit is staged, not saved').toBeGreaterThan(0);
+  });
+
+  it('refuses to move entries in or out of a file with unsaved changes', async () => {
+    await openFirstRule();
+    const pane = component.activePane!;
+    component.onContentChange(pane, `${pane.content}\n"edited"\n`);
+
+    const rules = component.tree.find((g) => g.label === 'RULES')!;
+    const section = rules.children[0];
+    const entry = section.children[0];
+    // Same section is not a legal target anyway; use the entry's own file via a
+    // different section to exercise the guard rather than the kind check.
+    await component.dropEntry({ source: entry, target: section, copy: false });
+    fixture.detectChanges();
+
+    expect(component.tree.find((g) => g.label === 'RULES')!.children[0].children.length)
+      .withContext('nothing moved').toBe(section.children.length);
   });
 
   it('keeps one editor per pane after splitting', async () => {

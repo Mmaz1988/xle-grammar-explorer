@@ -3,7 +3,7 @@ import {
 } from '@angular/core';
 import { NestedTreeControl } from '@angular/cdk/tree';
 import { MatTreeNestedDataSource } from '@angular/material/tree';
-import { GrammarNode, countEntries, filterTreeDetailed } from './grammar-node';
+import { GrammarNode, canDrop, countEntries, filterTreeDetailed } from './grammar-node';
 
 /**
  * How many entries may be auto-expanded when a filter is applied.
@@ -37,6 +37,8 @@ export class GrammarTreeComponent implements OnChanges {
   @Output() entrySelected = new EventEmitter<GrammarNode>();
   /** Right-click (or ctrl-click on a Mac) on a row, with where to put the menu. */
   @Output() entryContextMenu = new EventEmitter<{ node: GrammarNode; x: number; y: number }>();
+  /** An entry dragged onto a section. `copy` when the pointer was holding Alt. */
+  @Output() entryDropped = new EventEmitter<{ source: GrammarNode; target: GrammarNode; copy: boolean }>();
 
   /**
    * Expansion is tracked by node id, not object identity.
@@ -111,7 +113,54 @@ export class GrammarTreeComponent implements OnChanges {
     }
   }
 
+  /** The entry being dragged, and the section currently under the pointer. */
+  dragging?: GrammarNode;
+  dropTarget?: GrammarNode;
+
   hasChild = (_: number, node: GrammarNode): boolean => node.children.length > 0;
+
+  onDragStart(event: DragEvent, node: GrammarNode): void {
+    if (node.level !== 'entry') return;
+    this.dragging = node;
+    // Some payload is required or Firefox refuses to start a drag at all.
+    event.dataTransfer?.setData('text/plain', node.name);
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = 'copyMove';
+  }
+
+  onDragEnd(): void {
+    this.dragging = undefined;
+    this.dropTarget = undefined;
+  }
+
+  onDragOver(event: DragEvent, node: GrammarNode): void {
+    if (!this.dragging || !canDrop(this.dragging, node)) return;
+    // Preventing the default is what marks this element as a drop target.
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = event.altKey ? 'copy' : 'move';
+    this.dropTarget = node;
+  }
+
+  onDragLeave(node: GrammarNode): void {
+    if (this.dropTarget === node) this.dropTarget = undefined;
+  }
+
+  onDrop(event: DragEvent, node: GrammarNode): void {
+    const source = this.dragging;
+    this.dropTarget = undefined;
+    this.dragging = undefined;
+    if (!source || !canDrop(source, node)) return;
+    event.preventDefault();
+    this.entryDropped.emit({ source, target: node, copy: event.altKey });
+  }
+
+  isDropTarget(node: GrammarNode): boolean {
+    return this.dropTarget === node;
+  }
+
+  /** A section that cannot accept the entry being dragged, so it can be dimmed. */
+  isRejectingDrop(node: GrammarNode): boolean {
+    return this.dragging !== undefined && node.level === 'section' && !canDrop(this.dragging, node);
+  }
 
   isSelected(node: GrammarNode): boolean {
     return (
