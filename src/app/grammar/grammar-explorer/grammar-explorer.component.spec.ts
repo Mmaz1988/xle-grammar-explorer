@@ -171,6 +171,26 @@ describe('GrammarExplorerComponent', () => {
     expect(component.dirtyPanes.length).toBe(0);
   });
 
+  it('jumps in place, or beside, depending on the request', async () => {
+    await openFirstRule();
+    fixture.detectChanges();
+    expect(component.panes.length).toBe(1);
+
+    // A plain jump replaces the current view and can be undone.
+    await component.goto({ name: 'S', fromCall: false });
+    fixture.detectChanges();
+    expect(component.panes.length).withContext('reuses the pane').toBe(1);
+    expect(component.canGoBack).withContext('a replacing jump is undoable').toBeTrue();
+
+    // With Shift it opens beside, and needs no undo since the source stays visible.
+    const backBefore = component.canGoBack;
+    await component.goto({ name: 'VP', fromCall: false, newPane: true });
+    fixture.detectChanges();
+    expect(component.panes.length).withContext('opens a second pane').toBe(2);
+    expect(component.canGoBack).withContext('no undo pushed').toBe(backBefore);
+    expect(fixture.nativeElement.querySelectorAll('.cm-editor').length).toBe(2);
+  });
+
   it('keeps one editor per pane after splitting', async () => {
     await openFirstRule();
     await openSecondRuleInSplit();

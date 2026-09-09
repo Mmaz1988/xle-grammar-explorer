@@ -453,18 +453,24 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
       return;
     }
     const here = this.activePane;
-    if (here) {
+    // Only a jump that replaces the current view needs an undo; opening beside it
+    // leaves the starting point on screen.
+    if (here && !request.newPane) {
       this.backStack.push({ path: here.path, line: this.selected?.line ?? 1, span: here.reveal ?? { start: 0, end: 0 } });
     }
-    await this.jumpTo(defs[0]);
+    if (request.newPane && this.panes.length >= MAX_PANES) {
+      this.error = `Too many open panes (${MAX_PANES}). Close one first.`;
+      return;
+    }
+    await this.jumpTo(defs[0], request.newPane);
     if (defs.length > 1) {
       const others = defs.slice(1).map((d) => `${d.sectionKey} (${d.path}:${d.line})`).join(', ');
       this.notice = `${request.name} is defined ${defs.length} times; showing the one CONFIG prefers. Also in: ${others}`;
     }
   }
 
-  private async jumpTo(def: Definition): Promise<void> {
-    await this.show(def.path, def.span, def.line);
+  private async jumpTo(def: Definition, newPane = false): Promise<void> {
+    await this.show(def.path, def.span, def.line, { newPane });
   }
 
   /** Return to where the last jump started, mirroring the emacs mode's C-". */

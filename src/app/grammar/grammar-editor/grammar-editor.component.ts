@@ -20,6 +20,8 @@ export interface GotoRequest {
   name: string;
   /** True when the name came from an `@call` rather than a bare identifier. */
   fromCall: boolean;
+  /** Open the definition beside the current file instead of replacing it. */
+  newPane?: boolean;
 }
 
 /**
@@ -91,6 +93,9 @@ export class GrammarEditorComponent implements AfterViewInit, OnChanges, OnDestr
             // Mirrors M-" (imenu-go-find-at-position), plus the usual F12 and Mod-click.
             { key: 'Alt-\'', preventDefault: true, run: () => this.requestGoto() },
             { key: 'F12', preventDefault: true, run: () => this.requestGoto() },
+            // Shift opens the definition beside the current file rather than in place,
+            // for reading a template and its call site together.
+            { key: 'Shift-F12', preventDefault: true, run: () => this.requestGoto(undefined, true) },
             ...completionKeymap,
             indentWithTab,
             ...defaultKeymap,
@@ -112,12 +117,13 @@ export class GrammarEditorComponent implements AfterViewInit, OnChanges, OnDestr
           }),
           EditorView.domEventHandlers({
             mousedown: (event, view) => {
-              // Cmd/Ctrl-click jumps, the convention everywhere else.
+              // Cmd/Ctrl-click jumps, the convention everywhere else; adding Shift
+              // opens the definition in a new pane instead of replacing this file.
               if (!event.metaKey && !event.ctrlKey) return false;
               const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
               if (pos === null) return false;
               event.preventDefault();
-              return this.requestGoto(pos);
+              return this.requestGoto(pos, event.shiftKey);
             },
           }),
         ],
@@ -155,19 +161,19 @@ export class GrammarEditorComponent implements AfterViewInit, OnChanges, OnDestr
    * Prefers an `@call`, since that is unambiguously a template reference; falls back to
    * the bare identifier so a category in a rule can jump to the rule defining it.
    */
-  private requestGoto(at?: number): boolean {
+  private requestGoto(at?: number, newPane = false): boolean {
     const view = this.view;
     if (!view) return false;
     const pos = at ?? view.state.selection.main.head;
     const doc = view.state.doc.toString();
     const call = templateCallAt(doc, pos);
     if (call) {
-      this.goto.emit({ name: call.name, fromCall: true });
+      this.goto.emit({ name: call.name, fromCall: true, newPane });
       return true;
     }
     const word = identifierAt(doc, pos);
     if (word) {
-      this.goto.emit({ name: word.name, fromCall: false });
+      this.goto.emit({ name: word.name, fromCall: false, newPane });
       return true;
     }
     return false;

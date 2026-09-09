@@ -141,7 +141,10 @@ LiGER would make that preference a no-op rather than break it.
 ## Navigation and editing
 
 **Go to definition** — `F12` or ⌘-click on a template call jumps to its definition,
-across files; `← Back` returns. A bare identifier also resolves, so a category in a
+across files; `← Back` returns. Hold **Shift** (⌘⇧-click, or `Shift-F12`) to open the
+definition in a pane beside the current file instead of replacing it, for reading a
+template and its call site together. A jump that opens beside pushes nothing onto the
+back stack, since where you came from is still on screen. A bare identifier also resolves, so a category in a
 rule's right-hand side jumps to the rule defining it. When a name is defined more than
 once the CONFIG `TEMPLATES`/`RULES` order decides which wins — exactly as it does for
 XLE — and the alternatives are named rather than silently dropped. (In
