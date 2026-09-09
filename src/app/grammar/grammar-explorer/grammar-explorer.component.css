@@ -90,6 +90,9 @@
 .layout-toggle button:last-child { border-radius: 0 3px 3px 0; margin-left: -1px; }
 .layout-toggle button.on { background: #00a9e0; border-color: #00a9e0; color: #fff; }
 
+.pane-toolbar button.save-all { background: #d97706; border-color: #d97706; color: #fff; }
+.pane-toolbar button.save-all:disabled { background: #e5c9a3; border-color: #e5c9a3; }
+
 .panes { flex: 1; min-height: 0; display: flex; }
 .pane-column { display: flex; flex-direction: column; min-width: 0; min-height: 0; flex: 0 0 auto; }
 .pane-slot { min-height: 0; min-width: 0; flex: 0 0 auto; overflow: hidden; border-top: 1px solid transparent; }
@@ -149,3 +152,18 @@
 }
 .row-menu button:hover:not(:disabled) { background: #eef3fa; }
 .row-menu button:disabled { color: #b9c6d4; cursor: default; }
+
+.resume {
+  margin: 0 8px 8px; padding: 7px 9px; flex: none;
+  background: #e9f1fb; border: 1px solid #bcd9f0; border-radius: 3px;
+  font-size: 12px; color: #243247;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.resume strong { font-family: 'SF Mono', 'Menlo', 'Consolas', monospace; font-weight: 600; }
+.resume-actions { display: flex; gap: 6px; align-items: center; }
+.resume button {
+  font: inherit; font-size: 11px; border: 1px solid #00a9e0; background: #00a9e0;
+  color: #fff; border-radius: 3px; padding: 3px 9px; cursor: pointer;
+}
+.resume button.link { background: none; border-color: transparent; color: #6b7a8f; }
+.resume button.link:hover { text-decoration: underline; }

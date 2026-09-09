@@ -23,6 +23,7 @@ import { GrammarExplorerComponent } from './grammar-explorer.component';
 import { GrammarTreeComponent } from '../grammar-tree/grammar-tree.component';
 import { GrammarEditorComponent } from '../grammar-editor/grammar-editor.component';
 import { FsAccessService } from '../workspace/fs-access.service';
+import { WorkspaceStore } from '../workspace/workspace-store';
 
 const FILES: Record<string, string> = {
   'main.lfg': 'DEMO ENGLISH CONFIG (1.0)\n  ROOTCAT ROOT.\n  FILES rules.lfg.\n----\n',
@@ -44,6 +45,15 @@ describe('GrammarExplorerComponent', () => {
 
     const fs = TestBed.inject(FsAccessService);
     spyOn(fs, 'readFile').and.callFake(async (p: string) => FILES[p]);
+    spyOn(fs, 'writeFile').and.callFake(async (p: string, text: string) => { FILES[p] = text; });
+
+    // Keep the specs off real IndexedDB, so they neither persist nor depend on
+    // whatever a previous run left behind.
+    const store = TestBed.inject(WorkspaceStore);
+    spyOn(store, 'loadDirectory').and.resolveTo(undefined);
+    spyOn(store, 'loadSession').and.resolveTo(undefined);
+    spyOn(store, 'saveDirectory').and.resolveTo();
+    spyOn(store, 'saveSession').and.resolveTo();
 
     fixture.detectChanges();
     await component['load']({
@@ -118,6 +128,47 @@ describe('GrammarExplorerComponent', () => {
     expect(component.panes[1].path).toBe(component.panes[0].path);
     expect(component.panes[0].reveal!.start).not.toBe(component.panes[1].reveal!.start);
     expect(fixture.nativeElement.querySelectorAll('.cm-editor').length).toBe(2);
+  });
+
+  it('leaves the tree expanded after a save', async () => {
+    // Saving rebuilds the tree from the re-parsed file. Before node ids were stable,
+    // that collapsed everything the user had open.
+    const tree = fixture.debugElement.query(
+      (de) => de.componentInstance instanceof GrammarTreeComponent,
+    ).componentInstance as GrammarTreeComponent;
+
+    const rules = component.tree.find((g) => g.label === 'RULES')!;
+    tree.treeControl.expand(rules);
+    tree.treeControl.expand(rules.children[0]);
+    fixture.detectChanges();
+    const before = tree.getExpanded().slice().sort();
+    expect(before.length).toBe(2);
+
+    await openFirstRule();
+    const pane = component.activePane!;
+    component.onContentChange(pane, `${pane.content}\n"trailing"\n`);
+    await component.save(pane);
+    fixture.detectChanges();
+
+    expect(tree.getExpanded().slice().sort()).toEqual(before);
+  });
+
+  it('saves only the pane asked for, and saveAll saves the rest', async () => {
+    await openFirstRule();
+    await openSecondRuleInSplit();
+    fixture.detectChanges();
+
+    const [first, second] = component.panes;
+    component.onContentChange(first, `${first.content}\n"one"\n`);
+    component.onContentChange(second, `${second.content}\n"two"\n`);
+    expect(component.dirtyPanes.length).toBe(2);
+
+    await component.save(first);
+    expect(first.dirty).withContext('the saved pane is clean').toBeFalse();
+    expect(second.dirty).withContext('the other pane keeps its edits').toBeTrue();
+
+    await component.saveAll();
+    expect(component.dirtyPanes.length).toBe(0);
   });
 
   it('keeps one editor per pane after splitting', async () => {

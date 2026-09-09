@@ -38,17 +38,41 @@ export class GrammarTreeComponent implements OnChanges {
   /** Right-click (or ctrl-click on a Mac) on a row, with where to put the menu. */
   @Output() entryContextMenu = new EventEmitter<{ node: GrammarNode; x: number; y: number }>();
 
-  treeControl = new NestedTreeControl<GrammarNode>((node) => node.children);
+  /**
+   * Expansion is tracked by node id, not object identity.
+   *
+   * Saving rebuilds the tree, so identity-keyed expansion would collapse everything
+   * the user had open every time they pressed ⌘S.
+   */
+  treeControl = new NestedTreeControl<GrammarNode, string>((node) => node.children, {
+    trackBy: (node) => node.id,
+  });
   dataSource = new MatTreeNestedDataSource<GrammarNode>();
 
   /** Set when a filter matched more than we are willing to expand at once. */
   truncatedExpansion = false;
 
+  /** Reuse rendered rows across a rebuild, so the tree does not flash or lose scroll. */
+  trackNode = (_: number, node: GrammarNode): string => node.id;
+
+  /** Ids of the currently expanded nodes, for saving the session. */
+  getExpanded(): string[] {
+    return [...this.treeControl.expansionModel.selected];
+  }
+
+  /** Re-expand the nodes named by `ids`, ignoring any that no longer exist. */
+  setExpanded(ids: string[]): void {
+    if (!ids.length) return;
+    this.treeControl.expansionModel.select(...ids);
+  }
+
   ngOnChanges(changes: SimpleChanges): void {
     if (!changes['nodes'] && !changes['filter']) return;
 
     const visible = filterTree(this.nodes, this.filter);
-    this.treeControl.collapseAll();
+    // Only reset expansion when the filter changed. A rebuild of the same grammar —
+    // what a save produces — must leave the tree exactly as the user left it.
+    if (changes['filter']) this.treeControl.collapseAll();
     this.dataSource.data = visible;
     this.treeControl.dataNodes = visible;
 

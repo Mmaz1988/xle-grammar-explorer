@@ -1,8 +1,9 @@
 import {
   Component, EventEmitter, HostListener, Input, OnDestroy, OnInit, Output,
-  QueryList, ViewChildren,
+  QueryList, ViewChild, ViewChildren,
 } from '@angular/core';
 import { FsAccessService, type PickedGrammar } from '../workspace/fs-access.service';
+import { WorkspaceStore, type StoredSession } from '../workspace/workspace-store';
 import { GrammarStateService } from '../workspace/grammar-state.service';
 import { buildGroups, indexGrammar, type GrammarIndex, type GrammarUnit } from '../workspace/grammar-index';
 import { buildDefinitionIndex, lookup, type Definition, type DefinitionIndex } from '../workspace/definition-index';
@@ -10,6 +11,7 @@ import { parseLfgFile } from '../lfg/lfg-parser';
 import { buildTree, type GrammarNode } from '../grammar-tree/grammar-node';
 import type { CompletionEntry } from '../lfg/lfg-completion';
 import { GrammarEditorComponent, type GotoRequest } from '../grammar-editor/grammar-editor.component';
+import { GrammarTreeComponent } from '../grammar-tree/grammar-tree.component';
 import {
   columnCount, evenSizes, fitSizes, resizeTrack, toColumns,
   type EditorPane, type PaneLayout,
@@ -37,6 +39,7 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
   @Output() fileSaved = new EventEmitter<string>();
 
   @ViewChildren(GrammarEditorComponent) editors!: QueryList<GrammarEditorComponent>;
+  @ViewChild(GrammarTreeComponent) treeView?: GrammarTreeComponent;
 
   supported = FsAccessService.isSupported();
   index?: GrammarIndex;
@@ -77,22 +80,99 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
   /** Where a jump came from, so it can be undone. */
   private backStack: Array<{ path: string; line: number; span: { start: number; end: number } }> = [];
 
-  constructor(private fs: FsAccessService, private state: GrammarStateService) {}
+  /** A remembered directory that needs a permission grant before it can be reopened. */
+  resumable?: { handle: FileSystemDirectoryHandle; name: string };
+
+  constructor(
+    private fs: FsAccessService,
+    private state: GrammarStateService,
+    private store: WorkspaceStore,
+  ) {}
+
+  private session?: StoredSession;
 
   async ngOnInit(): Promise<void> {
     const saved = this.state.get();
     this.filter = saved.filter;
     this.splitFraction = saved.splitFraction;
     this.layout = saved.layout ?? 'rows';
-    if (this.directory) await this.load(await this.fs.useDirectory(this.directory));
+
+    if (this.directory) {
+      await this.load(await this.fs.useDirectory(this.directory));
+      return;
+    }
+    await this.restore();
   }
 
   ngOnDestroy(): void {
-    this.state.save({
+    this.state.save({ filter: this.filter, splitFraction: this.splitFraction, layout: this.layout });
+    void this.persist();
+  }
+
+  /** Persist on tab close too, where ngOnDestroy never runs. */
+  @HostListener('window:beforeunload')
+  onBeforeUnload(): void {
+    void this.persist();
+  }
+
+  /**
+   * Reopen the directory from last time.
+   *
+   * The handle survives a reload but its permission usually does not, and asking for
+   * one needs a user gesture — so when it is not already granted this only offers a
+   * button, rather than failing at a prompt the browser will refuse.
+   */
+  private async restore(): Promise<void> {
+    if (!WorkspaceStore.isSupported()) return;
+    const [handle, session] = await Promise.all([this.store.loadDirectory(), this.store.loadSession()]);
+    if (!handle) return;
+    this.session = session;
+    if (await this.store.hasPermission(handle)) {
+      await this.load(await this.fs.useDirectory(handle), session);
+    } else {
+      this.resumable = { handle, name: session?.directoryName ?? handle.name };
+    }
+  }
+
+  /** Grant access to the remembered directory and reopen it. From a user gesture. */
+  async resume(): Promise<void> {
+    const resumable = this.resumable;
+    if (!resumable) return;
+    this.error = '';
+    if (!(await this.store.requestPermission(resumable.handle))) {
+      this.error = 'Access to the remembered folder was not granted.';
+      return;
+    }
+    this.resumable = undefined;
+    await this.load(await this.fs.useDirectory(resumable.handle), this.session);
+  }
+
+  async forgetWorkspace(): Promise<void> {
+    this.resumable = undefined;
+    this.session = undefined;
+    await this.store.clear();
+  }
+
+  /** Snapshot where the user is, so a reload can come back to it. */
+  private async persist(): Promise<void> {
+    if (!this.index || !WorkspaceStore.isSupported()) return;
+    const session: StoredSession = {
+      directoryName: this.index.name,
+      grammarId: this.active?.id,
       filter: this.filter,
-      splitFraction: this.splitFraction,
       layout: this.layout,
-    });
+      splitFraction: this.splitFraction,
+      panes: this.panes.map((p) => ({
+        path: p.path,
+        start: p.reveal?.start ?? 0,
+        end: p.reveal?.end ?? 0,
+        line: 1,
+      })),
+      activePaneIndex: Math.max(0, this.panes.findIndex((p) => p.id === this.activePaneId)),
+      expanded: this.treeView?.getExpanded() ?? [],
+      savedAt: Date.now(),
+    };
+    await this.store.saveSession(session);
   }
 
   // --- opening a grammar ----------------------------------------------------
@@ -117,10 +197,11 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
     }
   }
 
-  private async load(picked: PickedGrammar): Promise<void> {
+  private async load(picked: PickedGrammar, session?: StoredSession): Promise<void> {
     this.busy = true;
     this.status = 'Reading grammar…';
     try {
+      if (picked.handle) await this.store.saveDirectory(picked.handle);
       const index = await indexGrammar(picked.source, picked.name);
       this.index = index;
       this.panes = [];
@@ -129,7 +210,11 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
       this.colSizes = [];
       this.selected = undefined;
       this.backStack = [];
-      this.selectGrammar(index.grammars.find((g) => g.kind === 'grammar') ?? index.grammars[0]);
+      const remembered = session?.grammarId
+        ? index.grammars.find((g) => g.id === session.grammarId)
+        : undefined;
+      this.selectGrammar(remembered ?? index.grammars.find((g) => g.kind === 'grammar') ?? index.grammars[0]);
+      if (session) await this.restoreSession(session);
 
       const hidden = [...index.all.values()].filter((f) => f.shadowed).length;
       const real = index.grammars.filter((g) => g.kind === 'grammar').length;
@@ -141,6 +226,29 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
     } finally {
       this.busy = false;
     }
+  }
+
+  /**
+   * Put back the filter, layout, expanded rows and open files from a stored session.
+   *
+   * Anything that has since disappeared — a deleted file, a renamed section — is
+   * skipped rather than treated as an error; the grammar on disk is the authority.
+   */
+  private async restoreSession(session: StoredSession): Promise<void> {
+    this.filter = session.filter ?? '';
+    this.layout = session.layout ?? 'rows';
+    this.splitFraction = session.splitFraction ?? this.splitFraction;
+
+    for (const stored of session.panes) {
+      if (!this.index?.all.has(stored.path)) continue;
+      const span = stored.end > stored.start ? { start: stored.start, end: stored.end } : undefined;
+      await this.show(stored.path, span, stored.line, { newPane: this.panes.length > 0 });
+    }
+    const active = this.panes[session.activePaneIndex];
+    if (active) this.activePaneId = active.id;
+
+    // The tree renders after this returns, so expansion is applied on the next tick.
+    setTimeout(() => this.treeView?.setExpanded(session.expanded ?? []));
   }
 
   selectGrammar(unit: GrammarUnit | undefined): void {
@@ -394,6 +502,24 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
       this.error = this.messageOf(err);
     } finally {
       this.busy = false;
+    }
+  }
+
+  get dirtyPanes(): EditorPane[] {
+    return this.panes.filter((p) => p.dirty);
+  }
+
+  /**
+   * Save every pane with unsaved changes.
+   *
+   * ⌘S and each pane's own button save that pane alone, which is what those gestures
+   * mean everywhere else — but with several panes open it is easy to leave an edit
+   * behind, so this exists and appears only when more than one pane is dirty.
+   */
+  async saveAll(): Promise<void> {
+    for (const pane of this.dirtyPanes) {
+      await this.save(pane);
+      if (this.error) return;
     }
   }
 

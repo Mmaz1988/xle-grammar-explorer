@@ -8,6 +8,18 @@
       <button type="button" (click)="pickFile()" [disabled]="busy || !supported">Open file…</button>
     </div>
 
+    <!--
+      A remembered folder from a previous session. Reopening needs a permission grant,
+      and the browser only allows that from a user gesture — hence a button.
+    -->
+    <div class="resume" *ngIf="resumable && !index">
+      <span>Reopen <strong>{{ resumable.name }}</strong>?</span>
+      <span class="resume-actions">
+        <button type="button" (click)="resume()">Reopen</button>
+        <button type="button" class="link" (click)="forgetWorkspace()">Forget</button>
+      </span>
+    </div>
+
     <p class="unsupported" *ngIf="!supported">
       This browser cannot open local files. The File System Access API is
       available in Chrome and Edge.
@@ -69,6 +81,11 @@
         <button type="button" [class.on]="layout === 'grid'" (click)="setLayout('grid')" title="Tile panes">Grid</button>
       </span>
       <button type="button" (click)="back()" [disabled]="!canGoBack" title="Back to where the jump started">← Back</button>
+      <button type="button" class="save-all" *ngIf="dirtyPanes.length > 1"
+              (click)="saveAll()" [disabled]="busy || readOnly"
+              title="Save every pane with unsaved changes">
+        Save all ({{ dirtyPanes.length }})
+      </button>
       <span class="spacer"></span>
       <span class="keys">right-click a tree row to open it in a split · ⌘S save · ⌘; comment · F12 or ⌘-click go to definition</span>
     </div>

@@ -13,6 +13,15 @@ import type { GrammarUnit } from '../workspace/grammar-index';
 export type NodeLevel = 'group' | 'section' | 'entry';
 
 export interface GrammarNode {
+  /**
+   * Identity that survives a rebuild.
+   *
+   * The tree is rebuilt from scratch after every save, which hands `*ngFor` and the
+   * expansion model brand-new objects. Keyed by object identity, that collapses the
+   * whole tree and throws away the user's place in it. Keyed by this, the tree looks
+   * untouched unless the file's contents actually changed.
+   */
+  id: string;
   level: NodeLevel;
   /** The one-line identifier shown in the tree. Kept minimal on purpose. */
   label: string;
@@ -63,7 +72,7 @@ const KIND_WORD: Record<EntryKind, string> = {
   'morph-field': 'morphology field',
 };
 
-function entryNode(entry: LfgEntry, file: LfgFile): GrammarNode {
+function entryNode(entry: LfgEntry, file: LfgFile, sectionId: string, occurrence: number): GrammarNode {
   const detail = [
     // The full name, since the label drops category subscripts and elides disjunctions.
     entry.name,
@@ -76,6 +85,9 @@ function entryNode(entry: LfgEntry, file: LfgFile): GrammarNode {
 
   const parts = entryParts(entry);
   return {
+    // Names repeat within a section — a lexicon can define the same headword under
+    // two categories — so the occurrence disambiguates.
+    id: `${sectionId}/${entry.kind}:${entry.name}#${occurrence}`,
     level: 'entry',
     label: parts.map((p) => p.text).join(''),
     parts,
@@ -110,7 +122,10 @@ function entryParts(entry: LfgEntry): LabelPart[] {
 }
 
 function sectionNode(section: LfgSection, file: LfgFile): GrammarNode {
+  const id = `s:${file.path}:${section.kind}:${section.key}`;
+  const seen = new Map<string, number>();
   return {
+    id,
     level: 'section',
     label: section.key,
     parts: [{ text: section.key }],
@@ -121,7 +136,12 @@ function sectionNode(section: LfgSection, file: LfgFile): GrammarNode {
     line: section.line,
     span: { start: section.start, end: section.end },
     unreferenced: file.unreferenced,
-    children: section.entries.map((e) => entryNode(e, file)),
+    children: section.entries.map((e) => {
+      const key = `${e.kind}:${e.name}`;
+      const occurrence = seen.get(key) ?? 0;
+      seen.set(key, occurrence + 1);
+      return entryNode(e, file, id, occurrence);
+    }),
   };
 }
 
@@ -131,6 +151,7 @@ export function buildTree(unit: GrammarUnit): GrammarNode[] {
     const children = group.sections.map(({ section, file }) => sectionNode(section, file));
     const total = children.reduce((n, c) => n + c.children.length, 0);
     return {
+      id: `g:${group.kind}`,
       level: 'group' as const,
       label: group.kind,
       parts: [{ text: group.kind }],

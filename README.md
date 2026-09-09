@@ -171,6 +171,25 @@ of 77 apparently-unresolved calls. Since a call's `@` starts a schema it never d
 follows a term, while application's always does, and that positional rule is what
 completion, go-to-definition, the unresolved-call list and the highlighter all use.
 
+## Saving and the session
+
+**Save is per pane.** ⌘S saves the pane with focus; each pane's Save button saves that
+pane alone. When more than one pane has unsaved changes a **Save all (n)** button
+appears, so an edit in a pane you are not looking at is not silently left behind.
+
+Saving re-parses the file and refreshes every grammar that includes it, which rebuilds
+the tree — but the tree keeps its expanded rows and your place in it, because nodes
+carry ids that survive the rebuild rather than being tracked by object identity.
+
+**The workspace is remembered.** The picked directory is stored in IndexedDB (a
+`FileSystemDirectoryHandle` is structured-cloneable, which is why this cannot be
+`localStorage`), along with the selected grammar, open files and their positions,
+expanded rows, filter and layout. On the next visit the app offers to reopen it.
+
+It has to be an offer, not a silent restore: the handle survives a reload but its
+permission usually does not, and asking for permission requires a user gesture. When
+permission does survive, the workspace comes back on its own.
+
 ## Performance notes
 
 Parsing is not the bottleneck and never was: indexing the entire corpus (71 files,

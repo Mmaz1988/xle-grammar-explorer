@@ -6,7 +6,7 @@
   Too many matches to expand at once — open a section to see the rest.
 </p>
 
-<mat-tree [dataSource]="dataSource" [treeControl]="treeControl" class="grammar-tree">
+<mat-tree [dataSource]="dataSource" [treeControl]="treeControl" [trackBy]="trackNode" class="grammar-tree">
 
   <mat-tree-node *matTreeNodeDef="let node" class="leaf">
     <button type="button"
