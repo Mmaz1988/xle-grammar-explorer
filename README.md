@@ -128,6 +128,37 @@ because the compiler does not rewrite the names it emits. The explorer works aro
 this by preferring an `X.lfg.glue` sibling whenever one exists. Fixing it upstream in
 LiGER would make that preference a no-op rather than break it.
 
+## Navigation and editing
+
+**Go to definition** — `F12` or ⌘-click on a template call jumps to its definition,
+across files; `← Back` returns. A bare identifier also resolves, so a category in a
+rule's right-hand side jumps to the rule defining it. When a name is defined more than
+once the CONFIG `TEMPLATES`/`RULES` order decides which wins — exactly as it does for
+XLE — and the alternatives are named rather than silently dropped. (In
+`lfgxdrt_inference_grammar`, `CASE`, `PRED` and `OT-MARK` are each defined twice.)
+
+**Completion** — typing `@` offers the grammar's template names with their parameter
+lists, `@(` inserts the parameters too. Matching is loose, so `dns` finds
+`DEFAULT-NOUN-SEM`.
+
+**Unresolved calls** — a call naming nothing the grammar defines is listed under the
+tree. This is usually a real defect: the bundled dev grammar calls `@INTRANS-OBL-EV`
+three times and defines it nowhere.
+
+**Multiple panes** — `Split` opens another pane; `Rows` stacks them, `Grid` tiles them
+into roughly equal squares. Every divider drags, including the ones between panes.
+Clicking a tree entry reuses the active pane, unless it has unsaved changes, in which
+case the file opens in a new pane rather than the click being refused.
+
+### The two meanings of `@`
+
+In a `.lfg.glue` file `@` is both a template call and function application inside a
+glue premise: `:$ (\V.([e],[]) + V@e)` applies `V` to `e`. Read naively, `V@e` looks
+like a call to a template named `e` — in the dev grammar that mistake accounts for 74
+of 77 apparently-unresolved calls. Since a call's `@` starts a schema it never directly
+follows a term, while application's always does, and that positional rule is what
+completion, go-to-definition, the unresolved-call list and the highlighter all use.
+
 ## Performance notes
 
 Parsing is not the bottleneck and never was: indexing the entire corpus (71 files,

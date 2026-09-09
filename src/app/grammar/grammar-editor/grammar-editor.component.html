@@ -1,7 +1,10 @@
-<div class="editor-header">
+<div class="editor-header" [class.active]="active" (mousedown)="focused.emit()">
   <span class="path" [title]="path">{{ path || 'No file open' }}</span>
+  <span class="dot" *ngIf="dirty" title="Unsaved changes">●</span>
   <span class="spacer"></span>
   <span class="hint" *ngIf="readOnly">read-only</span>
   <ng-content></ng-content>
+  <button type="button" class="close" *ngIf="closable"
+          title="Close this pane" (click)="closeRequested.emit()">✕</button>
 </div>
-<div class="editor-host" #host></div>
+<div class="editor-host" #host (mousedown)="focused.emit()"></div>

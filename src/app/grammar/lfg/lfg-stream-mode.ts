@@ -52,6 +52,13 @@ export interface LfgState {
   inComment: boolean;
   /** The head of a line has not been consumed yet (used for the line-start rules). */
   atLineStart: boolean;
+  /**
+   * The previous token ended a term, with no whitespace since.
+   *
+   * This is what separates the two meanings of `@`: a template call starts a schema and
+   * so never directly follows a term, while glue application always does.
+   */
+  afterTerm: boolean;
 }
 
 /**
@@ -83,7 +90,7 @@ export const lfgStreamMode = {
   name: 'lfg',
 
   startState(): LfgState {
-    return { inComment: false, atLineStart: true };
+    return { inComment: false, atLineStart: true, afterTerm: false };
   },
 
   copyState(state: LfgState): LfgState {
@@ -103,8 +110,10 @@ export const lfgStreamMode = {
     // sol() alone means the line-start rules never fire for them.
     if (stream.sol()) {
       state.atLineStart = true;
+      state.afterTerm = false;
     }
     if (stream.eatSpace()) {
+      state.afterTerm = false;
       return null;
     }
     const lineStart = state.atLineStart;
@@ -176,9 +185,15 @@ export const lfgStreamMode = {
 
     // Rule 6: only the `@` glyph is coloured, not the template name after it. That is
     // what lfg-mode does, and XLE grammars read as a red `@` before a plain name.
+    //
+    // But only when it introduces a template call. In a glue premise `@` is function
+    // application — `V@e` applies V to e — and colouring those as operators makes every
+    // lambda term look like it is full of template calls.
     if (c === '@') {
+      const application = state.afterTerm;
       stream.next();
-      return 'builtin';
+      state.afterTerm = false;
+      return application ? null : 'builtin';
     }
 
     // Rule 7: disjunction delimiters.
@@ -193,6 +208,7 @@ export const lfgStreamMode = {
     // folds them into words.
     if (c === '%') {
       stream.match(/^%[^\s.,;:(){}[\]]*/);
+      state.afterTerm = true;
       return 'variable';
     }
     if (stream.match(/^[a-z]::/)) {
@@ -211,7 +227,9 @@ export const lfgStreamMode = {
       }
     }
 
-    stream.next();
+    const consumed = stream.next();
+    // Identifiers, closing brackets and quotes can all end a term.
+    state.afterTerm = consumed !== undefined && /[A-Za-z0-9_')\]]/.test(consumed);
     return null;
   },
 };

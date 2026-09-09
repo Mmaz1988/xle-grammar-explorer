@@ -4,6 +4,7 @@
   min-width: 0;      /* without this the editor refuses to shrink in a flex split */
   min-height: 0;
   height: 100%;
+  overflow: hidden;
 }
 
 .editor-header {
@@ -26,6 +27,19 @@
 .spacer { flex: 1; }
 .hint { color: #7c8ba1; font-style: italic; }
 
+/* Which pane a tree click will open into. With several panes on screen this is the
+   only thing that makes clicking the tree predictable. */
+.editor-header.active { background: #e9f1fb; box-shadow: inset 2px 0 0 #00a9e0; }
+.editor-header.active .path { font-weight: 600; }
+
+.dot { color: #d97706; font-size: 15px; line-height: 1; }
+
+.close {
+  border: 0; background: none; cursor: pointer; color: #7c8ba1;
+  font-size: 12px; padding: 2px 5px; border-radius: 3px; flex: none;
+}
+.close:hover { background: #dde5ef; color: #243247; }
+
 .editor-host {
   flex: 1;
   min-height: 0;
@@ -43,3 +57,23 @@
 :host ::ng-deep .cm-activeLineGutter { background: #e9f1fb; }
 :host ::ng-deep .cm-selectionBackground,
 :host ::ng-deep .cm-editor.cm-focused .cm-selectionBackground { background: #cfe6ff; }
+
+/* The completion popup, kept in the same visual language as the rest. */
+:host ::ng-deep .cm-tooltip-autocomplete {
+  border: 1px solid #d8dee8;
+  border-radius: 3px;
+  box-shadow: 0 4px 14px rgba(36, 50, 71, .16);
+  background: #fff;
+}
+:host ::ng-deep .cm-tooltip-autocomplete > ul > li {
+  padding: 3px 8px;
+  font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+  font-size: 12px;
+}
+:host ::ng-deep .cm-tooltip-autocomplete > ul > li[aria-selected] { background: #00a9e0; color: #fff; }
+:host ::ng-deep .cm-completionDetail { color: #7c8ba1; font-style: normal; margin-left: 6px; }
+:host ::ng-deep li[aria-selected] .cm-completionDetail { color: #e6f4fb; }
+:host ::ng-deep .cm-completionInfo {
+  border: 1px solid #d8dee8; background: #fff; padding: 5px 8px;
+  font-family: 'SF Mono', 'Menlo', 'Consolas', monospace; font-size: 11px; max-width: 380px;
+}

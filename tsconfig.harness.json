@@ -15,7 +15,7 @@
   },
   "include": [
     "src/app/grammar/lfg/**/*.ts",
-    "src/app/grammar/workspace/grammar-index.ts",
+    "src/app/grammar/workspace/grammar-index.ts", "src/app/grammar/workspace/definition-index.ts", "src/app/grammar/grammar-explorer/editor-panes.ts",
     "tools/**/*.ts"
   ],
   "exclude": [

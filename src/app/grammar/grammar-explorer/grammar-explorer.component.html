@@ -5,9 +5,7 @@
       <button type="button" class="primary" (click)="pickFolder()" [disabled]="busy || !supported">
         Open folder…
       </button>
-      <button type="button" (click)="pickFile()" [disabled]="busy || !supported">
-        Open file…
-      </button>
+      <button type="button" (click)="pickFile()" [disabled]="busy || !supported">Open file…</button>
     </div>
 
     <p class="unsupported" *ngIf="!supported">
@@ -17,9 +15,7 @@
 
     <div class="grammar-select" *ngIf="index && index.grammars.length">
       <label for="grammar">Grammar</label>
-      <select id="grammar"
-              [ngModel]="active?.id"
-              (ngModelChange)="onGrammarChange($event)">
+      <select id="grammar" [ngModel]="active?.id" (ngModelChange)="onGrammarChange($event)">
         <option *ngFor="let g of index.grammars" [value]="g.id">
           {{ g.name }}{{ g.kind === 'grammar' ? ' (' + g.files.length + ' file' + (g.files.length === 1 ? '' : 's') + ')' : '' }}
         </option>
@@ -27,52 +23,95 @@
       <span class="mode" *ngIf="active && active.kind === 'grammar'">{{ active.mode }}</span>
     </div>
 
-    <!--
-      A grammar opened as a single file cannot resolve its own FILES list, because a
-      file handle gives no access to the containing folder. Say so, and offer the fix.
-    -->
     <div class="partial" *ngIf="active?.partial">
       This grammar includes {{ active?.missing?.length }} other file(s), which cannot be
       read without access to the containing folder.
       <button type="button" (click)="pickFolder()">Open the folder instead</button>
     </div>
 
-    <input class="filter"
-           type="search"
-           placeholder="Filter entries…"
-           [(ngModel)]="filter"
-           *ngIf="index" />
+    <input class="filter" type="search" placeholder="Filter entries…"
+           [(ngModel)]="filter" *ngIf="index" />
 
     <div class="tree-scroll">
-      <app-grammar-tree [nodes]="tree"
-                        [filter]="filter"
-                        [selected]="selected"
+      <app-grammar-tree [nodes]="tree" [filter]="filter" [selected]="selected"
                         (entrySelected)="openNode($event)"></app-grammar-tree>
     </div>
 
     <div class="status" *ngIf="status">
       {{ status }}<span *ngIf="active && active.kind === 'grammar'">, {{ active.entryCount }} entries</span>
     </div>
+
+    <!--
+      Calls naming nothing this grammar defines. Usually a real defect: the corpus here
+      has three, all to INTRANS-OBL-EV, which no file defines.
+    -->
+    <details class="warnings unresolved" *ngIf="definitions && definitions.unresolved.length">
+      <summary>{{ definitions.unresolved.length }} unresolved template call(s)</summary>
+      <ul>
+        <li *ngFor="let u of definitions.unresolved">
+          <code>&#64;{{ u.name }}</code> — {{ u.path }}:{{ u.line }}
+        </li>
+      </ul>
+    </details>
     <details class="warnings" *ngIf="index && index.warnings.length">
-      <summary>{{ index.warnings.length }} warning(s)</summary>
+      <summary>{{ index.warnings.length }} parse warning(s)</summary>
       <ul><li *ngFor="let w of index.warnings">{{ w }}</li></ul>
     </details>
   </div>
 
-  <div class="divider" (mousedown)="startDrag($event)" title="Drag to resize"></div>
+  <div class="divider" (mousedown)="startDrag($event, { axis: 'main' })" title="Drag to resize"></div>
 
   <div class="pane right">
-    <app-grammar-editor [content]="openContent"
-                        [path]="openPath"
-                        [reveal]="reveal"
-                        [readOnly]="readOnly"
-                        (contentChange)="onContentChange($event)"
-                        (save)="save()">
-      <button type="button" (click)="save()" [disabled]="!dirty || busy || readOnly">
-        {{ dirty ? 'Save' : 'Saved' }}
-      </button>
-      <button type="button" (click)="revert()" [disabled]="!dirty || busy">Revert</button>
-    </app-grammar-editor>
+    <div class="pane-toolbar" *ngIf="panes.length">
+      <button type="button" (click)="splitPane()" [disabled]="busy" title="Open another pane">Split</button>
+      <span class="layout-toggle">
+        <button type="button" [class.on]="layout === 'rows'" (click)="setLayout('rows')" title="Stack panes">Rows</button>
+        <button type="button" [class.on]="layout === 'grid'" (click)="setLayout('grid')" title="Tile panes">Grid</button>
+      </span>
+      <button type="button" (click)="back()" [disabled]="!canGoBack" title="Back to where the jump started">← Back</button>
+      <span class="spacer"></span>
+      <span class="keys">⌘S save · ⌘; comment · F12 or ⌘-click go to definition</span>
+    </div>
+
+    <p class="empty" *ngIf="!panes.length">
+      Open a grammar and click an entry to view it here.
+    </p>
+
+    <div class="panes" *ngIf="panes.length">
+      <ng-container *ngFor="let column of columns; let c = index">
+        <div class="col-divider" *ngIf="c > 0"
+             (mousedown)="startDrag($event, { axis: 'col', i: c - 1 })" title="Drag to resize"></div>
+        <div class="pane-column" [style.flex-basis.%]="columnWidth(c)">
+          <ng-container *ngFor="let pane of column; let r = index; trackBy: trackPane">
+            <div class="row-divider" *ngIf="r > 0"
+                 (mousedown)="startDrag($event, { axis: 'row', col: c, i: r - 1 })" title="Drag to resize"></div>
+            <div class="pane-slot" [style.flex-basis.%]="paneHeight(c, r)">
+              <app-grammar-editor
+                  [content]="pane.content"
+                  [path]="pane.path"
+                  [reveal]="pane.reveal"
+                  [readOnly]="readOnly"
+                  [dirty]="pane.dirty"
+                  [completions]="completions"
+                  [active]="pane.id === activePaneId"
+                  [closable]="panes.length > 1"
+                  (contentChange)="onContentChange(pane, $event)"
+                  (save)="save(pane)"
+                  (goto)="goto($event)"
+                  (focused)="onPaneFocused(pane)"
+                  (closeRequested)="closePane(pane)">
+                <button type="button" (click)="save(pane)" [disabled]="!pane.dirty || busy || readOnly">
+                  {{ pane.dirty ? 'Save' : 'Saved' }}
+                </button>
+                <button type="button" (click)="revert(pane)" [disabled]="!pane.dirty || busy">Revert</button>
+              </app-grammar-editor>
+            </div>
+          </ng-container>
+        </div>
+      </ng-container>
+    </div>
+
+    <p class="notice" *ngIf="notice">{{ notice }}</p>
     <p class="error" *ngIf="error">{{ error }}</p>
   </div>
 

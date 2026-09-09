@@ -15,14 +15,14 @@ import { Injectable } from '@angular/core';
 
 export interface GrammarWorkspaceState {
   filter: string;
-  openPath?: string;
-  openLine?: number;
   splitFraction: number;
+  layout: 'rows' | 'grid';
 }
 
 const DEFAULTS: GrammarWorkspaceState = {
   filter: '',
   splitFraction: 0.34,
+  layout: 'rows',
 };
 
 function clone<T>(value: T): T {

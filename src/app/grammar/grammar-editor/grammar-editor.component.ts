@@ -3,18 +3,30 @@ import {
   OnDestroy, Output, SimpleChanges, ViewChild,
 } from '@angular/core';
 import { EditorState, Compartment } from '@codemirror/state';
-import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter } from '@codemirror/view';
+import {
+  EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter,
+} from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
+import { autocompletion, completionKeymap } from '@codemirror/autocomplete';
 import { bracketMatching, indentUnit } from '@codemirror/language';
 import { lfg } from '../lfg/lfg-language';
 import { commentRegion } from '../lfg/lfg-commands';
+import { lfgCompletions, type CompletionEntry } from '../lfg/lfg-completion';
+import { identifierAt, templateCallAt } from '../lfg/lfg-references';
+
+/** A request to jump to wherever `name` is defined. */
+export interface GotoRequest {
+  name: string;
+  /** True when the name came from an `@call` rather than a bare identifier. */
+  fromCall: boolean;
+}
 
 /**
- * The editor pane: one file at a time, with LFG highlighting.
+ * The editor pane: one file, with LFG highlighting, completion and go-to-definition.
  *
- * CodeMirror is created once and reconfigured, rather than torn down per file, so that
- * undo history and scroll behaviour stay sane while moving around a grammar.
+ * CodeMirror is created once and reconfigured rather than torn down per file, so undo
+ * history and scrolling stay sane while moving around a grammar.
  */
 @Component({
   selector: 'app-grammar-editor',
@@ -24,21 +36,33 @@ import { commentRegion } from '../lfg/lfg-commands';
 export class GrammarEditorComponent implements AfterViewInit, OnChanges, OnDestroy {
   @ViewChild('host', { static: true }) host!: ElementRef<HTMLDivElement>;
 
-  /** Text of the open file. */
   @Input() content = '';
-  /** Path of the open file, shown in the header and used to detect a file change. */
   @Input() path = '';
-  /** Character range to reveal and flash when the file opens. */
+  /** Character range to reveal and select when the file opens. */
   @Input() reveal?: { start: number; end: number };
   @Input() readOnly = false;
+  @Input() dirty = false;
+  /** Names this grammar defines, for completion. */
+  @Input() completions: CompletionEntry[] = [];
+  /** Marks which pane keyboard focus and tree clicks act on. */
+  @Input() active = false;
+  /** Hides the close button when only one pane is open. */
+  @Input() closable = false;
 
   @Output() contentChange = new EventEmitter<string>();
   @Output() save = new EventEmitter<void>();
+  @Output() goto = new EventEmitter<GotoRequest>();
+  @Output() focused = new EventEmitter<void>();
+  @Output() closeRequested = new EventEmitter<void>();
 
   private view?: EditorView;
   private editable = new Compartment();
-  /** Set while we push text in, so the resulting update is not echoed back out. */
+  /** Set while pushing text in, so the resulting update is not echoed back out. */
   private applying = false;
+
+  get view_(): EditorView | undefined {
+    return this.view;
+  }
 
   ngAfterViewInit(): void {
     this.view = new EditorView({
@@ -52,14 +76,22 @@ export class GrammarEditorComponent implements AfterViewInit, OnChanges, OnDestr
           highlightSelectionMatches(),
           bracketMatching(),
           history(),
-          // XLE grammars are indented in units of two columns per open brace.
           indentUnit.of('  '),
           ...lfg(),
+          autocompletion({
+            override: [lfgCompletions(() => this.completions)],
+            // XLE names are written in a mix of cases and the list is long; matching
+            // loosely finds `DEFAULT-NOUN-SEM` from `dns`.
+            activateOnTyping: true,
+          }),
           keymap.of([
-            // Ctrl/Cmd-S saves, the one binding people will reach for first.
             { key: 'Mod-s', preventDefault: true, run: () => { this.save.emit(); return true; } },
-            // Mirrors C-c C-c (lfg-comment-region) from the emacs mode.
+            // Mirrors C-c C-c (lfg-comment-region) in the emacs mode.
             { key: 'Mod-;', preventDefault: true, run: commentRegion },
+            // Mirrors M-" (imenu-go-find-at-position), plus the usual F12 and Mod-click.
+            { key: 'Alt-\'', preventDefault: true, run: () => this.requestGoto() },
+            { key: 'F12', preventDefault: true, run: () => this.requestGoto() },
+            ...completionKeymap,
             indentWithTab,
             ...defaultKeymap,
             ...historyKeymap,
@@ -71,6 +103,19 @@ export class GrammarEditorComponent implements AfterViewInit, OnChanges, OnDestr
             if (update.docChanged && !this.applying) {
               this.contentChange.emit(update.state.doc.toString());
             }
+            if (update.focusChanged && update.view.hasFocus) {
+              this.focused.emit();
+            }
+          }),
+          EditorView.domEventHandlers({
+            mousedown: (event, view) => {
+              // Cmd/Ctrl-click jumps, the convention everywhere else.
+              if (!event.metaKey && !event.ctrlKey) return false;
+              const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+              if (pos === null) return false;
+              event.preventDefault();
+              return this.requestGoto(pos);
+            },
           }),
         ],
       }),
@@ -80,18 +125,13 @@ export class GrammarEditorComponent implements AfterViewInit, OnChanges, OnDestr
 
   ngOnChanges(changes: SimpleChanges): void {
     if (!this.view) return;
-
     if (changes['content'] && this.content !== this.view.state.doc.toString()) {
       this.applying = true;
-      this.view.dispatch({
-        changes: { from: 0, to: this.view.state.doc.length, insert: this.content },
-      });
+      this.view.dispatch({ changes: { from: 0, to: this.view.state.doc.length, insert: this.content } });
       this.applying = false;
     }
     if (changes['readOnly']) {
-      this.view.dispatch({
-        effects: this.editable.reconfigure(EditorView.editable.of(!this.readOnly)),
-      });
+      this.view.dispatch({ effects: this.editable.reconfigure(EditorView.editable.of(!this.readOnly)) });
     }
     if (changes['reveal'] || changes['path']) {
       this.applyReveal();
@@ -102,12 +142,35 @@ export class GrammarEditorComponent implements AfterViewInit, OnChanges, OnDestr
     this.view?.destroy();
   }
 
+  focus(): void {
+    this.view?.focus();
+  }
+
   /**
-   * Scroll the requested range into view and select it.
+   * Ask the host to resolve the name under the caret.
    *
-   * Selecting rather than just scrolling is deliberate: after clicking an entry in the
-   * tree, the entry you asked for should be unmistakable in a 600-line lexicon.
+   * Prefers an `@call`, since that is unambiguously a template reference; falls back to
+   * the bare identifier so a category in a rule can jump to the rule defining it.
    */
+  private requestGoto(at?: number): boolean {
+    const view = this.view;
+    if (!view) return false;
+    const pos = at ?? view.state.selection.main.head;
+    const doc = view.state.doc.toString();
+    const call = templateCallAt(doc, pos);
+    if (call) {
+      this.goto.emit({ name: call.name, fromCall: true });
+      return true;
+    }
+    const word = identifierAt(doc, pos);
+    if (word) {
+      this.goto.emit({ name: word.name, fromCall: false });
+      return true;
+    }
+    return false;
+  }
+
+  /** Scroll a range into view and select it, so a jump target is unmistakable. */
   private applyReveal(): void {
     const view = this.view;
     if (!view || !this.reveal) return;
