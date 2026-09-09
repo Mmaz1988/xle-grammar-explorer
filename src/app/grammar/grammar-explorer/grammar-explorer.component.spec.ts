@@ -58,6 +58,11 @@ describe('GrammarExplorerComponent', () => {
     return component.openNode(rules.children[0].children[0]);
   }
 
+  function openSecondRuleInSplit(): Promise<void> {
+    const rules = component.tree.find((g) => g.label === 'RULES')!;
+    return component.openFromMenu(rules.children[0].children[1], 'split');
+  }
+
   it('does not rebuild editors on repeated change detection', async () => {
     await openFirstRule();
     fixture.detectChanges();
@@ -74,7 +79,7 @@ describe('GrammarExplorerComponent', () => {
 
   it('keeps the column arrangement identical between reads', async () => {
     await openFirstRule();
-    component.splitPane();
+    await openSecondRuleInSplit();
     fixture.detectChanges();
     // A getter would fail this, and a getter is what caused the loop.
     expect(component.columns).toBe(component.columns);
@@ -117,7 +122,7 @@ describe('GrammarExplorerComponent', () => {
 
   it('keeps one editor per pane after splitting', async () => {
     await openFirstRule();
-    component.splitPane();
+    await openSecondRuleInSplit();
     component.setLayout('grid');
     fixture.detectChanges();
 

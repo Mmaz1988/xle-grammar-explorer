@@ -302,26 +302,6 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
     await this.show(node.path, node.span, node.line, { newPane: true });
   }
 
-  /** Add an empty pane showing the same file, for looking at two places at once. */
-  splitPane(): void {
-    if (this.panes.length >= MAX_PANES) {
-      this.error = `Too many open panes (${MAX_PANES}). Close one first.`;
-      return;
-    }
-    const source = this.activePane;
-    const pane: EditorPane = {
-      id: this.nextPaneId++,
-      path: source?.path ?? '',
-      content: source?.content ?? '',
-      saved: source?.saved ?? '',
-      dirty: false,
-      reveal: undefined,
-    };
-    this.panes.push(pane);
-    this.activePaneId = pane.id;
-    this.relayout();
-  }
-
   closePane(pane: EditorPane): void {
     if (pane.dirty && !confirm(`${pane.path} has unsaved changes. Close it anyway?`)) return;
     this.panes = this.panes.filter((p) => p !== pane);

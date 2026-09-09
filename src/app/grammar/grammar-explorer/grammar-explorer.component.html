@@ -64,14 +64,13 @@
 
   <div class="pane right">
     <div class="pane-toolbar" *ngIf="panes.length">
-      <button type="button" (click)="splitPane()" [disabled]="busy" title="Open another pane">Split</button>
       <span class="layout-toggle">
         <button type="button" [class.on]="layout === 'rows'" (click)="setLayout('rows')" title="Stack panes">Rows</button>
         <button type="button" [class.on]="layout === 'grid'" (click)="setLayout('grid')" title="Tile panes">Grid</button>
       </span>
       <button type="button" (click)="back()" [disabled]="!canGoBack" title="Back to where the jump started">← Back</button>
       <span class="spacer"></span>
-      <span class="keys">⌘S save · ⌘; comment · F12 or ⌘-click go to definition</span>
+      <span class="keys">right-click a tree row to open it in a split · ⌘S save · ⌘; comment · F12 or ⌘-click go to definition</span>
     </div>
 
     <p class="empty" *ngIf="!panes.length">
