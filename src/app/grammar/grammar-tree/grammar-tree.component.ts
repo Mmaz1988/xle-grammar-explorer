@@ -83,6 +83,11 @@ export class GrammarTreeComponent implements OnChanges {
     // Only reset expansion when the filter changed. A rebuild of the same grammar —
     // what a save produces — must leave the tree exactly as the user left it.
     if (changes['filter']) this.treeControl.collapseAll();
+    // Clear first, then assign. Sorting rebuilds the nodes but keeps their ids, and
+    // `trackBy` reads that as "nothing changed" and reuses the existing rows — so the
+    // data sorts while the tree on screen does not move. Emptying forces the rebuild;
+    // expansion survives because the tree control tracks ids separately.
+    this.dataSource.data = [];
     this.dataSource.data = visible;
     this.treeControl.dataNodes = visible;
 

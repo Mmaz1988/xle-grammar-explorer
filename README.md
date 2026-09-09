@@ -179,7 +179,10 @@ or revert. Moving in or out of a file with unsaved changes is refused, because t
 offsets driving the splice describe what is on disk.
 
 **Ordering** — the tree's **File order / A–Z** control is a *view* setting: sorting to
-find something never touches a grammar. Dragging an entry within its section moves it
+find something never touches a grammar. It sorts both the entries inside a section and
+the sections themselves; the top-level groups keep their fixed order, since CONFIG →
+RULES → TEMPLATES → LEXICON → MORPHOLOGY is the shape of a grammar rather than an
+alphabetical accident. Dragging an entry within its section moves it
 in the file, and is offered only in file order with no filter — in a sorted or filtered
 tree the rows either side of the pointer are not the entry's neighbours on disk, so
 "drop between these two" would name no real position. To write alphabetical order into

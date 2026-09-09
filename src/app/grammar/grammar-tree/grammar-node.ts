@@ -182,7 +182,10 @@ export function sortTree(nodes: GrammarNode[], mode: SortMode): GrammarNode[] {
   const walk = (node: GrammarNode): GrammarNode => {
     if (node.children.length === 0) return node;
     const children = node.children.map(walk);
-    if (children[0]?.level === 'entry') {
+    // Sort both entries within a section and sections within a group. Groups
+    // themselves keep their fixed order — CONFIG, RULES, TEMPLATES, LEXICON,
+    // MORPHOLOGY is the shape of a grammar, not an alphabetical accident.
+    if (children[0]?.level === 'entry' || children[0]?.level === 'section') {
       children.sort((a, b) => collator.compare(a.name, b.name));
     }
     return { ...node, children };

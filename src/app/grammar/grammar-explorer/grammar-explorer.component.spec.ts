@@ -29,7 +29,11 @@ import { WorkspaceStore } from '../workspace/workspace-store';
 const SOURCE_FILES: Record<string, string> = {
   'main.lfg': 'DEMO ENGLISH CONFIG (1.0)\n  ROOTCAT ROOT.\n  FILES rules.lfg lex.lfg.\n----\n',
   'rules.lfg': 'VERB ENGLISH RULES (1.0)\nVP --> V (NP).\nS --> NP VP.\n----\n',
-  'lex.lfg': 'A ENGLISH LEXICON (1.0)\nhug V-S XLE @X.\n----\nB ENGLISH LEXICON (1.0)\nowl N * @Y.\n----\n',
+  'lex.lfg':
+    'A ENGLISH LEXICON (1.0)\nhug V-S XLE @X.\n----\n' +
+    'B ENGLISH LEXICON (1.0)\nowl N * @Y.\n----\n' +
+    // Deliberately out of order, so sorting the view has something to move.
+    'C ENGLISH LEXICON (1.0)\nzebra N * @Z.\napple N * @A.\nmango N * @M.\n----\n',
 };
 
 /** Reset for every spec, so one that saves cannot leak into the next. */
@@ -231,6 +235,25 @@ describe('GrammarExplorerComponent', () => {
 
     expect(component.tree.find((g) => g.label === 'RULES')!.children[0].children.length)
       .withContext('nothing moved').toBe(section.children.length);
+  });
+
+  /*
+   * Note: the rendered *order* of entry rows is not asserted here. Angular Material's
+   * nested tree builds a node's children through an outlet that this template creates
+   * with *ngIf, and under TestBed those children never materialise, so any DOM-order
+   * assertion would pass vacuously rather than test anything. The ordering itself is
+   * covered by the sortTree specs in grammar-node.node-spec.ts; the rebuild that makes
+   * the rows actually move is verified in a browser.
+   */
+
+  it('sorts sections as well as the entries inside them', async () => {
+    component.sortMode = 'alpha';
+    fixture.detectChanges();
+    const tree = fixture.debugElement.query(
+      (de) => de.componentInstance instanceof GrammarTreeComponent,
+    ).componentInstance as GrammarTreeComponent;
+    const sections = tree.dataSource.data.find((g) => g.label === 'LEXICON')!.children.map((s) => s.label);
+    expect(sections).toEqual([...sections].sort());
   });
 
   it('sorts the view without touching the file', async () => {

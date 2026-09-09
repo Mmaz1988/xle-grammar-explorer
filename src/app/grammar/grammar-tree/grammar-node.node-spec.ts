@@ -9,7 +9,7 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { filterTreeDetailed, scoreText, type GrammarNode } from './grammar-node';
+import { filterTreeDetailed, scoreText, sortTree, type GrammarNode } from './grammar-node';
 
 function entry(name: string, label = name): GrammarNode {
   return { id: `e:${name}`, name, label, parts: [{ text: label }], level: 'entry', icon: '', tooltip: '', children: [] };
@@ -109,5 +109,43 @@ describe('filterTreeDetailed', () => {
 
   it('returns everything for an empty query', () => {
     assert.equal(filterTreeDetailed(tree, '   ').nodes, tree);
+  });
+});
+
+describe('sortTree', () => {
+  const tree = [
+    group('LEXICON', [
+      section('VERB ENGLISH', [entry('zebra'), entry('apple'), entry('mango')]),
+      section('ADJADV ENGLISH', [entry('warm'), entry('fast')]),
+    ]),
+  ];
+
+  it('leaves everything alone in file order', () => {
+    assert.equal(sortTree(tree, 'file'), tree);
+  });
+
+  it('sorts the entries inside a section', () => {
+    const out = sortTree(tree, 'alpha');
+    // Find by name, not position: the sections sort too, so indices move.
+    const verbs = out[0].children.find((s) => s.name === 'VERB ENGLISH')!;
+    assert.deepEqual(verbs.children.map((e) => e.name), ['apple', 'mango', 'zebra']);
+  });
+
+  it('sorts the sections too, not only their entries', () => {
+    const out = sortTree(tree, 'alpha');
+    assert.deepEqual(out[0].children.map((s) => s.name), ['ADJADV ENGLISH', 'VERB ENGLISH']);
+  });
+
+  it('keeps the groups in their canonical order', () => {
+    // CONFIG, RULES, TEMPLATES, LEXICON, MORPHOLOGY is the shape of a grammar; sorting
+    // those alphabetically would be noise.
+    const many = [group('RULES', []), group('CONFIG', []), group('LEXICON', [])];
+    assert.deepEqual(sortTree(many, 'alpha').map((g) => g.name), ['RULES', 'CONFIG', 'LEXICON']);
+  });
+
+  it('ignores case and orders numbers naturally', () => {
+    const mixed = [group('LEXICON', [section('S', [entry('arg10'), entry('He'), entry('arg2'), entry('at')])])];
+    assert.deepEqual(sortTree(mixed, 'alpha')[0].children[0].children.map((e) => e.name),
+      ['arg2', 'arg10', 'at', 'He']);
   });
 });
