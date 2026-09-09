@@ -1,0 +1,16 @@
+{
+  "name": "xle-grammar-explorer",
+  "version": "0.0.1",
+  "description": "Visual two-pane explorer for XLE/LFG grammars: a working tree of grammar sections plus an editor.",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "harness": "tsc -p tsconfig.harness.json && node .harness/tools/parse-all-grammars.js",
+    "test:parser": "tsc -p tsconfig.harness.json && node --test .harness/src/app/grammar/lfg/*.spec.js",
+    "index": "tsc -p tsconfig.harness.json && node .harness/tools/index-grammar.js"
+  },
+  "devDependencies": {
+    "@types/node": "^26.5.0",
+    "typescript": "~5.1.3"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "outDir": ".harness",
+    "rootDir": ".",
+    "sourceMap": true
+  },
+  "include": ["src/app/grammar/lfg/**/*.ts", "src/app/grammar/workspace/**/*.ts", "tools/**/*.ts"]
+}
