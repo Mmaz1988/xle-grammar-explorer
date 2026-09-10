@@ -116,7 +116,7 @@ describe('filterTreeDetailed', () => {
 });
 
 describe('section labelling', () => {
-  it('qualifies a section by kind for use outside the tree', () => {
+  it('shows the kind beside the key, in the tree and outside it', () => {
     // A section's identity is its key *plus* its kind: `DEMO ENGLISH` names a CONFIG, a
     // RULES, a LEXICON, a TEMPLATES and a MORPHOLOGY section in the bundled grammar, so
     // the key alone does not identify one.

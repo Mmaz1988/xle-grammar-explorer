@@ -157,7 +157,6 @@ function entryParts(entry: LfgEntry): LabelPart[] {
 function sectionNode(section: LfgSection, file: LfgFile): GrammarNode {
   const id = `s:${file.path}:${section.kind}:${section.key}`;
   const seen = new Map<string, number>();
-  const fileName = file.path.slice(file.path.lastIndexOf('/') + 1);
   return {
     id,
     name: section.key,
@@ -165,9 +164,12 @@ function sectionNode(section: LfgSection, file: LfgFile): GrammarNode {
     level: 'section',
     label: section.key,
     qualifiedLabel: `${section.key} ${section.kind}`,
-    // The file is shown beside the key: one key often names several sections, and which
-    // file a section lives in is the thing that tells them apart at a glance.
-    parts: [{ text: section.key }, { text: `  ${fileName}`, cls: 'muted' }],
+    // The kind is shown beside the key, repeating the group heading above it. That
+    // repetition is deliberate: a key alone names several sections — `DEMO ENGLISH` is
+    // five of them here — and the kind is a short, uniform token, where the file that
+    // would also distinguish them is long, varies in length, and leaves the column
+    // ragged and hard to read.
+    parts: [{ text: section.key }, { text: ` ${section.kind}`, cls: 'muted' }],
     icon: GROUP_ICON[section.kind] ?? 'folder',
     tooltip: `${section.key} ${section.kind} (${section.version}) — ${file.path}:${section.line}`,
     badge: String(section.entries.length),
