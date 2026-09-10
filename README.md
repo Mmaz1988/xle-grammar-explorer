@@ -318,6 +318,11 @@ pre-filled with its section headers, declares it, and lists it in `FILES`. Nodes
 freely and keep their positions; declaration edges are off by default, since the CONFIG
 declares nearly everything and those edges bury the containment structure.
 
+The working tree stays live while the structure view is showing, and clicking an entry
+there brings the editor back with it — a click that quietly updated an invisible pane
+would be worse than useless. Staging an edit from the structure view does *not* switch,
+so a sequence of structural changes is not interrupted.
+
 Every CONFIG change is staged unsaved like any other edit. A new file is written to disk
 at once while its config entries are staged — safe in that direction only, because an
 undeclared file is inert whereas a config naming a missing file will not load.

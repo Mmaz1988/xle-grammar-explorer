@@ -319,6 +319,32 @@ describe('GrammarExplorerComponent', () => {
     expect(fixture.nativeElement.querySelector('app-structure-graph')).toBeTruthy();
   });
 
+  it('brings the editor back when the tree is used from the structure view', async () => {
+    component.showTab('structure');
+    fixture.detectChanges();
+    expect(component.tab).toBe('structure');
+
+    const rules = component.tree.find((g) => g.label === 'RULES')!;
+    await component.openNode(rules.children[0].children[0]);
+    fixture.detectChanges();
+
+    expect(component.tab).withContext('a tree click shows what it opened').toBe('editor');
+    expect(component.activePane).toBeTruthy();
+  });
+
+  it('stays in the structure view while staging a structure edit', async () => {
+    // Unlinking stages a config edit, which opens the config file in a pane. That must
+    // not throw the user back to the editor mid-way through working on the structure.
+    component.showTab('structure');
+    fixture.detectChanges();
+
+    const section = component.structure!.nodes.find((n) => n.kind === 'section')!;
+    await component.onStructureAction({ action: 'unlink', node: section });
+    fixture.detectChanges();
+
+    expect(component.tab).withContext('still in the structure view').toBe('structure');
+  });
+
   it('unlinks a section without touching the file that holds it', async () => {
     const section = component.structure!.nodes.find((n) => n.kind === 'section' && n.sectionKind === 'RULES')!;
     const before = FILES[section.path!];

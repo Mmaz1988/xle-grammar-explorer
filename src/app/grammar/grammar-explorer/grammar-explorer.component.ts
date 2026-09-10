@@ -652,6 +652,9 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
   async openNode(node: GrammarNode): Promise<void> {
     if (node.path === undefined) return;
     await this.show(node.path, node.span, node.line);
+    // The tree stays usable while the structure view is showing, so a click there has
+    // to bring the editor back — otherwise it silently updates a pane out of sight.
+    this.tab = 'editor';
   }
 
   /**
@@ -837,6 +840,7 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
     if (node.path === undefined) return;
     if (where === 'here') {
       await this.show(node.path, node.span, node.line);
+      this.tab = 'editor';
       return;
     }
     if (this.panes.length >= MAX_PANES) {
@@ -899,6 +903,7 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
       return;
     }
     await this.jumpTo(defs[0], request.newPane);
+    this.tab = 'editor';
     if (defs.length > 1) {
       const others = defs.slice(1).map((d) => `${d.sectionKey} (${d.path}:${d.line})`).join(', ');
       this.notice = `${request.name} is defined ${defs.length} times; showing the one CONFIG prefers. Also in: ${others}`;
@@ -914,6 +919,7 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
     const previous = this.backStack.pop();
     if (!previous) return;
     await this.show(previous.path, previous.span, previous.line);
+    this.tab = 'editor';
   }
 
   get canGoBack(): boolean {
