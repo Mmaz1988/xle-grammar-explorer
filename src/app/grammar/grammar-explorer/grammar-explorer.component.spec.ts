@@ -264,13 +264,17 @@ describe('GrammarExplorerComponent', () => {
     expect(tree.hasChild(0, entry as never)).withContext('entries do not').toBeFalse();
   });
 
-  it('writes whichever order the view is showing', async () => {
-    // The command follows the view rather than always meaning A–Z, so what you see is
-    // what gets written.
-    expect(component.sortCommandLabel).toBe('Sort A–Z in file');
-    component.sortMode = 'category';
+  it('offers both in-file orders regardless of the view', async () => {
+    // Neither command depends on the view control: the category order was previously
+    // only writable while the tree happened to be showing it.
+    const lexicon = component.tree.find((g) => g.label === 'LEXICON')!;
+    component.onContextMenu({ node: lexicon.children[0], x: 10, y: 10 });
     fixture.detectChanges();
-    expect(component.sortCommandLabel).toBe('Sort by category in file');
+
+    const items = Array.from(fixture.nativeElement.querySelectorAll('.row-menu button'))
+      .map((b) => (b as HTMLElement).textContent!.trim());
+    expect(items).toContain('Sort A–Z in file');
+    expect(items).toContain('Sort by category in file');
   });
 
   it('sorts sections as well as the entries inside them', async () => {

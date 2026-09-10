@@ -156,8 +156,12 @@
       Open in split view
     </button>
     <button type="button" *ngIf="menu.node.level === 'section'"
-            (click)="sortSectionInFile(menu.node)">
-      {{ sortCommandLabel }}
+            (click)="sortSectionInFile(menu.node, 'alpha')">
+      Sort A–Z in file
+    </button>
+    <button type="button" *ngIf="menu.node.level === 'section'"
+            (click)="sortSectionInFile(menu.node, 'category')">
+      Sort by category in file
     </button>
   </div>
 

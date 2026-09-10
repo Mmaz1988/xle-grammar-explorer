@@ -216,9 +216,11 @@ RULES → TEMPLATES → LEXICON → MORPHOLOGY is the shape of a grammar rather 
 alphabetical accident. Dragging an entry within its section moves it
 in the file, and is offered only in file order with no filter — in a sorted or filtered
 tree the rows either side of the pointer are not the entry's neighbours on disk, so
-"drop between these two" would name no real position. To write an order into a file, use the
-sort command on a section's right-click menu — it follows whichever order the tree is
-showing, so it reads **Sort A–Z in file** or **Sort by category in file** accordingly.
+"drop between these two" would name no real position. To write an order into a file, use
+**Sort A–Z in file** or **Sort by category in file** on a section's right-click menu.
+Both are offered whatever the view is set to — tying the command to the view control
+meant the category order could only be written while the tree happened to be showing
+it, with nothing on the menu saying so.
 
 Reordering is lossless by construction. A section's entry spans are contiguous — 3165
 adjacent pairs across the corpus with no gaps — so its entries are a partition of its
