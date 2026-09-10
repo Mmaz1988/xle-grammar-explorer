@@ -300,6 +300,13 @@ Two rules decide what is presented:
 Still missing, and worth adding: restricting a search to one entry kind (lexical
 entries only, say), and searching entry *bodies* rather than identifiers.
 
+## Planned work
+
+[`TODO.md`](TODO.md) lists the larger pieces: a **structure view** linking sections,
+files and the CONFIG that declares them (planned in
+[`docs/structure-view.md`](docs/structure-view.md)), and authoring **skills** for XLE
+and the related notations.
+
 ## Status
 
 v1 covers navigate, edit and save, with go-to-definition, completion, multiple panes,
