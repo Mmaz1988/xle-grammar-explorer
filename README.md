@@ -206,15 +206,19 @@ files at once, and there is no undo across files, so you get to read it and eith
 or revert. Moving in or out of a file with unsaved changes is refused, because the
 offsets driving the splice describe what is on disk.
 
-**Ordering** — the tree's **File order / A–Z** control is a *view* setting: sorting to
-find something never touches a grammar. It sorts both the entries inside a section and
-the sections themselves; the top-level groups keep their fixed order, since CONFIG →
+**Ordering** — the tree's **File order / A–Z / Category** control is a *view* setting:
+sorting to find something never touches a grammar. **Category** groups a lexicon by
+part of speech and orders each group by name — a pure category sort would leave dozens
+of entries per category in arbitrary order, so name is always the tie-breaker, and
+entries with no category (templates, rules) simply sort by name. It sorts both the
+entries inside a section and the sections themselves; the top-level groups keep their fixed order, since CONFIG →
 RULES → TEMPLATES → LEXICON → MORPHOLOGY is the shape of a grammar rather than an
 alphabetical accident. Dragging an entry within its section moves it
 in the file, and is offered only in file order with no filter — in a sorted or filtered
 tree the rows either side of the pointer are not the entry's neighbours on disk, so
-"drop between these two" would name no real position. To write alphabetical order into
-a file, use **Sort A–Z in file** on a section's right-click menu.
+"drop between these two" would name no real position. To write an order into a file, use the
+sort command on a section's right-click menu — it follows whichever order the tree is
+showing, so it reads **Sort A–Z in file** or **Sort by category in file** accordingly.
 
 Reordering is lossless by construction. A section's entry spans are contiguous — 3165
 adjacent pairs across the corpus with no gaps — so its entries are a partition of its

@@ -11,8 +11,11 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { filterTreeDetailed, scoreText, sortTree, type GrammarNode } from './grammar-node';
 
-function entry(name: string, label = name): GrammarNode {
-  return { id: `e:${name}`, name, label, parts: [{ text: label }], level: 'entry', icon: '', tooltip: '', children: [] };
+function entry(name: string, label = name, category?: string): GrammarNode {
+  return {
+    id: `e:${name}`, name, label, category, parts: [{ text: label }],
+    level: 'entry', icon: '', tooltip: '', children: [],
+  };
 }
 
 function section(key: string, entries: GrammarNode[]): GrammarNode {
@@ -141,6 +144,28 @@ describe('sortTree', () => {
     // those alphabetically would be noise.
     const many = [group('RULES', []), group('CONFIG', []), group('LEXICON', [])];
     assert.deepEqual(sortTree(many, 'alpha').map((g) => g.name), ['RULES', 'CONFIG', 'LEXICON']);
+  });
+
+  it('groups by category and orders each group by name', () => {
+    // A pure category sort would leave dozens of entries per category in arbitrary
+    // order, which is no use for finding one — so name is always the tie-breaker.
+    const lexicon = [group('LEXICON', [section('S', [
+      entry('zebra', 'zebra', 'N'),
+      entry('run', 'run', 'V'),
+      entry('apple', 'apple', 'N'),
+      entry('go', 'go', 'V'),
+    ])])];
+    const sorted = sortTree(lexicon, 'category')[0].children[0].children;
+    assert.deepEqual(sorted.map((e) => `${e.category}:${e.name}`),
+      ['N:apple', 'N:zebra', 'V:go', 'V:run']);
+  });
+
+  it('falls back to name where entries have no category', () => {
+    // Templates and rules carry no category, so the mode degrades to alphabetical
+    // rather than shuffling them.
+    const templates = [group('TEMPLATES', [section('S', [entry('PASS'), entry('EVENT')])])];
+    const sorted = sortTree(templates, 'category')[0].children[0].children;
+    assert.deepEqual(sorted.map((e) => e.name), ['EVENT', 'PASS']);
   });
 
   it('ignores case and orders numbers naturally', () => {

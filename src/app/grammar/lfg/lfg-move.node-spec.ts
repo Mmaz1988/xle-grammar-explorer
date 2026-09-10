@@ -180,6 +180,16 @@ describe('reorderEntries', () => {
     assert.deepEqual(entryNames(out, 'A ENGLISH'), ['alpha', 'bravo', 'charlie']);
   });
 
+  it('sorts on compound keys, most significant first', () => {
+    const order = sortPermutation([['V', 'run'], ['N', 'zebra'], ['V', 'go'], ['N', 'apple']]);
+    assert.deepEqual(order, [3, 1, 2, 0]);
+  });
+
+  it('keeps ties in their original order', () => {
+    // Stability is what makes re-sorting an already sorted section a no-op.
+    assert.deepEqual(sortPermutation([['N', 'a'], ['N', 'a'], ['N', 'a']]), [0, 1, 2]);
+  });
+
   it('sorts a real lexicon losslessly', () => {
     const path = join(GRAMMARS, 'dev/lfgxdrt_inference_grammar/lexica/nounlex_fracas.lfg.glue');
     const text = readFileSync(path, 'utf8');

@@ -264,6 +264,15 @@ describe('GrammarExplorerComponent', () => {
     expect(tree.hasChild(0, entry as never)).withContext('entries do not').toBeFalse();
   });
 
+  it('writes whichever order the view is showing', async () => {
+    // The command follows the view rather than always meaning A–Z, so what you see is
+    // what gets written.
+    expect(component.sortCommandLabel).toBe('Sort A–Z in file');
+    component.sortMode = 'category';
+    fixture.detectChanges();
+    expect(component.sortCommandLabel).toBe('Sort by category in file');
+  });
+
   it('sorts sections as well as the entries inside them', async () => {
     component.sortMode = 'alpha';
     fixture.detectChanges();

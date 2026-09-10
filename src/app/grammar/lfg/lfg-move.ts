@@ -133,16 +133,29 @@ export function movePermutation(length: number, from: number, to: number): numbe
 }
 
 /**
- * The permutation that sorts entries by name.
+ * The permutation that sorts entries by the given keys.
  *
- * Compared with `localeCompare` using a numeric collator, so `arg2` follows `arg10`
- * the way a person would expect, and case differences do not scatter related entries —
- * this corpus has `He` beside `he` and `At` beside `at`.
+ * Each entry supplies its key parts in priority order — `[name]` to sort
+ * alphabetically, `[category, name]` to group a lexicon by category and order each
+ * group by name. Compared with a numeric collator, so `arg2` precedes `arg10` the way
+ * a person would expect, and case differences do not scatter related entries: this
+ * corpus has `He` beside `he` and `At` beside `at`.
+ *
+ * Ties keep their original order, so sorting is stable and re-sorting an already
+ * sorted section changes nothing.
  */
-export function sortPermutation(names: string[]): number[] {
+export function sortPermutation(keys: Array<string | string[]>): number[] {
   const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
-  return names
-    .map((name, index) => ({ name, index }))
-    .sort((a, b) => collator.compare(a.name, b.name) || a.index - b.index)
+  const parts = keys.map((key) => (Array.isArray(key) ? key : [key]));
+  return parts
+    .map((key, index) => ({ key, index }))
+    .sort((a, b) => {
+      const depth = Math.max(a.key.length, b.key.length);
+      for (let i = 0; i < depth; i++) {
+        const order = collator.compare(a.key[i] ?? '', b.key[i] ?? '');
+        if (order !== 0) return order;
+      }
+      return a.index - b.index;
+    })
     .map((entry) => entry.index);
 }

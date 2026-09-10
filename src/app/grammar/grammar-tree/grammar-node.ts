@@ -51,6 +51,8 @@ export interface GrammarNode {
   unreferenced?: boolean;
   /** For an entry, what kind it is; for a section, which kind of section. */
   entryKind?: EntryKind;
+  /** A lexical entry's category (`N`, `V-S`, `PRON`), for sorting by it. */
+  category?: string;
   sectionKind?: SectionKind;
   /** Match rank while filtering; lower is better. */
   score?: number;
@@ -104,6 +106,7 @@ function entryNode(entry: LfgEntry, file: LfgFile, sectionId: string, occurrence
   return {
     name: entry.name,
     entryKind: entry.kind,
+    category: entry.category,
     // Names repeat within a section — a lexicon can define the same headword under
     // two categories — so the occurrence disambiguates.
     id: `${sectionId}/${entry.kind}:${entry.name}#${occurrence}`,
@@ -166,8 +169,16 @@ function sectionNode(section: LfgSection, file: LfgFile): GrammarNode {
   };
 }
 
-/** How the tree displays entries. Neither setting changes anything on disk. */
-export type SortMode = 'file' | 'alpha';
+/**
+ * How the tree displays entries. None of these change anything on disk.
+ *
+ * `category` sorts by a lexical entry's category and then by name, rather than by
+ * category alone: a lexicon has dozens of entries per category, and leaving those in
+ * arbitrary order within each group would make the mode useless for finding anything.
+ * Entries with no category — templates, rules — simply sort by name, so the mode
+ * degrades to alphabetical where a category means nothing.
+ */
+export type SortMode = 'file' | 'alpha' | 'category';
 
 /**
  * Sort a tree's entries for display only.
@@ -179,6 +190,13 @@ export type SortMode = 'file' | 'alpha';
 export function sortTree(nodes: GrammarNode[], mode: SortMode): GrammarNode[] {
   if (mode === 'file') return nodes;
   const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+  const compare = (a: GrammarNode, b: GrammarNode): number => {
+    if (mode === 'category' && a.level === 'entry') {
+      const byCategory = collator.compare(a.category ?? '', b.category ?? '');
+      if (byCategory !== 0) return byCategory;
+    }
+    return collator.compare(a.name, b.name);
+  };
   const walk = (node: GrammarNode): GrammarNode => {
     if (node.children.length === 0) return node;
     const children = node.children.map(walk);
@@ -186,7 +204,7 @@ export function sortTree(nodes: GrammarNode[], mode: SortMode): GrammarNode[] {
     // themselves keep their fixed order — CONFIG, RULES, TEMPLATES, LEXICON,
     // MORPHOLOGY is the shape of a grammar, not an alphabetical accident.
     if (children[0]?.level === 'entry' || children[0]?.level === 'section') {
-      children.sort((a, b) => collator.compare(a.name, b.name));
+      children.sort(compare);
     }
     return { ...node, children };
   };

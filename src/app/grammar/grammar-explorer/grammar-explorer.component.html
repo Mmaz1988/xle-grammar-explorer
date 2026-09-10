@@ -51,6 +51,7 @@
               title="Display order — does not change the file">
         <option value="file">File order</option>
         <option value="alpha">A–Z</option>
+        <option value="category">Category</option>
       </select>
     </div>
 
@@ -156,7 +157,7 @@
     </button>
     <button type="button" *ngIf="menu.node.level === 'section'"
             (click)="sortSectionInFile(menu.node)">
-      Sort A–Z in file
+      {{ sortCommandLabel }}
     </button>
   </div>
 

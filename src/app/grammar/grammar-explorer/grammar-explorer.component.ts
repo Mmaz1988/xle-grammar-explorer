@@ -477,12 +477,19 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
     this.notice = `Moved ${source.name} within ${section.name}. Unsaved — review and save.`;
   }
 
+  /** How the in-file sort command describes itself, following the current view. */
+  get sortCommandLabel(): string {
+    return this.sortMode === 'category' ? 'Sort by category in file' : 'Sort A–Z in file';
+  }
+
   /**
-   * Write the alphabetical order into the file for one section.
+   * Write the current sort order into the file for one section.
    *
-   * Separate from the A–Z *view* on purpose: looking at a lexicon alphabetically is a
-   * way of finding something and must not rewrite anything, while this rewrites and
-   * says so.
+   * Separate from the *view* on purpose: looking at a lexicon in some order is a way of
+   * finding something and must not rewrite anything, while this rewrites and says so.
+   * It follows whichever order the tree is showing, so what you see is what gets
+   * written — falling back to alphabetical when the view is in file order, since
+   * "sort into the order it is already in" would do nothing.
    */
   async sortSectionInFile(section: GrammarNode): Promise<void> {
     this.menu = undefined;
@@ -500,17 +507,20 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
     const entries = parsed?.entries ?? [];
     if (entries.length < 2) return;
 
+    const byCategory = this.sortMode === 'category';
+    const keys = entries.map((e) => (byCategory ? [e.category ?? '', e.name] : e.name));
     const sorted = reorderEntries(
       text,
       entries.map((e) => ({ start: e.start, end: e.end })),
-      sortPermutation(entries.map((e) => e.name)),
+      sortPermutation(keys),
     );
+    const order = byCategory ? 'by category' : 'alphabetical';
     if (sorted === text) {
-      this.notice = `${section.name} is already in alphabetical order.`;
+      this.notice = `${section.name} is already in ${byCategory ? 'category' : 'alphabetical'} order.`;
       return;
     }
     await this.stageEdit(section.path, sorted);
-    this.notice = `Sorted ${section.name} alphabetically. Unsaved — review and save.`;
+    this.notice = `Sorted ${section.name} ${order}. Unsaved — review and save.`;
   }
 
   /** The section node holding `entry` in the current tree. */

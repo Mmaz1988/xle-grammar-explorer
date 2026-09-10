@@ -17,7 +17,7 @@ export interface GrammarWorkspaceState {
   filter: string;
   splitFraction: number;
   layout: 'rows' | 'grid';
-  sortMode: 'file' | 'alpha';
+  sortMode: 'file' | 'alpha' | 'category';
 }
 
 const DEFAULTS: GrammarWorkspaceState = {
