@@ -22,14 +22,21 @@ import type { Extension } from '@codemirror/state';
 import { lfgStreamMode } from './lfg-stream-mode';
 import { hangingOutdent, netDelimiters } from './lfg-indent';
 
-/** Map our token names onto lezer highlight tags. */
+/**
+ * Map our token names onto lezer highlight tags.
+ *
+ * This has to be handed to `StreamLanguage.define` as its `tokenTable`. Without it
+ * CodeMirror resolves the names itself, and it knows nothing of `builtin` or
+ * `variable` — so those tokens took whatever the fallback gave them, which is how
+ * `{` and `@` ended up green instead of red.
+ */
 const TOKEN_TAGS: Record<string, ReturnType<typeof t.special> | typeof t.comment> = {
   comment: t.comment,
   keyword: t.keyword,
-  builtin: t.operatorKeyword,
   string: t.string,
-  variable: t.variableName,
-  operator: t.typeName,
+  lfgOperator: t.operatorKeyword,
+  lfgLocal: t.variableName,
+  lfgProjection: t.typeName,
 };
 
 export const lfgLanguage = StreamLanguage.define({
@@ -45,6 +52,7 @@ export const lfgLanguage = StreamLanguage.define({
     // grammar-editor handles as its own command (see lfg-comment-region in lfg-mode).
     closeBrackets: { brackets: ['(', '[', '{', '"'] },
   },
+  tokenTable: TOKEN_TAGS,
 });
 
 const LIGHT = HighlightStyle.define([

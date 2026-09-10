@@ -20,13 +20,23 @@
  */
 
 /** Token names produced by the mode. These map to CSS classes / highlight tags. */
+/**
+ * Token names produced by the mode. These map to highlight tags and, in CodeMirror 5,
+ * to `.cm-<name>` CSS classes.
+ *
+ * The LFG-specific ones are prefixed. CodeMirror 6's stream-language layer ships a
+ * default table for the common CodeMirror 5 names — `builtin` and `variable` among
+ * them — and that table wins over a `tokenTable` entry of the same name, so `builtin`
+ * silently resolved near `variableName` and the disjunction braces came out the same
+ * green as `%local` names. Names it does not own resolve to exactly what we say.
+ */
 export type LfgToken =
   | 'comment'
   | 'keyword'
-  | 'builtin'
   | 'string'
-  | 'variable'
-  | 'operator'
+  | 'lfgOperator'
+  | 'lfgLocal'
+  | 'lfgProjection'
   | null;
 
 interface StreamLike {
@@ -153,7 +163,10 @@ export const lfgStreamMode = {
       // Rule 4: a lexical headword — `word CATEGORY morphcode`, where the morphcode
       // is `*` or `XLE`. Matching the whole shape is what distinguishes a headword
       // from any other identifier sitting at the start of a line.
-      const lex = /^((?:[^ \t\n`]|`.)+)([ \t]+[^ \n\t]+[ \t]+(?:\*|XLE)\b)/.exec(
+      // Whitespace lookahead, not `\b`: a boundary after `*` needs a word character
+      // next, and a morphcode is always followed by space. lfg-mode's own rule ends
+      // `\(\*\|XLE\)` with nothing after it, for exactly this reason.
+      const lex = /^((?:[^ \t\n`]|`.)+)([ \t]+[^ \n\t]+[ \t]+(?:\*|XLE)(?=\s|$))/.exec(
         stream.string.slice(stream.pos),
       );
       if (lex) {
@@ -180,7 +193,7 @@ export const lfgStreamMode = {
 
     // Rule 3: the linear-logic lollipop.
     if (stream.match(/^-o\b/)) {
-      return 'builtin';
+      return 'lfgOperator';
     }
 
     // Rule 6: only the `@` glyph is coloured, not the template name after it. That is
@@ -193,13 +206,13 @@ export const lfgStreamMode = {
       const application = state.afterTerm;
       stream.next();
       state.afterTerm = false;
-      return application ? null : 'builtin';
+      return application ? null : 'lfgOperator';
     }
 
     // Rule 7: disjunction delimiters.
     if (c === '{' || c === '}' || c === '|') {
       stream.next();
-      return 'builtin';
+      return 'lfgOperator';
     }
 
     // Beyond the ported rules: local names (`%stem`, `%mc296`) and projections
@@ -209,10 +222,10 @@ export const lfgStreamMode = {
     if (c === '%') {
       stream.match(/^%[^\s.,;:(){}[\]]*/);
       state.afterTerm = true;
-      return 'variable';
+      return 'lfgLocal';
     }
     if (stream.match(/^[a-z]::/)) {
-      return 'operator';
+      return 'lfgProjection';
     }
 
     // PRED values: `'walk<(^SUBJ)>'`. Not a string to XLE — the apostrophe is a word
