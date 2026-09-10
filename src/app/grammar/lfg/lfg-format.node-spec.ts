@@ -28,13 +28,14 @@ function walk(dir: string, out: string[] = []): string[] {
 
 describe('reindentExpression', () => {
   it('indents a rule body under the arrow and hangs the disjunction delimiters', () => {
-    // Continuations line up under the first daughter (column 12 here), the open brace
-    // pushes what follows two further, and a leading `|` or `}` hangs two back.
+    // The head line is flush left; continuations line up under the first daughter
+    // (column 9 here), the open brace pushes what follows two further, and a leading
+    // `|` or `}` hangs two back.
     const out = reindentExpression('ROOT --> { S (PERIOD)\n| Simp\n}.');
     assert.equal(out, [
-      '   ROOT --> { S (PERIOD)',
-      '            | Simp',
-      '            }.',
+      'ROOT --> { S (PERIOD)',
+      '         | Simp',
+      '         }.',
     ].join('\n'));
   });
 
@@ -53,7 +54,7 @@ describe('reindentExpression', () => {
     // `AP[_type $ {attributive predicative}] -->` has nothing to align to, and aligning
     // under a head that long would push every daughter off to the right anyway.
     const out = reindentExpression('AP[_type $ {attributive predicative}] -->\ne\nADV.');
-    assert.deepEqual(out.split('\n').map((l) => l.length - l.trimStart().length), [3, 10, 10]);
+    assert.deepEqual(out.split('\n').map((l) => l.length - l.trimStart().length), [0, 10, 10]);
   });
 
   it('aligns a lexical entry\'s schemata under the head line', () => {
@@ -65,8 +66,8 @@ describe('reindentExpression', () => {
   });
 
   it('measures tabs to the next eight-column stop', () => {
-    // `   hug` ends at column 6, the tab jumps to 8, `V-S XLE ` runs to 16 — so the
-    // continuation is 16 even though the tab is a single character.
+    // `hug` ends at column 3, the tab jumps to the stop at 8, `V-S XLE ` runs to 16 —
+    // so the continuation is 16 even though the tab is a single character.
     const out = reindentExpression('hug\tV-S XLE @(TRANS-EV %stem)\n@(OTHER).');
     const second = out.split('\n')[1];
     assert.equal(second.length - second.trimStart().length, 16);
@@ -75,7 +76,7 @@ describe('reindentExpression', () => {
   it('indents nested braces two columns deeper each level', () => {
     const out = reindentExpression('VP --> { V\n{ NP\n| PP\n}\n| S\n}.');
     assert.deepEqual(out.split('\n').map((l) => l.length - l.trimStart().length),
-      [3, 12, 12, 12, 10, 10]);
+      [0, 9, 9, 9, 7, 7]);
   });
 
   it('leaves everything above the head line alone', () => {
@@ -83,7 +84,7 @@ describe('reindentExpression', () => {
     const source = '"""\nLexical rules\n"""\n\nPASS(FRAME) = { FRAME\n| FRAME\n}.';
     const out = reindentExpression(source);
     assert.ok(out.startsWith('"""\nLexical rules\n"""\n\n'), out.slice(0, 40));
-    assert.ok(out.includes('   PASS(FRAME) = { FRAME'), out);
+    assert.ok(out.includes('\nPASS(FRAME) = { FRAME'), out);
   });
 
   it('does not reindent lines inside a multi-line comment', () => {

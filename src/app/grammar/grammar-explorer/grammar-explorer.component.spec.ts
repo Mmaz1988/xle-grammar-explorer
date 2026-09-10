@@ -28,7 +28,8 @@ import { WorkspaceStore } from '../workspace/workspace-store';
 /** Pristine fixture. Specs that save mutate their copy, never this. */
 const SOURCE_FILES: Record<string, string> = {
   'main.lfg': 'DEMO ENGLISH CONFIG (1.0)\n  ROOTCAT ROOT.\n  FILES rules.lfg lex.lfg.\n----\n',
-  'rules.lfg': 'VERB ENGLISH RULES (1.0)\nVP --> V (NP).\nS --> NP VP.\n----\n',
+  // VP spans lines so that reindenting it produces visible indentation.
+  'rules.lfg': 'VERB ENGLISH RULES (1.0)\nVP --> { V\n| NP\n}.\nS --> NP VP.\n----\n',
   'lex.lfg':
     'A ENGLISH LEXICON (1.0)\nhug V-S XLE @X.\n----\n' +
     'B ENGLISH LEXICON (1.0)\nowl N * @Y.\n----\n' +
@@ -318,8 +319,10 @@ describe('GrammarExplorerComponent', () => {
 
     const after = view.state.doc.toString();
     expect(after).withContext('no stray composed character was typed').not.toContain('œ');
-    expect(after.split('\n').some((line) => line.startsWith('   ')))
+    // Head lines are flush left, so reindenting shows up on the continuation lines.
+    expect(after.split('\n').some((line) => /^\s+\S/.test(line)))
       .withContext('the entry was reindented').toBeTrue();
+    expect(after).not.toBe(flattened);
   });
 
   it('keeps one editor per pane after splitting', async () => {

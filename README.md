@@ -154,6 +154,9 @@ XLE — and the alternatives are named rather than silently dropped. (In
 around the caret: two columns per open `{` or `[`, with `|` and `}` hanging back to the
 left, ported from `lfg-next-fill-col`. Newlines auto-indent by the same rule.
 
+The head line sits flush left — lfg-mode indents it to column 3 — so the thing being
+defined is the leftmost text on the line and a section stays scannable.
+
 Continuation lines align under wherever the head line's body starts — after `-->` for a
 rule, after `=` for a template, after the morphcode for a lexical entry — so a rule's
 daughters sit beneath each other. When the head line ends at the operator, or the head

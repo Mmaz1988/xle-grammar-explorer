@@ -20,8 +20,15 @@ import { parseLfgFile } from './lfg-parser';
 import { maskComments } from './lfg-lexer';
 import { hangingOutdent, netDelimiters } from './lfg-indent';
 
-/** Column the first line of an expression sits at, per `lfg-format-rule`. */
-const FIRST_LINE_COLUMN = 3;
+/**
+ * Column the head line of an expression sits at.
+ *
+ * lfg-mode indents it to 3 (`(indent-line-to 3)`); this keeps it flush left instead.
+ * A section's entries all start in the same place either way, and at column 0 the
+ * thing being defined — the rule's category, the template's name, the headword — is
+ * the leftmost text on the line, which is what makes a section scannable.
+ */
+const FIRST_LINE_COLUMN = 0;
 
 /**
  * Where continuations go when there is nothing on the head line to align with —
