@@ -295,6 +295,33 @@ describe('GrammarExplorerComponent', () => {
     expect(component.dirtyPanes.length).withContext('staged, not written').toBeGreaterThan(0);
   });
 
+  it('honours Option shortcuts even though macOS composes them into characters', async () => {
+    // Option is the compose key on macOS: Option+Q *is* `œ`, so `event.key` never says
+    // "q" and a plain Alt-q binding cannot fire — it types the accented character
+    // instead, which is exactly what happened. Matching is on `event.code`.
+    await openFirstRule();
+    fixture.detectChanges();
+
+    const view = (component.editors.first as unknown as { view_: {
+      state: { doc: { toString(): string; length: number } };
+      dispatch(spec: unknown): void;
+      contentDOM: HTMLElement;
+    } }).view_;
+
+    const flattened = view.state.doc.toString().split('\n').map((l) => l.trimStart()).join('\n');
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: flattened } });
+    view.dispatch({ selection: { anchor: 30 } });
+
+    view.contentDOM.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'œ', code: 'KeyQ', altKey: true, bubbles: true, cancelable: true,
+    }));
+
+    const after = view.state.doc.toString();
+    expect(after).withContext('no stray composed character was typed').not.toContain('œ');
+    expect(after.split('\n').some((line) => line.startsWith('   ')))
+      .withContext('the entry was reindented').toBeTrue();
+  });
+
   it('keeps one editor per pane after splitting', async () => {
     await openFirstRule();
     await openSecondRuleInSplit();

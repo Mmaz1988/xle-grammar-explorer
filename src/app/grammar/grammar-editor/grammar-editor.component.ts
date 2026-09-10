@@ -90,10 +90,7 @@ export class GrammarEditorComponent implements AfterViewInit, OnChanges, OnDestr
             { key: 'Mod-s', preventDefault: true, run: () => { this.save.emit(); return true; } },
             // Mirrors C-c C-c (lfg-comment-region) in the emacs mode.
             { key: 'Mod-;', preventDefault: true, run: commentRegion },
-            // Mirrors M-q (lfg-format-expression): reindent the enclosing entry.
-            { key: 'Alt-q', preventDefault: true, run: formatExpression },
             // Mirrors M-" (imenu-go-find-at-position), plus the usual F12 and Mod-click.
-            { key: 'Alt-\'', preventDefault: true, run: () => this.requestGoto() },
             { key: 'F12', preventDefault: true, run: () => this.requestGoto() },
             // Shift opens the definition beside the current file rather than in place,
             // for reading a template and its call site together.
@@ -118,6 +115,28 @@ export class GrammarEditorComponent implements AfterViewInit, OnChanges, OnDestr
             }
           }),
           EditorView.domEventHandlers({
+            /**
+             * Option-key bindings are matched on the physical key, not the character.
+             *
+             * On macOS Option is the compose key: Option+Q *is* `œ` and Option+'
+             * is `æ`, so `event.key` never says "q" and a normal `Alt-q` binding can
+             * never fire — it just types the accented character instead. `event.code`
+             * reports the key that was pressed regardless of what it composed.
+             */
+            keydown: (event, view) => {
+              if (!event.altKey || event.ctrlKey || event.metaKey) return false;
+              // M-q in the emacs mode: reindent the enclosing entry.
+              if (event.code === 'KeyQ') {
+                event.preventDefault();
+                return formatExpression(view);
+              }
+              // M-" in the emacs mode: go to definition.
+              if (event.code === 'Quote') {
+                event.preventDefault();
+                return this.requestGoto(undefined, event.shiftKey);
+              }
+              return false;
+            },
             mousedown: (event, view) => {
               // Cmd/Ctrl-click jumps, the convention everywhere else; adding Shift
               // opens the definition in a new pane instead of replacing this file.

@@ -154,6 +154,11 @@ XLE — and the alternatives are named rather than silently dropped. (In
 around the caret: two columns per open `{` or `[`, with `|` and `}` hanging back to the
 left, ported from `lfg-next-fill-col`. Newlines auto-indent by the same rule.
 
+Option shortcuts (`⌥Q`, and `⌥'` for go-to-definition) are matched on the physical key
+rather than the character produced. On macOS Option is the compose key — `⌥Q` *is* `œ`
+— so a binding written against the character can never fire and simply types the
+accented letter instead.
+
 Unlike the emacs command it changes *only* leading whitespace — lfg-mode's `M-q` also
 collapses runs of spaces and rewrites the inside of comments, and in grammars whose
 comments hold commented-out entries that is a way to lose work. A test asserts the
