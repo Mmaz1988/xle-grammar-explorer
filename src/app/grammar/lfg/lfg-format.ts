@@ -22,8 +22,80 @@ import { hangingOutdent, netDelimiters } from './lfg-indent';
 
 /** Column the first line of an expression sits at, per `lfg-format-rule`. */
 const FIRST_LINE_COLUMN = 3;
-/** Ceiling on where continuation lines start, per `(min 10 (current-column))`. */
-const MAX_CONTINUATION_COLUMN = 10;
+
+/**
+ * Where continuations go when there is nothing on the head line to align with —
+ * `lfg-format-rule`'s `(min 10 (current-column))`.
+ */
+const DEFAULT_CONTINUATION_COLUMN = 10;
+
+/**
+ * Furthest right an alignment will be taken.
+ *
+ * Aligning under a very long head pushes the body off to the right for no gain:
+ * `AP[_type $ {attributive predicative}] -->` would put every daughter at column 41,
+ * and the grammar's own authors do not write it that way — they break after the arrow
+ * and indent normally. Past this, so does the formatter.
+ */
+const MAX_ALIGN_COLUMN = 32;
+
+/** What kind of definition a head line introduces, which decides where its body starts. */
+type HeadKind = 'rule' | 'template' | 'lexical';
+
+/** A lexical entry's head: headword, category, morphcode. */
+const LEXICAL_HEAD = /^[ \t]*(?:[^\s`]|`.)+[ \t]+\S+[ \t]+(?:\*|XLE)\b/;
+
+/** Whether a line opens a definition, and so is where formatting starts. */
+function isHeadLine(line: string): boolean {
+  return line.includes('-->') || LEXICAL_HEAD.test(line) || /=(?!=|c)/.test(line);
+}
+
+/**
+ * Visual column of `index` in `line`, expanding tabs to eight-column stops.
+ *
+ * Lexical entries in this corpus separate the headword from its category with tabs, so
+ * counting characters would align the continuations to the wrong column.
+ */
+function visualColumn(line: string, index: number, start: number): number {
+  let column = start;
+  for (let i = 0; i < index && i < line.length; i++) {
+    column = line[i] === '\t' ? column + 8 - (column % 8) : column + 1;
+  }
+  return column;
+}
+
+/**
+ * The column the body starts at on the head line, or undefined if the line ends at
+ * the operator with nothing after it.
+ *
+ * This is the kind-sensitive part. A rule's daughters begin after `-->`, a template's
+ * constraints after `=`, and a lexical entry's schemata after its headword, category
+ * and morphcode. Aligning continuations there is what makes daughters line up under
+ * each other instead of under an arbitrary fixed column.
+ *
+ * lfg-mode only does this for lexical entries — `(max 10 (current-column))` — and caps
+ * rules and templates at 10 with `(min 10 ...)`. Treating all three the same way is a
+ * deliberate departure, and the reason rules now line up.
+ */
+function bodyColumn(headLine: string, indent: number): { kind: HeadKind; column?: number } {
+  const after = (index: number): number | undefined => {
+    const rest = headLine.slice(index);
+    const spaces = /^[ \t]*/.exec(rest)![0].length;
+    // Nothing but whitespace after the operator: the author broke the line there.
+    return rest.trim() === '' ? undefined : visualColumn(headLine, index + spaces, indent);
+  };
+
+  const arrow = headLine.indexOf('-->');
+  if (arrow >= 0) return { kind: 'rule', column: after(arrow + 3) };
+
+  const lexical = LEXICAL_HEAD.exec(headLine);
+  if (lexical) return { kind: 'lexical', column: after(lexical[0].length) };
+
+  const equals = /=(?!=|c)/.exec(headLine);
+  if (equals) return { kind: 'template', column: after(equals.index + 1) };
+
+  return { kind: 'template', column: undefined };
+}
 
 /**
  * The span of the rule, template or lexical entry containing `pos`.
@@ -66,17 +138,22 @@ export function reindentExpression(text: string): string {
   // corpus sit inside the following entry. Formatting starts at the head line, the one
   // carrying `-->` or `=`, and everything above it is left exactly as it was.
   const masked = maskComments(text).split('\n');
-  const head = masked.findIndex((line) => /-->|=(?!=|c)/.test(line));
+  // A lexical entry's head line carries neither `-->` nor `=` — it is a headword, a
+  // category and a morphcode — so looking only for an operator finds the wrong line
+  // and formats from halfway down the entry.
+  const head = masked.findIndex(isHeadLine);
   if (head < 0) return text;
 
   const out = lines.slice(0, head);
   const first = contentOf(lines[head]);
   out.push(' '.repeat(FIRST_LINE_COLUMN) + first);
 
-  // Column just past the operator on the first line, which is where the body hangs.
-  const operator = /(-->|=)(?!=|c)/.exec(first);
-  const afterOperator = operator ? FIRST_LINE_COLUMN + operator.index + operator[0].length + 1 : MAX_CONTINUATION_COLUMN;
-  let column = Math.min(MAX_CONTINUATION_COLUMN, afterOperator);
+  // Continuations line up under whatever the head line starts, so a rule's daughters
+  // sit beneath the first daughter rather than at a fixed column.
+  const { column: aligned } = bodyColumn(first, FIRST_LINE_COLUMN);
+  let column = aligned !== undefined && aligned <= MAX_ALIGN_COLUMN
+    ? aligned
+    : DEFAULT_CONTINUATION_COLUMN;
 
   // Whether the line we are about to emit begins inside a `"..."` comment. Those lines
   // are left exactly as they are: their leading whitespace is comment text.

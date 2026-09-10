@@ -28,14 +28,48 @@ function walk(dir: string, out: string[] = []): string[] {
 
 describe('reindentExpression', () => {
   it('indents a rule body under the arrow and hangs the disjunction delimiters', () => {
-    // The body hangs at column 10 — `min(10, column after the arrow)` — the open brace
-    // pushes what follows to 12, and a leading `|` or `}` hangs two columns back to 10.
+    // Continuations line up under the first daughter (column 12 here), the open brace
+    // pushes what follows two further, and a leading `|` or `}` hangs two back.
     const out = reindentExpression('ROOT --> { S (PERIOD)\n| Simp\n}.');
     assert.equal(out, [
       '   ROOT --> { S (PERIOD)',
-      '          | Simp',
-      '          }.',
+      '            | Simp',
+      '            }.',
     ].join('\n'));
+  });
+
+  it('lines a rule\'s daughters up under the first one', () => {
+    // The point of aligning by kind: daughters sit beneath each other rather than at a
+    // fixed column that has nothing to do with the arrow.
+    const out = reindentExpression('S --> (ADVP)\nNP\nVP.');
+    const [head, ...rest] = out.split('\n');
+    const firstDaughter = head.indexOf('(ADVP)');
+    for (const line of rest) {
+      assert.equal(line.length - line.trimStart().length, firstDaughter, line);
+    }
+  });
+
+  it('falls back to a plain indent when the head line ends at the arrow', () => {
+    // `AP[_type $ {attributive predicative}] -->` has nothing to align to, and aligning
+    // under a head that long would push every daughter off to the right anyway.
+    const out = reindentExpression('AP[_type $ {attributive predicative}] -->\ne\nADV.');
+    assert.deepEqual(out.split('\n').map((l) => l.length - l.trimStart().length), [3, 10, 10]);
+  });
+
+  it('aligns a lexical entry\'s schemata under the head line', () => {
+    // A lexical head carries no `-->` and no `=`; finding the head by operator alone
+    // once formatted from halfway down the entry instead.
+    const out = reindentExpression('hug V-S XLE @(TRANS-EV %stem)\n@(OTHER).');
+    const lines = out.split('\n');
+    assert.equal(lines[1].length - lines[1].trimStart().length, lines[0].indexOf('@(TRANS-EV'));
+  });
+
+  it('measures tabs to the next eight-column stop', () => {
+    // `   hug` ends at column 6, the tab jumps to 8, `V-S XLE ` runs to 16 — so the
+    // continuation is 16 even though the tab is a single character.
+    const out = reindentExpression('hug\tV-S XLE @(TRANS-EV %stem)\n@(OTHER).');
+    const second = out.split('\n')[1];
+    assert.equal(second.length - second.trimStart().length, 16);
   });
 
   it('indents nested braces two columns deeper each level', () => {

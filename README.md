@@ -154,6 +154,17 @@ XLE — and the alternatives are named rather than silently dropped. (In
 around the caret: two columns per open `{` or `[`, with `|` and `}` hanging back to the
 left, ported from `lfg-next-fill-col`. Newlines auto-indent by the same rule.
 
+Continuation lines align under wherever the head line's body starts — after `-->` for a
+rule, after `=` for a template, after the morphcode for a lexical entry — so a rule's
+daughters sit beneath each other. When the head line ends at the operator, or the head
+is long enough to push the body past column 32, it falls back to a plain indent, which
+is what the grammar's own authors do with rules like
+`AP[_type $ {attributive predicative}] -->`.
+
+lfg-mode only aligns this way for lexical entries (`(max 10 (current-column))`) and caps
+rules and templates at column 10 (`(min 10 ...)`). Treating all three alike is a
+deliberate departure.
+
 Option shortcuts (`⌥Q`, and `⌥'` for go-to-definition) are matched on the physical key
 rather than the character produced. On macOS Option is the compose key — `⌥Q` *is* `œ`
 — so a binding written against the character can never fire and simply types the
