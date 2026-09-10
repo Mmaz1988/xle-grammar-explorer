@@ -15,8 +15,14 @@
 import { Injectable } from '@angular/core';
 import type { GrammarSource } from './grammar-index';
 
-/** Extensions we treat as grammar source. */
-const GRAMMAR_EXTENSIONS = ['.lfg', '.lfg.glue'];
+/**
+ * Extensions we treat as grammar source.
+ *
+ * `.lfg.NOENCRYPT` is the plain-text counterpart of a file a grammar ships encrypted —
+ * ParGram's English lexica are distributed this way, and the config lists them under
+ * that name. Skipping them left three of the largest lexica invisible.
+ */
+const GRAMMAR_EXTENSIONS = ['.lfg', '.lfg.glue', '.lfg.NOENCRYPT'];
 
 /**
  * XLE writes a cache directory next to a grammar whose entries use `!` as a path

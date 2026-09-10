@@ -216,7 +216,14 @@ function makeUnit(init: Omit<GrammarUnit, 'groups' | 'entryCount' | 'mode'>): Gr
   };
 }
 
-/** Transitive FILES closure starting from one CONFIG section. */
+/**
+ * Transitive FILES closure starting from one CONFIG section.
+ *
+ * `BASECONFIGFILE` is followed as well as `FILES`. A ParGram grammar has several entry
+ * points — the English grammar ships three parsers, each a small config that names
+ * `english.lfg` as its base and then adds and removes a few files. Without following
+ * that link an entry point looks like a grammar of seven files instead of twenty-four.
+ */
 function closureOf(
   mainPath: string,
   key: string,
@@ -226,22 +233,36 @@ function closureOf(
 ): { closure: Set<string>; missing: string[] } {
   const closure = new Set<string>([mainPath]);
   const missing: string[] = [];
+  const removed = new Set<string>();
   const queue = [mainPath];
   let first = true;
   while (queue.length) {
     const path = queue.shift()!;
+    const exists = (p: string) => present.has(p) && !shadowed.has(p);
     for (const section of all.get(path)!.sections) {
       if (section.kind !== 'CONFIG') continue;
       // Only the originating CONFIG defines this grammar's extent; a different CONFIG
       // in the same file belongs to a different grammar.
       if (first && section.key !== key) continue;
-      for (const rel of section.config?.find((f) => f.keyword === 'FILES')?.items ?? []) {
-        const target = resolveConfigFile(dirOf(path), rel, (p) => present.has(p) && !shadowed.has(p));
-        if (!target) { missing.push(rel); continue; }
-        if (!closure.has(target)) { closure.add(target); queue.push(target); }
+
+      for (const keyword of ['FILES', 'BASECONFIGFILE']) {
+        const field = section.config?.find((f) => f.keyword === keyword);
+        for (const rel of field?.items ?? []) {
+          const target = resolveConfigFile(dirOf(path), rel, exists);
+          if (!target) { missing.push(rel); continue; }
+          if (!closure.has(target)) { closure.add(target); queue.push(target); }
+        }
+        // Files this entry point drops from the list it inherits.
+        for (const rel of field?.removals ?? []) {
+          const target = resolveConfigFile(dirOf(path), rel, exists);
+          if (target) removed.add(target);
+        }
       }
     }
     first = false;
+  }
+  for (const path of removed) {
+    if (path !== mainPath) closure.delete(path);
   }
   return { closure, missing };
 }

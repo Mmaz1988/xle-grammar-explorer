@@ -22,7 +22,8 @@
     "src/app/grammar/workspace/definition-index.ts",
     "tools/**/*.ts",
     "src/app/grammar/structure-view/structure-model.ts",
-    "src/app/grammar/structure-view/*.node-spec.ts"
+    "src/app/grammar/structure-view/*.node-spec.ts",
+    "src/app/grammar/workspace/*.node-spec.ts"
   ],
   "exclude": [
     "src/app/grammar/lfg/lfg-language.ts",

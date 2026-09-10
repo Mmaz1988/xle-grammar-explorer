@@ -26,12 +26,23 @@ const SECTION_HEADER =
 
 const SECTION_END = /^[ \t]*----/m;
 
-/** CONFIG field keywords, used to find where one field's value stops. */
+/**
+ * CONFIG field keywords, used to find where one field's value stops.
+ *
+ * A field runs until the next keyword, so an unknown one is not merely ignored — the
+ * preceding field swallows it. The ParGram English grammar uses several that a smaller
+ * grammar never does, and without them its `CHARACTERENCODING` ran on through three
+ * more fields.
+ */
 const CONFIG_KEYWORDS = [
   'ROOTCAT', 'FILES', 'LEXENTRIES', 'RULES', 'TEMPLATES', 'MORPHOLOGY',
   'GOVERNABLERELATIONS', 'SEMANTICFUNCTIONS', 'NONDISTRIBUTIVES', 'EPSILON',
   'CHARACTERENCODING', 'OPTIMALITYORDER', 'GENOPTIMALITYORDER', 'PARAMETERS',
   'EXTERNALATTRIBUTES', 'FEATURES',
+  // ParGram configurations
+  'GRAMMARVERSION', 'BASECONFIGFILE', 'PERFORMANCEVARSFILE', 'ENCRYPTFILES',
+  'REPARSECAT', 'FRAGMENTCAT', 'INSIDEOUTOPTIMALITYORDER', 'GENERATIONOPTIMIZATION',
+  'MORPHOLOGYFILES', 'ABBREVIATIONS', 'MULTIWORDCONFIG',
 ];
 
 /** A c-structure rule: `VP[_form] --> ...`. `-->` must be at chunk start to count. */
@@ -39,9 +50,14 @@ const RULE_HEAD = /^([^\s=]+(?:\[[^\]]*\])?)\s*-->/;
 
 /**
  * A macro or template definition: `NPCOORD(_CAT) = ...`.
+ *
+ * Parameters may be parenthesised or bracketed — ParGram writes rule macros as
+ * `VP[perf,modal] = VP[perf,base]` and `CPembed[decl] = ...` — and may be separated
+ * from the name by a space, as in `SUBJ-OBJ-OBJTH-COMP_core (_P) = ...`.
+ *
  * The `(?!=|c)` guard keeps `=c` (constraining equation) and `==` from matching.
  */
-const MACRO_HEAD = /^([A-Za-z_][A-Za-z0-9_'\-]*(?:\([^)]*\))?)\s*=(?!=|c)/;
+const MACRO_HEAD = /^([A-Za-z_][A-Za-z0-9_'\-]*(?:[ \t]*(?:\([^)]*\)|\[[^\]]*\]))?)\s*=(?!=|c)/;
 
 /**
  * Scan the three leading tokens of a lexical entry: headword, category, morphcode.
@@ -124,13 +140,24 @@ export function parseLfgFile(text: string, options: ParseOptions = {}): LfgFile 
     } else if (kind === 'MORPHOLOGY') {
       section.entries = parseMorphology(text, bodyStart, bodyEnd, starts);
     } else if (kind === 'RULES' || kind === 'TEMPLATES' || kind === 'LEXICON') {
-      for (const chunk of splitEntries(masked, bodyStart, bodyEnd)) {
-        const entry = nameEntry(text, masked, chunk.start, chunk.end, kind, starts);
+      // A chunk that yields no name is usually not a stray: it is the front of an
+      // entry that was split too early, because a period inside the headword looked
+      // like a terminator — ParGram has `b.` and `d.` as abbreviations of "born" and
+      // "died". Joining it to what follows recovers the entry; only a chunk that still
+      // will not name itself is reported.
+      const chunks = splitEntries(masked, bodyStart, bodyEnd);
+      for (let i = 0; i < chunks.length; i++) {
+        let start = chunks[i].start;
+        let entry = nameEntry(text, masked, start, chunks[i].end, kind, starts);
+        while (!entry && i + 1 < chunks.length) {
+          i++;
+          entry = nameEntry(text, masked, start, chunks[i].end, kind, starts);
+        }
         if (entry) {
           section.entries.push(entry);
         } else {
-          const snippet = masked.slice(chunk.start, chunk.end).trim().slice(0, 60);
-          diagnostics.push(`unnamed ${kind} entry at line ${lineAtIndexed(starts, chunk.start)}: ${snippet}`);
+          const snippet = masked.slice(start, chunks[i].end).trim().slice(0, 60);
+          diagnostics.push(`unnamed ${kind} entry at line ${lineAtIndexed(starts, start)}: ${snippet}`);
         }
       }
     }
@@ -442,6 +469,7 @@ export function parseConfig(
       keyword: head.keyword,
       value,
       items: splitConfigItems(head.keyword, value),
+      removals: splitConfigRemovals(head.keyword, value),
       start: start + head.at,
       end: start + head.valueAt + (dot >= 0 ? dot + 1 : raw.length),
       line: lineAtIndexed(starts, start + head.at),
@@ -465,7 +493,28 @@ export function splitConfigItems(keyword: string, value: string): string[] {
   if (['LEXENTRIES', 'RULES', 'TEMPLATES', 'MORPHOLOGY', 'FEATURES'].includes(keyword)) {
     return Array.from(body.matchAll(/\(([^)]*)\)/g)).map((mm) => mm[1].trim().replace(/\s+/g, ' '));
   }
-  return body.split(/\s+/).filter((s) => s !== '' && s !== '.');
+  return body
+    .split(/\s+/)
+    .filter((item) => item !== '' && item !== '.')
+    // A ParGram config that extends another marks each entry as an addition to, or a
+    // removal from, the base config's list: `+eng-lex-ne-tags.lfg`, `-english-index-
+    // morphconfig.lfg`. A removal names a file this grammar does *not* include, so it
+    // is dropped rather than resolved; an addition is just a path with a sign on it.
+    .filter((item) => !item.startsWith('-'))
+    .map((item) => item.replace(/^\+/, ''));
+}
+
+/** Entries a config marks for removal from the list it inherits. */
+export function splitConfigRemovals(keyword: string, value: string): string[] {
+  if (['LEXENTRIES', 'RULES', 'TEMPLATES', 'MORPHOLOGY', 'FEATURES'].includes(keyword)) {
+    return [];
+  }
+  return value
+    .replace(/\.\s*$/, '')
+    .trim()
+    .split(/\s+/)
+    .filter((item) => item.startsWith('-') && item.length > 1)
+    .map((item) => item.slice(1));
 }
 
 function summariseConfigValue(field: ConfigField): string {

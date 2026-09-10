@@ -93,6 +93,15 @@ export interface ConfigField extends Span {
   value: string;
   /** For FILES: the listed paths. For LEXENTRIES/RULES/...: the `(A B)` section keys. */
   items: string[];
+  /**
+   * Entries written with a leading `-`.
+   *
+   * A ParGram config that extends another states its list as a set of adjustments:
+   * `+file` adds to the base config's list, `-file` takes away. Removals are not items
+   * of this grammar, but they are not noise either — they say which of the inherited
+   * files this entry point leaves out.
+   */
+  removals: string[];
   line: number;
 }
 

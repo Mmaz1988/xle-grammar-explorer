@@ -127,6 +127,18 @@ multiword headwords are written (``New` York``); `"..."` comments nest by doubli
 quote, not by escaping; `#` comments only inside MORPHOLOGY; and section headers and
 their `----` terminators may both be indented.
 
+### Grammars with several entry points
+
+A ParGram-style grammar ships more than one parser over one grammar: a base config
+holding the real file list, and small entry points that name it with `BASECONFIGFILE`
+and then adjust the list — `+file` adds, `-file` drops. The English ParGram grammar has
+three (`main.lfg`, `semtest.lfg`, `postags.lfg`), and each appears in the grammar
+selector with its full extent, not just its own handful of files.
+
+`.lfg.NOENCRYPT` files are read too. That is the plain-text counterpart of a file a
+grammar ships encrypted, and ParGram's three largest lexica are distributed under that
+name — skipping them left most of the vocabulary invisible.
+
 ### `.lfg` vs `.lfg.glue`
 
 In a grammar containing `.lfg.glue` sources, the `.lfg` files are compiler output
