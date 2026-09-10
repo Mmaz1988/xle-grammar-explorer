@@ -245,7 +245,9 @@ export function reindentExpression(text: string): string {
   // opened inside a block are balanced before it ends, so it is still valid then.
   let paren = 0;
   let annotation: { restore: number; parenBaseline: number } | undefined;
-  const headAnnotation = openAnnotation(masked[head], FIRST_LINE_COLUMN, paren);
+  // Trimmed: the column is measured from the indent the line is being given, so
+  // passing the line with its original leading whitespace counts that twice.
+  const headAnnotation = openAnnotation(contentOf(masked[head]), FIRST_LINE_COLUMN, paren);
   if (headAnnotation) {
     annotation = { restore: column, parenBaseline: headAnnotation.parenBaseline };
     column = headAnnotation.column;
@@ -274,7 +276,7 @@ export function reindentExpression(text: string): string {
           annotation = undefined;
         }
       } else {
-        const opened = openAnnotation(maskedLine, indent, parenBefore);
+        const opened = openAnnotation(contentOf(maskedLine), indent, parenBefore);
         if (opened) {
           annotation = { restore: column, parenBaseline: opened.parenBaseline };
           column = opened.column;

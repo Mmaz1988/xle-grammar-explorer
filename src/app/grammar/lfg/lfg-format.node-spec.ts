@@ -133,6 +133,36 @@ describe('reindentExpression', () => {
     assert.ok(out.includes('    whose own indentation is content'), out);
   });
 
+  it('gives the same result whatever the input indentation', () => {
+    // The alignment columns are measured from the indent a line is being *given*. Using
+    // the line with its original leading whitespace counted that twice, so a nested
+    // annotation drifted further right the more indented its source was.
+    const flat = 'S --> A\n(NP: (^ SUBJ) = !\n(^ OBJ) = !)\nVP.';
+    const indented = 'S --> A\n        (NP: (^ SUBJ) = !\n                (^ OBJ) = !)\n        VP.';
+    assert.equal(reindentExpression(indented), reindentExpression(flat));
+  });
+
+  it('is idempotent across the whole corpus', () => {
+    // Reindenting an already-reindented entry must be a no-op. Anything that measures a
+    // column from the text it just produced drifts instead, which is how the
+    // double-counted indent showed up.
+    let checked = 0;
+    for (const full of walk(GRAMMARS)) {
+      const text = readFileSync(full, 'utf8');
+      const file = parseLfgFile(text, { path: relative(GRAMMARS, full) });
+      for (const section of file.sections) {
+        for (const entry of section.entries) {
+          if (entry.kind === 'config-field' || entry.kind === 'morph-field') continue;
+          const once = reindentExpression(text.slice(entry.start, entry.end));
+          assert.equal(reindentExpression(once), once,
+            `not stable in ${relative(GRAMMARS, full)}:${entry.line} (${entry.name})`);
+          checked++;
+        }
+      }
+    }
+    assert.ok(checked > 3000, `expected the whole corpus, checked ${checked}`);
+  });
+
   it('changes nothing but leading whitespace, across the whole corpus', () => {
     // The property that keeps this safe to bind to a keystroke.
     let checked = 0;
