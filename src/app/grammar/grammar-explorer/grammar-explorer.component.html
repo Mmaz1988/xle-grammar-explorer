@@ -165,7 +165,7 @@
   <div class="row-menu" *ngIf="menu"
        [style.left.px]="menu.x" [style.top.px]="menu.y"
        (click)="$event.stopPropagation()">
-    <div class="row-menu-title">{{ menu.node.label }}</div>
+    <div class="row-menu-title">{{ menu.node.qualifiedLabel || menu.node.label }}</div>
     <button type="button" (click)="openFromMenu(menu.node, 'here')">Open</button>
     <button type="button" (click)="openFromMenu(menu.node, 'split')"
             [disabled]="panes.length >= 8">

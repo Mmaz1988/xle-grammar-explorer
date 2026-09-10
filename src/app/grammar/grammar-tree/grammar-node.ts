@@ -53,6 +53,17 @@ export interface GrammarNode {
   entryKind?: EntryKind;
   /** A lexical entry's category (`N`, `V-S`, `PRON`), for sorting by it. */
   category?: string;
+  /**
+   * The name to use where the tree's grouping is not there to supply context — menus,
+   * notices, anywhere a section is mentioned on its own.
+   *
+   * A section's identity in XLE is its two-token key *plus* its kind, so the key alone
+   * does not name one: `DEMO ENGLISH` is a CONFIG, two empty placeholders, a
+   * MORPHOLOGY and a TEMPLATES section in the bundled grammar. Inside the tree the
+   * group heading already says which kind, so the row stays short; everywhere else uses
+   * this.
+   */
+  qualifiedLabel?: string;
   sectionKind?: SectionKind;
   /** Match rank while filtering; lower is better. */
   score?: number;
@@ -146,13 +157,17 @@ function entryParts(entry: LfgEntry): LabelPart[] {
 function sectionNode(section: LfgSection, file: LfgFile): GrammarNode {
   const id = `s:${file.path}:${section.kind}:${section.key}`;
   const seen = new Map<string, number>();
+  const fileName = file.path.slice(file.path.lastIndexOf('/') + 1);
   return {
     id,
     name: section.key,
     sectionKind: section.kind,
     level: 'section',
     label: section.key,
-    parts: [{ text: section.key }],
+    qualifiedLabel: `${section.key} ${section.kind}`,
+    // The file is shown beside the key: one key often names several sections, and which
+    // file a section lives in is the thing that tells them apart at a glance.
+    parts: [{ text: section.key }, { text: `  ${fileName}`, cls: 'muted' }],
     icon: GROUP_ICON[section.kind] ?? 'folder',
     tooltip: `${section.key} ${section.kind} (${section.version}) — ${file.path}:${section.line}`,
     badge: String(section.entries.length),

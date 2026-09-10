@@ -115,6 +115,18 @@ describe('filterTreeDetailed', () => {
   });
 });
 
+describe('section labelling', () => {
+  it('qualifies a section by kind for use outside the tree', () => {
+    // A section's identity is its key *plus* its kind: `DEMO ENGLISH` names a CONFIG, a
+    // RULES, a LEXICON, a TEMPLATES and a MORPHOLOGY section in the bundled grammar, so
+    // the key alone does not identify one.
+    const node = section('DEMO ENGLISH', []);
+    node.sectionKind = 'RULES';
+    node.qualifiedLabel = 'DEMO ENGLISH RULES';
+    assert.equal(node.qualifiedLabel, `${node.name} ${node.sectionKind}`);
+  });
+});
+
 describe('sortTree', () => {
   const tree = [
     group('LEXICON', [

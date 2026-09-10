@@ -55,7 +55,8 @@
               (click)="select(node)"
               (contextmenu)="openMenu($event, node)">
         <mat-icon class="kind">{{ node.icon }}</mat-icon>
-        <span class="label">{{ node.label }}</span>
+        <span class="label"><span *ngFor="let p of node.parts"
+                                  [class]="p.cls ? 'p-' + p.cls : ''">{{ p.text }}</span></span>
         <span class="badge" *ngIf="node.badge">{{ node.badge }}</span>
       </button>
     </div>

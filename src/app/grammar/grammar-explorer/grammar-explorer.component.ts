@@ -745,7 +745,7 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
 
     const reordered = reorderEntries(text, spans, movePermutation(entries.length, from, to));
     await this.stageEdit(source.path, reordered);
-    this.notice = `Moved ${source.name} within ${section.name}. Unsaved — review and save.`;
+    this.notice = `Moved ${source.name} within ${section.qualifiedLabel ?? section.name}. Unsaved — review and save.`;
   }
 
   /**
@@ -784,11 +784,11 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
     );
     const described = byCategory ? 'by category' : 'alphabetically';
     if (sorted === text) {
-      this.notice = `${section.name} is already sorted ${described}.`;
+      this.notice = `${section.qualifiedLabel ?? section.name} is already sorted ${described}.`;
       return;
     }
     await this.stageEdit(section.path, sorted);
-    this.notice = `Sorted ${section.name} ${described}. Unsaved — review and save.`;
+    this.notice = `Sorted ${section.qualifiedLabel ?? section.name} ${described}. Unsaved — review and save.`;
   }
 
   /** The section node holding `entry` in the current tree. */
