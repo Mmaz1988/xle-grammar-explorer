@@ -25,6 +25,9 @@ import { GrammarEditorComponent } from '../grammar-editor/grammar-editor.compone
 import { FsAccessService } from '../workspace/fs-access.service';
 import { WorkspaceStore } from '../workspace/workspace-store';
 
+/** Just enough of a node for the template-choice check. */
+type GrammarNodeLike = { level: string; children: unknown[] };
+
 /** Pristine fixture. Specs that save mutate their copy, never this. */
 const SOURCE_FILES: Record<string, string> = {
   'main.lfg': 'DEMO ENGLISH CONFIG (1.0)\n  ROOTCAT ROOT.\n  FILES rules.lfg lex.lfg.\n----\n',
@@ -246,6 +249,20 @@ describe('GrammarExplorerComponent', () => {
    * covered by the sortTree specs in grammar-node.node-spec.ts; the rebuild that makes
    * the rows actually move is verified in a browser.
    */
+
+  it('draws an empty section as a section, not as an entry', async () => {
+    // An empty section — the main file's `DEMO ENGLISH RULES (1.0)` is a placeholder
+    // with no rules — used to fall through to the leaf template and be drawn like an
+    // entry, so it read as an item inside its group rather than a section of its own.
+    const tree = fixture.debugElement.query(
+      (de) => de.componentInstance instanceof GrammarTreeComponent,
+    ).componentInstance as GrammarTreeComponent;
+
+    const empty: GrammarNodeLike = { level: 'section', children: [] } as GrammarNodeLike;
+    const entry: GrammarNodeLike = { level: 'entry', children: [] } as GrammarNodeLike;
+    expect(tree.hasChild(0, empty as never)).withContext('sections take the branch template').toBeTrue();
+    expect(tree.hasChild(0, entry as never)).withContext('entries do not').toBeFalse();
+  });
 
   it('sorts sections as well as the entries inside them', async () => {
     component.sortMode = 'alpha';

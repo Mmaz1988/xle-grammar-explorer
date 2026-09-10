@@ -114,3 +114,7 @@
 
 /* Where a reordered entry would land. */
 .row.insert-above { box-shadow: inset 0 2px 0 #00a9e0; }
+
+/* An empty section is a placeholder in the grammar; say so quietly. */
+.row.section .badge:empty::after { content: "0"; }
+span.twisty { display: inline-block; }

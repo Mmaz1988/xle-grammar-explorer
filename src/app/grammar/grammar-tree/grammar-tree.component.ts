@@ -139,7 +139,18 @@ export class GrammarTreeComponent implements OnChanges {
     return this.sortMode === 'file' && this.filter.trim() === '';
   }
 
-  hasChild = (_: number, node: GrammarNode): boolean => node.children.length > 0;
+  /**
+   * Which template a node renders with.
+   *
+   * Sections and groups always take the branch template, even when empty. Otherwise an
+   * empty section — `DEMO ENGLISH RULES (1.0)` in the main file is a placeholder with
+   * no rules in it — falls through to the leaf template and is drawn exactly like an
+   * entry: no badge, entry indentation, entry styling. It then reads as an item inside
+   * its group rather than as a section of its own, which is especially confusing when
+   * another section elsewhere shares its name.
+   */
+  hasChild = (_: number, node: GrammarNode): boolean =>
+    node.children.length > 0 || node.level !== 'entry';
 
   onDragStart(event: DragEvent, node: GrammarNode): void {
     if (node.level !== 'entry') return;

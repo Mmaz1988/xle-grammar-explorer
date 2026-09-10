@@ -35,9 +35,12 @@
   <mat-nested-tree-node *matTreeNodeDef="let node; when: hasChild">
     <div class="branch">
       <button type="button" class="twisty" matTreeNodeToggle
+              *ngIf="node.children.length; else noTwisty"
               [attr.aria-label]="'toggle ' + node.label">
         <mat-icon>{{ treeControl.isExpanded(node) ? 'expand_more' : 'chevron_right' }}</mat-icon>
       </button>
+      <!-- An empty section keeps its alignment without offering a toggle that does nothing. -->
+      <ng-template #noTwisty><span class="twisty"></span></ng-template>
       <button type="button"
               class="row"
               [class.section]="node.level === 'section'"
@@ -66,7 +69,7 @@
       CdkNestedTreeNode subscribes to its outlet QueryList, so children appear
       correctly when the outlet is created later.
     -->
-    <div class="children" *ngIf="treeControl.isExpanded(node)" role="group">
+    <div class="children" *ngIf="node.children.length && treeControl.isExpanded(node)" role="group">
       <ng-container matTreeNodeOutlet></ng-container>
     </div>
   </mat-nested-tree-node>
