@@ -87,7 +87,7 @@
 .p-opt   { color: #9aa7ba; }
 .p-call  { color: #c2410c; }
 .p-elide { color: #9aa7ba; font-style: italic; }
-.p-muted { color: #7c8ba1; }
+.p-muted { color: #a6b1c0; }
 
 /* On the selected row everything inverts to white, or it becomes unreadable. */
 .row.selected .p-name,
@@ -96,7 +96,7 @@
 .row.selected .p-opt,
 .row.selected .p-call,
 .row.selected .p-elide,
-.row.selected .p-muted { color: #fff; }
+.row.selected .p-muted { color: #d6ecf7; }
 
 /* --- drag and drop ------------------------------------------------------- */
 
