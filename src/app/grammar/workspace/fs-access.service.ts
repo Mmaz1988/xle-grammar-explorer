@@ -180,18 +180,82 @@ export class FsAccessService {
     await writable.close();
   }
 
-  private async handleFor(path: string): Promise<FileSystemFileHandle> {
-    const cached = this.handles.get(path);
-    if (cached) return cached;
+  /**
+   * Create a file and write `contents`.
+   *
+   * Intermediate directories are created too, so `rules/adverb.lfg.glue` works in a
+   * grammar that has no `rules/` yet. Refuses to overwrite: creation must never be a
+   * silent destructive act, and the caller checks existence first anyway.
+   */
+  async createFile(path: string, contents: string): Promise<void> {
     if (!this.root) throw new Error('No grammar directory has been opened.');
-    // Re-resolve from the root, e.g. after a reload that restored only the directory.
+    if (await this.exists(path)) {
+      throw new Error(`${path} already exists.`);
+    }
+    const parts = path.split('/');
+    let dir = this.root;
+    for (const part of parts.slice(0, -1)) {
+      dir = await dir.getDirectoryHandle(part, { create: true });
+    }
+    const handle = await dir.getFileHandle(parts[parts.length - 1], { create: true });
+    const writable = await handle.createWritable();
+    await writable.write(contents);
+    await writable.close();
+    this.handles.set(path, handle);
+  }
+
+  /** Whether `path` is already present. */
+  async exists(path: string): Promise<boolean> {
+    if (!this.root) return false;
+    try {
+      await this.resolveHandle(path);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Delete a file. There is no undo; callers confirm first. */
+  async deleteFile(path: string): Promise<void> {
+    if (!this.root) throw new Error('No grammar directory has been opened.');
     const parts = path.split('/');
     let dir = this.root;
     for (const part of parts.slice(0, -1)) {
       dir = await dir.getDirectoryHandle(part);
     }
-    const handle = await dir.getFileHandle(parts[parts.length - 1]);
+    await dir.removeEntry(parts[parts.length - 1]);
+    this.handles.delete(path);
+  }
+
+  /**
+   * Rename a file.
+   *
+   * The File System Access API has no rename, so this copies the contents to the new
+   * path and deletes the old one. The copy is written first: a failure then leaves the
+   * original in place, where a delete-first order would lose it.
+   */
+  async renameFile(from: string, to: string): Promise<void> {
+    const contents = await this.readFile(from);
+    await this.createFile(to, contents);
+    await this.deleteFile(from);
+  }
+
+  private async handleFor(path: string): Promise<FileSystemFileHandle> {
+    const cached = this.handles.get(path);
+    if (cached) return cached;
+    const handle = await this.resolveHandle(path);
     this.handles.set(path, handle);
     return handle;
+  }
+
+  /** Walk the directory tree to `path`, without consulting the cache. */
+  private async resolveHandle(path: string): Promise<FileSystemFileHandle> {
+    if (!this.root) throw new Error('No grammar directory has been opened.');
+    const parts = path.split('/');
+    let dir = this.root;
+    for (const part of parts.slice(0, -1)) {
+      dir = await dir.getDirectoryHandle(part);
+    }
+    return dir.getFileHandle(parts[parts.length - 1]);
   }
 }

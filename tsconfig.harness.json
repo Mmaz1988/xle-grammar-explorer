@@ -20,7 +20,9 @@
     "src/app/grammar/grammar-explorer/editor-panes.ts",
     "src/app/grammar/workspace/grammar-index.ts",
     "src/app/grammar/workspace/definition-index.ts",
-    "tools/**/*.ts"
+    "tools/**/*.ts",
+    "src/app/grammar/structure-view/structure-model.ts",
+    "src/app/grammar/structure-view/*.node-spec.ts"
   ],
   "exclude": [
     "src/app/grammar/lfg/lfg-language.ts",
