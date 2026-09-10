@@ -9,8 +9,8 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join, relative } from 'node:path';
 import { moveEntry, detachEntry, applyEdits, reorderEntries, movePermutation, sortPermutation } from './lfg-move';
 import { parseLfgFile } from './lfg-parser';
 
@@ -140,6 +140,71 @@ describe('moveEntry on a real grammar file', () => {
     const landed = entryNames(result.targetText, nounKey);
     assert.equal(landed[landed.length - 1], 'hug', 'it arrived at the end of the target');
     assert.equal(landed.length, entryNames(nouns, nounKey).length + 1);
+  });
+});
+
+describe('content preservation across the corpus', () => {
+  /** Characters ignoring whitespace, as a multiset — what an edit must never change. */
+  function bag(text: string): string {
+    const counts: Record<string, number> = {};
+    for (const ch of text.replace(/\s/g, '')) counts[ch] = (counts[ch] ?? 0) + 1;
+    return JSON.stringify(Object.entries(counts).sort());
+  }
+
+  function walkAll(dir: string, out: string[] = []): string[] {
+    for (const name of readdirSync(dir)) {
+      if (name.endsWith('.fileindexdir')) continue;
+      const full = join(dir, name);
+      if (statSync(full).isDirectory()) walkAll(full, out);
+      else if (name.endsWith('.lfg') || name.endsWith('.lfg.glue')) out.push(full);
+    }
+    return out;
+  }
+
+  it('sorting a section never adds, drops or alters a character', () => {
+    // Sorting and moving are permutations, so the character multiset is invariant --
+    // and so is the length. Anything else is corruption, however plausible the text
+    // may look afterwards.
+    let checked = 0;
+    for (const full of walkAll(GRAMMARS)) {
+      const text = readFileSync(full, 'utf8');
+      for (const section of parseLfgFile(text).sections) {
+        const entries = section.entries.filter(
+          (e) => e.kind !== 'config-field' && e.kind !== 'morph-field');
+        if (entries.length < 2) continue;
+        const out = reorderEntries(
+          text,
+          entries.map((e) => ({ start: e.start, end: e.end })),
+          sortPermutation(entries.map((e) => e.name)),
+        );
+        const where = `${relative(GRAMMARS, full)} ${section.key} ${section.kind}`;
+        assert.equal(out.length, text.length, `length changed in ${where}`);
+        assert.equal(bag(out), bag(text), `content changed in ${where}`);
+        checked++;
+      }
+    }
+    assert.ok(checked > 90, `expected the whole corpus, checked ${checked}`);
+  });
+
+  it('moving an entry within its section never alters a character', () => {
+    let checked = 0;
+    for (const full of walkAll(GRAMMARS)) {
+      const text = readFileSync(full, 'utf8');
+      for (const section of parseLfgFile(text).sections) {
+        const entries = section.entries.filter(
+          (e) => e.kind !== 'config-field' && e.kind !== 'morph-field');
+        if (entries.length < 2) continue;
+        const first = entries[0];
+        const out = moveEntry({
+          sourceText: text, from: first.start, to: first.end,
+          targetText: text, at: section.end, sameFile: true,
+        });
+        assert.equal(bag(out.targetText), bag(text),
+          `content changed in ${relative(GRAMMARS, full)} ${section.key}`);
+        checked++;
+      }
+    }
+    assert.ok(checked > 90, `expected the whole corpus, checked ${checked}`);
   });
 });
 

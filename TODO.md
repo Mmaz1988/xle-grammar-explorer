@@ -19,6 +19,23 @@ CONFIG's `FILES`, and its own name is listed under the matching keyword. Neither
 tree nor the editor shows that second condition, so a section can sit in a file being
 quietly ignored by XLE. See the plan for the full design.
 
+## 1b. Deferred: stray `"` characters appearing
+
+**Status:** waiting for a reproducible example.
+
+Reported after reloading and after reordering a lexicon. Not reproduced, and the file
+it was seen in had also been hand-edited, so it could not be attributed.
+
+What has been ruled out, over the whole corpus: sorting a section, moving an entry, and
+reindenting all preserve the character multiset exactly — 101 sections and 3266 entries,
+now asserted by tests, so a regression there would fail the suite.
+
+The remaining suspect is **⌘; (comment region)**. It is the only code path that inserts
+quotes, and with no selection it comments the *whole current line* — so one stray
+keypress wraps a line in quotes, and doubles any quotes already in it. That matches the
+symptom exactly. If it recurs, worth checking whether ⌘; was pressed; the fix would be
+to require a selection, or to make the binding harder to hit by accident.
+
 ## 2. Skills for writing XLE and related notations
 
 **Status:** not started. Best done in its own session.
