@@ -131,6 +131,7 @@ export class StructureGraphComponent implements AfterViewInit, OnChanges, OnDest
         id: node.id,
         label: node.label,
         kind: node.kind,
+        entry: node.main ? 'yes' : 'no',
         // Styling keys off this: a node XLE ignores is drawn dashed and muted.
         state: node.live ? 'live' : 'inert',
       },
@@ -190,6 +191,8 @@ const STYLE = [
   },
   { selector: 'node[kind="config"]', style: { 'background-color': '#243247', color: '#fff', 'border-color': '#243247', 'font-weight': 'bold' } },
   { selector: 'node[kind="file"]', style: { 'background-color': '#eef3fa', color: '#243247', 'border-color': '#bcd9f0' } },
+  // The file the grammar is entered through, so it reads as the root of the chain.
+  { selector: 'node[entry="yes"]', style: { 'border-width': 2, 'border-color': '#00a9e0', 'font-weight': 'bold' } },
   { selector: 'node[kind="section"]', style: { 'background-color': '#fff', color: '#243247', 'border-color': '#d8dee8' } },
   // Present but ignored by XLE: the thing this view exists to show.
   { selector: 'node[state="inert"]', style: { 'border-style': 'dashed', 'border-color': '#d97706', color: '#9aa7ba', 'background-color': '#fffaf3' } },
@@ -202,6 +205,11 @@ const STYLE = [
       'arrow-scale': 0.7,
       'line-color': '#c6d0dc',
       'target-arrow-color': '#c6d0dc',
+      // Leave the right edge, arrive at the left. In a left-to-right layout, endpoints
+      // at the node centres send every edge across the box it starts from, so the
+      // labels sit under a hatch of lines.
+      'source-endpoint': '50% 0%',
+      'target-endpoint': '-50% 0%',
     },
   },
   { selector: 'edge[kind="declares"]', style: { 'line-color': '#00a9e0', 'target-arrow-color': '#00a9e0', 'line-style': 'dashed' } },
