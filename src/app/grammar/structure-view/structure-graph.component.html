@@ -1,0 +1,36 @@
+<div class="graph-toolbar">
+  <span class="legend"><i class="swatch config"></i>config</span>
+  <span class="legend"><i class="swatch file"></i>file</span>
+  <span class="legend"><i class="swatch section"></i>section</span>
+  <span class="legend"><i class="swatch inert"></i>ignored by XLE</span>
+  <span class="spacer"></span>
+  <ng-container *ngIf="graph as g">
+    <span class="warn" *ngIf="g.undeclared.length">
+      {{ g.undeclared.length }} section(s) present but undeclared
+    </span>
+  </ng-container>
+  <label class="toggle" title="Draw an edge from the CONFIG to each section it declares">
+    <input type="checkbox" [checked]="showDeclarations" (change)="toggleDeclarations()" />
+    declarations
+  </label>
+  <button type="button" (click)="relayout()" title="Lay the graph out again">Re-layout</button>
+  <button type="button" (click)="addFile()" [disabled]="!graph">Add file…</button>
+</div>
+
+<div class="graph-host" #host></div>
+
+<div class="row-menu" *ngIf="menu as m" [style.left.px]="m.x" [style.top.px]="m.y"
+     (click)="$event.stopPropagation()">
+  <div class="row-menu-title">{{ m.node.label }}</div>
+  <button type="button" (click)="run('open', m.node)" *ngIf="m.node.path">Open</button>
+  <button type="button" (click)="run('add-section', m.node)" *ngIf="m.node.kind === 'file'">Add section…</button>
+  <button type="button" (click)="run('rename', m.node)" *ngIf="m.node.kind !== 'config'">Rename…</button>
+  <button type="button" (click)="run('unlink', m.node)"
+          *ngIf="m.node.kind !== 'config' && m.node.live">Remove from grammar</button>
+  <button type="button" (click)="run('relink', m.node)"
+          *ngIf="m.node.kind !== 'config' && !m.node.live">Add back to grammar</button>
+  <button type="button" class="danger" (click)="run('delete', m.node)"
+          *ngIf="m.node.kind !== 'config'">
+    {{ m.node.kind === 'file' ? 'Delete file from disk' : 'Delete section' }}
+  </button>
+</div>

@@ -8,6 +8,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { GrammarExplorerComponent } from './grammar-explorer/grammar-explorer.component';
 import { GrammarTreeComponent } from './grammar-tree/grammar-tree.component';
 import { GrammarEditorComponent } from './grammar-editor/grammar-editor.component';
+import { StructureGraphComponent } from './structure-view/structure-graph.component';
 
 /**
  * The grammar view, packaged so a host application can import this one module and use
@@ -18,7 +19,12 @@ import { GrammarEditorComponent } from './grammar-editor/grammar-editor.componen
  * a merge.
  */
 @NgModule({
-  declarations: [GrammarExplorerComponent, GrammarTreeComponent, GrammarEditorComponent],
+  declarations: [
+    GrammarExplorerComponent,
+    GrammarTreeComponent,
+    GrammarEditorComponent,
+    StructureGraphComponent,
+  ],
   imports: [CommonModule, FormsModule, MatTreeModule, MatIconModule, MatButtonModule],
   exports: [GrammarExplorerComponent],
 })

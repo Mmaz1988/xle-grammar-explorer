@@ -1,0 +1,42 @@
+:host { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+
+.graph-toolbar {
+  display: flex; align-items: center; gap: 10px; flex: none;
+  padding: 5px 8px; border-bottom: 1px solid #d8dee8; background: #f7f9fc; font-size: 11px;
+}
+.graph-toolbar .spacer { flex: 1; }
+.graph-toolbar button {
+  font: inherit; font-size: 11px; border: 1px solid #d8dee8; background: #fff;
+  border-radius: 3px; padding: 3px 8px; cursor: pointer; color: #243247;
+}
+.warn { color: #b45309; }
+.toggle { display: inline-flex; align-items: center; gap: 4px; color: #6b7a8f; cursor: pointer; }
+.toggle input { margin: 0; }
+
+.legend { display: inline-flex; align-items: center; gap: 4px; color: #6b7a8f; }
+.swatch { width: 10px; height: 10px; border-radius: 2px; border: 1px solid #d8dee8; display: inline-block; }
+.swatch.config { background: #243247; border-color: #243247; }
+.swatch.file { background: #eef3fa; border-color: #bcd9f0; }
+.swatch.section { background: #fff; }
+.swatch.inert { background: #fffaf3; border-color: #d97706; border-style: dashed; }
+
+.graph-host { flex: 1; min-height: 0; background: #fdfefe; }
+
+/* Same menu treatment as the tree's, so the two views feel like one app. */
+.row-menu {
+  position: fixed; z-index: 40; min-width: 190px; max-width: 320px; padding: 4px;
+  background: #fff; border: 1px solid #d8dee8; border-radius: 4px;
+  box-shadow: 0 6px 20px rgba(36, 50, 71, .18);
+}
+.row-menu-title {
+  padding: 4px 8px 6px; margin-bottom: 3px; border-bottom: 1px solid #eef1f5;
+  font-family: 'SF Mono', 'Menlo', 'Consolas', monospace; font-size: 11px; color: #7c8ba1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.row-menu button {
+  display: block; width: 100%; text-align: left; border: 0; background: none;
+  font: inherit; font-size: 12px; color: #243247; padding: 5px 8px; border-radius: 3px; cursor: pointer;
+}
+.row-menu button:hover { background: #eef3fa; }
+.row-menu button.danger { color: #b3261e; }
+.row-menu button.danger:hover { background: #fdecea; }

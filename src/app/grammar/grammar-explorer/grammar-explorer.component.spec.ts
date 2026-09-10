@@ -22,6 +22,7 @@ import { CommonModule } from '@angular/common';
 import { GrammarExplorerComponent } from './grammar-explorer.component';
 import { GrammarTreeComponent } from '../grammar-tree/grammar-tree.component';
 import { GrammarEditorComponent } from '../grammar-editor/grammar-editor.component';
+import { StructureGraphComponent } from '../structure-view/structure-graph.component';
 import { FsAccessService } from '../workspace/fs-access.service';
 import { WorkspaceStore } from '../workspace/workspace-store';
 
@@ -30,7 +31,15 @@ type GrammarNodeLike = { level: string; children: unknown[] };
 
 /** Pristine fixture. Specs that save mutate their copy, never this. */
 const SOURCE_FILES: Record<string, string> = {
-  'main.lfg': 'DEMO ENGLISH CONFIG (1.0)\n  ROOTCAT ROOT.\n  FILES rules.lfg lex.lfg.\n----\n',
+  // A realistic config: it declares its sections, not just its files. Without the
+  // declarations every section would be inert, and the structure specs meaningless.
+  'main.lfg':
+    'DEMO ENGLISH CONFIG (1.0)\n' +
+    '  ROOTCAT ROOT.\n' +
+    '  FILES rules.lfg lex.lfg.\n' +
+    '  RULES (VERB ENGLISH).\n' +
+    '  LEXENTRIES (A ENGLISH) (B ENGLISH) (C ENGLISH).\n' +
+    '----\n',
   // VP spans lines so that reindenting it produces visible indentation.
   'rules.lfg': 'VERB ENGLISH RULES (1.0)\nVP --> { V\n| NP\n}.\nS --> NP VP.\n----\n',
   'lex.lfg':
@@ -50,7 +59,12 @@ describe('GrammarExplorerComponent', () => {
   beforeEach(async () => {
     FILES = { ...SOURCE_FILES };
     await TestBed.configureTestingModule({
-      declarations: [GrammarExplorerComponent, GrammarTreeComponent, GrammarEditorComponent],
+      declarations: [
+        GrammarExplorerComponent,
+        GrammarTreeComponent,
+        GrammarEditorComponent,
+        StructureGraphComponent,
+      ],
       imports: [CommonModule, FormsModule, MatTreeModule, MatIconModule, MatButtonModule],
     }).compileComponents();
 
@@ -292,6 +306,35 @@ describe('GrammarExplorerComponent', () => {
 
     expect(component.notice).toBe('');
     expect(pane.dirty).toBeFalse();
+  });
+
+  it('builds a structure graph and switches to it', () => {
+    expect(component.structure).withContext('a graph is available').toBeTruthy();
+    expect(component.structure!.undeclared)
+      .withContext('the fixture grammar declares everything').toEqual([]);
+
+    component.showTab('structure');
+    fixture.detectChanges();
+    expect(component.tab).toBe('structure');
+    expect(fixture.nativeElement.querySelector('app-structure-graph')).toBeTruthy();
+  });
+
+  it('unlinks a section without touching the file that holds it', async () => {
+    const section = component.structure!.nodes.find((n) => n.kind === 'section' && n.sectionKind === 'RULES')!;
+    const before = FILES[section.path!];
+
+    await component.onStructureAction({ action: 'unlink', node: section });
+    fixture.detectChanges();
+
+    const after = component.structure!.nodes.find((n) => n.id === section.id)!;
+    expect(after.live).withContext('XLE would now ignore it').toBeFalse();
+    expect(after.reason).toContain('not declared');
+    expect(FILES[section.path!]).withContext('the section itself is untouched').toBe(before);
+
+    // And back again: unlinking must be reversible from the view.
+    await component.onStructureAction({ action: 'relink', node: after });
+    fixture.detectChanges();
+    expect(component.structure!.nodes.find((n) => n.id === section.id)!.live).toBeTrue();
   });
 
   it('offers both in-file orders regardless of the view', async () => {

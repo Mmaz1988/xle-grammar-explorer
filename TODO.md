@@ -4,7 +4,9 @@ Larger pieces of work, roughly in the order they are worth doing.
 
 ## 1. Structure view — a graph of sections, files and the CONFIG that binds them
 
-**Status:** planned, not started. Plan: [`docs/structure-view.md`](docs/structure-view.md).
+**Status:** built. Design notes: [`docs/structure-view.md`](docs/structure-view.md).
+Still to do from that plan: moving a section between files, and editing CONFIG fields
+other than the lists.
 
 A second tab beside the editor showing how the working tree's sections map onto the
 files that hold them, and which of them the CONFIG actually declares. From it, create a

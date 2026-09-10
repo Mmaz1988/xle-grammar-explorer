@@ -89,7 +89,23 @@
   <div class="divider" (mousedown)="startDrag($event, { axis: 'main' })" title="Drag to resize"></div>
 
   <div class="pane right">
-    <div class="pane-toolbar" *ngIf="panes.length">
+    <!-- Editor and structure are two views of the same grammar, not two panes. -->
+    <div class="view-tabs" *ngIf="index">
+      <button type="button" [class.on]="tab === 'editor'" (click)="showTab('editor')">Editor</button>
+      <button type="button" [class.on]="tab === 'structure'" (click)="showTab('structure')"
+              [disabled]="!structure">Structure</button>
+      <span class="dirty-hint" *ngIf="dirtyPanes.length">
+        {{ dirtyPanes.length }} unsaved file(s)
+      </span>
+    </div>
+
+    <app-structure-graph *ngIf="tab === 'structure' && structure"
+                         [graph]="structure"
+                         [positions]="structurePositions"
+                         (action)="onStructureAction($event)"
+                         (positionsChanged)="onStructurePositions($event)"></app-structure-graph>
+
+    <div class="pane-toolbar" *ngIf="tab === 'editor' && panes.length">
       <span class="layout-toggle">
         <button type="button" [class.on]="layout === 'rows'" (click)="setLayout('rows')" title="Stack panes">Rows</button>
         <button type="button" [class.on]="layout === 'grid'" (click)="setLayout('grid')" title="Tile panes">Grid</button>
@@ -104,11 +120,11 @@
       <span class="keys">right-click a row to split · ⌘S save · ⌘; comment · F12 / ⌘-click go to definition · ⇧ adds a pane · ⌥Q reindent · drag an entry onto a section to move it, ⌥ to copy</span>
     </div>
 
-    <p class="empty" *ngIf="!panes.length">
+    <p class="empty" *ngIf="tab === 'editor' && !panes.length">
       Open a grammar and click an entry to view it here.
     </p>
 
-    <div class="panes" *ngIf="panes.length">
+    <div class="panes" *ngIf="tab === 'editor' && panes.length">
       <ng-container *ngFor="let column of columns; let c = index; trackBy: trackColumn">
         <div class="col-divider" *ngIf="c > 0"
              (mousedown)="startDrag($event, { axis: 'col', i: c - 1 })" title="Drag to resize"></div>

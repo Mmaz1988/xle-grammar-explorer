@@ -10,6 +10,11 @@ import { buildDefinitionIndex, lookup, type Definition, type DefinitionIndex } f
 import { parseLfgFile } from '../lfg/lfg-parser';
 import { buildTree, canDrop, type GrammarNode, type SortMode } from '../grammar-tree/grammar-node';
 import { moveEntry, movePermutation, reorderEntries, sortPermutation } from '../lfg/lfg-move';
+import { addToConfigList, configKeywordFor, removeFromConfigList, replaceInConfigList } from '../lfg/lfg-config-edit';
+import { appendSection, fileTemplate, removeSection, renameSectionHeader, CREATABLE_KINDS } from '../lfg/lfg-section-edit';
+import { buildStructure, type StructureGraph, type StructureNode } from '../structure-view/structure-model';
+import type { StructureAction } from '../structure-view/structure-graph.component';
+import type { ConfigField, LfgSection, SectionKind } from '../lfg/lfg-model';
 import type { CompletionEntry } from '../lfg/lfg-completion';
 import { GrammarEditorComponent, type GotoRequest } from '../grammar-editor/grammar-editor.component';
 import { GrammarTreeComponent } from '../grammar-tree/grammar-tree.component';
@@ -68,6 +73,11 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
   /** Column widths, then pane heights within each column. Fractions summing to 1. */
   colSizes: number[] = [];
   rowSizes: number[][] = [];
+
+  /** Which of the two right-hand views is showing. */
+  tab: 'editor' | 'structure' = 'editor';
+  structure?: StructureGraph;
+  structurePositions: Record<string, { x: number; y: number }> = {};
 
   selected?: { path: string; line: number };
   /** The open row menu, positioned where the click happened. */
@@ -263,6 +273,7 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
   selectGrammar(unit: GrammarUnit | undefined): void {
     this.active = unit;
     this.tree = unit ? buildTree(unit) : [];
+    this.refreshStructure();
     this.definitions = unit && this.index ? buildDefinitionIndex(unit, this.index.all) : undefined;
     this.completions = this.definitions
       ? [...this.definitions.byName.entries()].map(([name, defs]) => ({
@@ -276,6 +287,266 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
 
   onGrammarChange(id: string): void {
     this.selectGrammar(this.index?.grammars.find((g) => g.id === id));
+  }
+
+  // --- structure view -------------------------------------------------------
+
+  showTab(tab: 'editor' | 'structure'): void {
+    this.tab = tab;
+  }
+
+  /** Rebuild the graph from the current index. Cheap, so it follows every edit. */
+  private refreshStructure(): void {
+    if (!this.active || !this.index || this.active.kind !== 'grammar') {
+      this.structure = undefined;
+      return;
+    }
+    const orphans = this.index.grammars.find((g) => g.kind === 'unreferenced')?.files ?? [];
+    this.structure = buildStructure(this.active, this.index.all, orphans);
+  }
+
+  onStructurePositions(positions: Record<string, { x: number; y: number }>): void {
+    this.structurePositions = positions;
+  }
+
+  /** Carry out what the graph asked for. */
+  async onStructureAction(request: StructureAction): Promise<void> {
+    const { action, node } = request;
+    this.error = '';
+    this.notice = '';
+    try {
+      if (action === 'add-file') return await this.addFile();
+      if (!node) return;
+      switch (action) {
+        case 'open': return await this.openStructureNode(node);
+        case 'add-section': return await this.addSection(node);
+        case 'rename': return await this.renameNode(node);
+        case 'unlink': return await this.setDeclared(node, false);
+        case 'relink': return await this.setDeclared(node, true);
+        case 'delete': return await this.deleteNode(node);
+      }
+    } catch (err) {
+      this.error = this.messageOf(err);
+    }
+  }
+
+  /** Open the file behind a node, at its section when there is one. */
+  private async openStructureNode(node: StructureNode): Promise<void> {
+    if (!node.path) return;
+    const section = this.sectionOf(node);
+    await this.show(node.path, section ? { start: section.start, end: section.end } : undefined, section?.line);
+    this.tab = 'editor';
+  }
+
+  private async addSection(file: StructureNode): Promise<void> {
+    if (!file.path) return;
+    const key = prompt(`New section in ${file.path}\n\nTwo name tokens, e.g. "ADVERB ENGLISH":`);
+    if (!key) return;
+    const kind = prompt(`Section kind for ${key}\n\nOne of: ${CREATABLE_KINDS.join(', ')}`, 'RULES');
+    if (!kind) return;
+    const [name1, name2] = key.trim().split(/\s+/);
+    const problem = this.checkSection(name1, name2, kind);
+    if (problem) { this.error = problem; return; }
+
+    const text = this.index!.all.get(file.path)!.text;
+    await this.stageEdit(file.path, appendSection(text, name1, name2, kind as SectionKind));
+    await this.declare(`${name1} ${name2}`, kind as SectionKind, true);
+    this.notice = `Added ${name1} ${name2} ${kind} to ${file.path} and declared it. Unsaved — review and save.`;
+  }
+
+  private async addFile(): Promise<void> {
+    const path = prompt('New file, relative to the grammar root:\n\ne.g. rules/adverb_rules.lfg.glue');
+    if (!path) return;
+    const key = prompt(`Sections in ${path}\n\nTwo name tokens, e.g. "ADVERB ENGLISH":`);
+    if (!key) return;
+    const kind = prompt(`Section kind\n\nOne of: ${CREATABLE_KINDS.join(', ')}`, 'RULES');
+    if (!kind) return;
+    const [name1, name2] = key.trim().split(/\s+/);
+    const problem = this.checkSection(name1, name2, kind);
+    if (problem) { this.error = problem; return; }
+    if (await this.fs.exists(path)) { this.error = `${path} already exists.`; return; }
+
+    // The file is written now; the config edit is staged. Safe in this direction only:
+    // an undeclared file is inert, while a config naming a missing file will not load.
+    await this.fs.createFile(path, fileTemplate([{ name1, name2, kind: kind as SectionKind }]));
+    await this.declareFile(path, true);
+    await this.declare(`${name1} ${name2}`, kind as SectionKind, true);
+    await this.reload();
+    this.notice = `Created ${path}. Its CONFIG entries are unsaved — review and save.`;
+  }
+
+  private async renameNode(node: StructureNode): Promise<void> {
+    if (node.kind === 'file') return this.renameFile(node);
+    return this.renameSection(node);
+  }
+
+  private async renameSection(node: StructureNode): Promise<void> {
+    const section = this.sectionOf(node);
+    if (!section || !node.path) return;
+    const key = prompt(`Rename ${node.label}\n\nTwo name tokens:`, node.sectionKey);
+    if (!key || key.trim() === node.sectionKey) return;
+    const [name1, name2] = key.trim().split(/\s+/);
+    const problem = this.checkSection(name1, name2, section.kind);
+    if (problem) { this.error = problem; return; }
+
+    const text = this.index!.all.get(node.path)!.text;
+    await this.stageEdit(node.path, renameSectionHeader(text, section, name1, name2));
+    // Both edits must land, or the section is declared under a name no file defines.
+    await this.renameDeclaration(section.kind, node.sectionKey!, `${name1} ${name2}`);
+    this.notice = `Renamed to ${name1} ${name2}. Two files changed — save both.`;
+  }
+
+  private async renameFile(node: StructureNode): Promise<void> {
+    if (!node.path) return;
+    const to = prompt(`Rename ${node.path}\n\nNew path, relative to the grammar root:`, node.path);
+    if (!to || to === node.path) return;
+    if (await this.fs.exists(to)) { this.error = `${to} already exists.`; return; }
+
+    await this.fs.renameFile(node.path, to);
+    // FILES carries paths without the .glue suffix.
+    const strip = (p: string) => p.replace(/\.glue$/, '');
+    await this.withConfig('FILES', (text, f) => replaceInConfigList(text, f, strip(node.path!), strip(to)));
+    await this.reload();
+    this.notice = `Renamed to ${to}. Its CONFIG entry is unsaved — review and save.`;
+  }
+
+  private async setDeclared(node: StructureNode, declared: boolean): Promise<void> {
+    if (node.kind === 'file') {
+      await this.declareFile(node.path!, declared);
+      this.notice = declared
+        ? `${node.path} added to FILES. Unsaved — review and save.`
+        : `${node.path} removed from FILES; the file is untouched. Unsaved — review and save.`;
+    } else {
+      await this.declare(node.sectionKey!, node.sectionKind!, declared);
+      this.notice = declared
+        ? `${node.label} declared. Unsaved — review and save.`
+        : `${node.label} undeclared; the section is untouched. Unsaved — review and save.`;
+    }
+    this.refreshStructure();
+  }
+
+  private async deleteNode(node: StructureNode): Promise<void> {
+    if (node.kind === 'file') {
+      const file = this.index!.all.get(node.path!)!;
+      const entries = file.sections.reduce((n, s) => n + s.entries.length, 0);
+      const ok = confirm(
+        `Delete ${node.path} from disk?\n\n` +
+        `${file.sections.length} section(s), ${entries} entries.\n\n` +
+        'There is no undo here — recover it with git if this is a mistake.',
+      );
+      if (!ok) return;
+      // Undeclare first: a config naming a missing file will not load, whereas a file
+      // nothing references is merely inert.
+      for (const section of file.sections) {
+        if (section.kind !== 'CONFIG') await this.declare(section.key, section.kind, false);
+      }
+      await this.declareFile(node.path!, false);
+      await this.fs.deleteFile(node.path!);
+      this.panes = this.panes.filter((p) => p.path !== node.path);
+      this.relayout();
+      await this.reload();
+      this.notice = `Deleted ${node.path}. Its CONFIG entries are unsaved — review and save.`;
+      return;
+    }
+
+    const section = this.sectionOf(node);
+    if (!section || !node.path) return;
+    if (!confirm(`Delete ${node.label} and its ${section.entries.length} entries?\n\nRecover with git if this is a mistake.`)) return;
+    const text = this.index!.all.get(node.path)!.text;
+    await this.stageEdit(node.path, removeSection(text, section));
+    await this.declare(node.sectionKey!, node.sectionKind!, false);
+    this.notice = `Deleted ${node.label}. Unsaved — review and save.`;
+  }
+
+  // --- config plumbing ------------------------------------------------------
+
+  /** The parsed section a graph node stands for. */
+  private sectionOf(node: StructureNode): LfgSection | undefined {
+    if (node.kind !== 'section' || !node.path) return undefined;
+    return this.index?.all.get(node.path)?.sections
+      .find((s) => s.key === node.sectionKey && s.kind === node.sectionKind);
+  }
+
+  /** Add or remove a section's declaration. */
+  private async declare(key: string, kind: SectionKind, declared: boolean): Promise<void> {
+    const keyword = configKeywordFor(kind);
+    if (!keyword) return;
+    await this.withConfig(keyword, (text, field) => declared
+      ? addToConfigList(text, field, key)
+      : removeFromConfigList(text, field, key));
+  }
+
+  private async renameDeclaration(kind: SectionKind, from: string, to: string): Promise<void> {
+    const keyword = configKeywordFor(kind);
+    if (!keyword) return;
+    await this.withConfig(keyword, (text, field) => replaceInConfigList(text, field, from, to));
+  }
+
+  private async declareFile(path: string, declared: boolean): Promise<void> {
+    const listed = path.replace(/\.glue$/, '');
+    await this.withConfig('FILES', (text, field) => declared
+      ? addToConfigList(text, field, listed)
+      : removeFromConfigList(text, field, listed));
+  }
+
+  /**
+   * Apply an edit to one CONFIG field and stage it.
+   *
+   * The config is re-read and re-parsed each time, because several of these run in
+   * sequence — deleting a file undeclares every section it held — and each edit moves
+   * the offsets the next one needs.
+   */
+  private async withConfig(
+    keyword: string,
+    edit: (text: string, field: ConfigField) => string,
+  ): Promise<void> {
+    const path = this.active?.mainPath;
+    if (!path || !this.index) return;
+    const pane = this.panes.find((p) => p.path === path);
+    const text = pane?.content ?? this.index.all.get(path)?.text;
+    if (text === undefined) return;
+
+    const config = parseLfgFile(text, { path }).sections
+      .find((s) => s.kind === 'CONFIG' && s.key === this.active!.configKey);
+    const field = config?.config?.find((f) => f.keyword === keyword);
+    if (!field) {
+      this.error = `The CONFIG has no ${keyword} field to edit.`;
+      return;
+    }
+    await this.stageEdit(path, edit(text, field));
+  }
+
+  /** Re-read the whole grammar after a change on disk. */
+  private async reload(): Promise<void> {
+    const name = this.index?.name;
+    if (!name) return;
+    const index = await indexGrammar(
+      { listFiles: () => this.fs.listFiles(), readFile: (p) => this.fs.readFile(p) },
+      name,
+    );
+    // Keep unsaved pane content: re-reading from disk would discard staged config edits.
+    for (const pane of this.panes.filter((p) => p.dirty)) {
+      const file = index.all.get(pane.path);
+      if (file) index.all.set(pane.path, parseLfgFile(pane.content, { path: pane.path }));
+    }
+    this.index = index;
+    const same = index.grammars.find((g) => g.id === this.active?.id)
+      ?? index.grammars.find((g) => g.kind === 'grammar');
+    this.selectGrammar(same);
+  }
+
+  /** Names must be bare tokens, or the header parses as something else entirely. */
+  private checkSection(name1: string, name2: string, kind: string): string | undefined {
+    if (!name1 || !name2) return 'A section needs two name tokens, e.g. "ADVERB ENGLISH".';
+    if (!/^[A-Za-z0-9_.-]+$/.test(name1) || !/^[A-Za-z0-9_.-]+$/.test(name2)) {
+      return 'Section names must be single words without spaces or brackets.';
+    }
+    if (!CREATABLE_KINDS.includes(kind as SectionKind)) {
+      return `Section kind must be one of: ${CREATABLE_KINDS.join(', ')}.`;
+    }
+    const clash = this.active?.files.some((f) => f.sections
+      .some((s) => s.kind === kind && s.key === `${name1} ${name2}`));
+    return clash ? `${name1} ${name2} ${kind} already exists in this grammar.` : undefined;
   }
 
   // --- panes ----------------------------------------------------------------
@@ -723,6 +994,7 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
     }
     // Definitions may have been added or renamed, so completion and jumps follow.
     if (this.active) this.selectGrammar(this.active);
+    this.refreshStructure();
   }
 
   // --- dragging -------------------------------------------------------------

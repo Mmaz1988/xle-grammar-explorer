@@ -300,12 +300,33 @@ Two rules decide what is presented:
 Still missing, and worth adding: restricting a search to one entry kind (lexical
 entries only, say), and searching entry *bodies* rather than identifiers.
 
+## Structure view
+
+A second tab beside the editor, drawing the grammar as a graph: the CONFIG, the files it
+includes, and the sections those files hold. It exists for a condition neither the tree
+nor the editor shows —
+
+> a section is live only if its file is listed in the CONFIG's `FILES` **and** its own
+> key is declared under the matching keyword, which is `LEXENTRIES` for a lexicon.
+
+Miss the second and XLE loads the file, parses the section, and applies none of it.
+Anything in that state is drawn dashed and counted in the toolbar.
+
+Right-click a node to **add a section** to a file, **rename** it, **remove it from the
+grammar** (undeclare, leaving it on disk) or **delete** it. **Add file…** creates a file
+pre-filled with its section headers, declares it, and lists it in `FILES`. Nodes drag
+freely and keep their positions; declaration edges are off by default, since the CONFIG
+declares nearly everything and those edges bury the containment structure.
+
+Every CONFIG change is staged unsaved like any other edit. A new file is written to disk
+at once while its config entries are staged — safe in that direction only, because an
+undeclared file is inert whereas a config naming a missing file will not load.
+
 ## Planned work
 
-[`TODO.md`](TODO.md) lists the larger pieces: a **structure view** linking sections,
-files and the CONFIG that declares them (planned in
-[`docs/structure-view.md`](docs/structure-view.md)), and authoring **skills** for XLE
-and the related notations.
+[`TODO.md`](TODO.md) lists what is left: authoring **skills** for XLE and the related
+notations. The structure view above is built; its design notes are in
+[`docs/structure-view.md`](docs/structure-view.md).
 
 ## Status
 

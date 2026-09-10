@@ -79,6 +79,18 @@
 
 /* --- editor panes ------------------------------------------------------- */
 
+.view-tabs {
+  display: flex; align-items: center; gap: 0; flex: none;
+  padding: 0 8px; border-bottom: 1px solid #d8dee8; background: #f0f4f9;
+}
+.view-tabs button {
+  font: inherit; font-size: 12px; border: 0; background: none; cursor: pointer;
+  padding: 7px 12px; color: #6b7a8f; border-bottom: 2px solid transparent;
+}
+.view-tabs button.on { color: #243247; font-weight: 600; border-bottom-color: #00a9e0; }
+.view-tabs button:disabled { color: #b9c6d4; cursor: default; }
+.view-tabs .dirty-hint { margin-left: auto; font-size: 11px; color: #d97706; }
+
 .pane-toolbar {
   display: flex; align-items: center; gap: 6px;
   padding: 5px 8px; border-bottom: 1px solid #d8dee8; background: #f7f9fc; flex: none;
