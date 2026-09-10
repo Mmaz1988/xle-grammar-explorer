@@ -157,16 +157,19 @@ left, ported from `lfg-next-fill-col`. Newlines auto-indent by the same rule.
 The head line sits flush left — lfg-mode indents it to column 3 — so the thing being
 defined is the leftmost text on the line and a section stays scannable.
 
-Continuation lines align under wherever the head line's body starts — after `-->` for a
-rule, after `=` for a template, after the morphcode for a lexical entry — so a rule's
-daughters sit beneath each other. When the head line ends at the operator, or the head
-is long enough to push the body past column 32, it falls back to a plain indent, which
-is what the grammar's own authors do with rules like
-`AP[_type $ {attributive predicative}] -->`.
+Continuation lines align under the first daughter, wherever it is: on the head line,
+under whatever follows `-->` (or `=` for a template, the morphcode for a lexical
+entry); on a later line, under the indentation the author chose when they broke there.
+Only when that would leave the body flush left, level with the head, is a fixed indent
+of 8 used instead.
 
-lfg-mode only aligns this way for lexical entries (`(max 10 (current-column))`) and caps
-rules and templates at column 10 (`(min 10 ...)`). Treating all three alike is a
-deliberate departure.
+Two departures from lfg-mode here. It aligns this way only for lexical entries
+(`(max 10 (current-column))`) and caps rules and templates at column 10
+(`(min 10 ...)`); all three are treated alike. And it outdents `| ` by two columns but
+a bare `|` by one, so the separators of one disjunction land in different columns
+depending on whether a space follows the pipe — invisible in emacs, which normalises
+the spacing first, but a ragged disjunction here, where line content is left alone.
+Every `|` and `}` hangs by two.
 
 Option shortcuts (`⌥Q`, and `⌥'` for go-to-definition) are matched on the physical key
 rather than the character produced. On macOS Option is the compose key — `⌥Q` *is* `œ`

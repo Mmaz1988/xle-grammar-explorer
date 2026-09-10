@@ -37,14 +37,10 @@ const FIRST_LINE_COLUMN = 0;
 const DEFAULT_CONTINUATION_COLUMN = 10;
 
 /**
- * Furthest right an alignment will be taken.
- *
- * Aligning under a very long head pushes the body off to the right for no gain:
- * `AP[_type $ {attributive predicative}] -->` would put every daughter at column 41,
- * and the grammar's own authors do not write it that way — they break after the arrow
- * and indent normally. Past this, so does the formatter.
+ * Where a body goes when the head line breaks at the operator and the continuation is
+ * itself flush left, which would otherwise put the body level with the head.
  */
-const MAX_ALIGN_COLUMN = 32;
+const BROKEN_LINE_COLUMN = 8;
 
 /** What kind of definition a head line introduces, which decides where its body starts. */
 type HeadKind = 'rule' | 'template' | 'lexical';
@@ -155,12 +151,21 @@ export function reindentExpression(text: string): string {
   const first = contentOf(lines[head]);
   out.push(' '.repeat(FIRST_LINE_COLUMN) + first);
 
-  // Continuations line up under whatever the head line starts, so a rule's daughters
-  // sit beneath the first daughter rather than at a fixed column.
+  // Continuations line up under the first daughter, wherever it is: on the head line,
+  // under whatever follows the arrow; on a later line, under the indentation the author
+  // chose when they broke there. Only when that leaves the body level with the head —
+  // a continuation flush left, like the head — is a fixed indent used instead.
   const { column: aligned } = bodyColumn(first, FIRST_LINE_COLUMN);
-  let column = aligned !== undefined && aligned <= MAX_ALIGN_COLUMN
-    ? aligned
-    : DEFAULT_CONTINUATION_COLUMN;
+  let column: number;
+  if (aligned !== undefined) {
+    column = aligned;
+  } else {
+    const continuation = lines.slice(head + 1).find((line) => line.trim() !== '');
+    const authored = continuation === undefined
+      ? DEFAULT_CONTINUATION_COLUMN
+      : visualColumn(continuation, /^[ \t]*/.exec(continuation)![0].length, 0);
+    column = authored > FIRST_LINE_COLUMN ? authored : BROKEN_LINE_COLUMN;
+  }
 
   // Whether the line we are about to emit begins inside a `"..."` comment. Those lines
   // are left exactly as they are: their leading whitespace is comment text.

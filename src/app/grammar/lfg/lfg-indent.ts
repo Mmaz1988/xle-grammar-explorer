@@ -35,12 +35,19 @@ export function netDelimiters(line: string): number {
   return net;
 }
 
-/** How far a line hangs left of its nominal column, per `lfg-indent-line-to`. */
+/**
+ * How far a line hangs left of its nominal column, after `lfg-indent-line-to`.
+ *
+ * One departure: lfg-mode outdents `| ` by two columns but a bare `|` by only one, so
+ * the separators of a single disjunction land in different columns depending on whether
+ * a space happens to follow the pipe. That is invisible in emacs, where the reformatter
+ * normalises the spacing first; here, where line content is left alone, it shows up as
+ * a ragged disjunction. Every leading `|` hangs by two, so they line up with each other
+ * and with the closing `}`.
+ */
 export function hangingOutdent(line: string): number {
   const trimmed = line.replace(/^[ \t]*/, '');
-  if (trimmed.startsWith('| ')) return 2;
-  if (trimmed.startsWith('|')) return 1;
-  if (trimmed.startsWith('}')) return 2;
+  if (trimmed.startsWith('|') || trimmed.startsWith('}')) return 2;
   return 0;
 }
 

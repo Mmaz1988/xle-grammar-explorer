@@ -50,11 +50,28 @@ describe('reindentExpression', () => {
     }
   });
 
-  it('falls back to a plain indent when the head line ends at the arrow', () => {
-    // `AP[_type $ {attributive predicative}] -->` has nothing to align to, and aligning
-    // under a head that long would push every daughter off to the right anyway.
-    const out = reindentExpression('AP[_type $ {attributive predicative}] -->\ne\nADV.');
-    assert.deepEqual(out.split('\n').map((l) => l.length - l.trimStart().length), [0, 10, 10]);
+  it('keeps the indentation the author chose when they broke after the arrow', () => {
+    // The first daughter is on its own line, so it is what everything aligns with —
+    // rather than a fixed column that ignores where the line was broken.
+    const out = reindentExpression('AP[_type $ {x y}] -->\n           e: A\n           B.');
+    assert.deepEqual(out.split('\n').map((l) => l.length - l.trimStart().length), [0, 11, 11]);
+  });
+
+  it('indents by eight when the broken line would sit level with the head', () => {
+    // Nothing to align with: a flush-left continuation under a flush-left head reads
+    // as a second definition rather than as this one's body.
+    const out = reindentExpression('AP[_type $ {x y}] -->\ne\nADV.');
+    assert.deepEqual(out.split('\n').map((l) => l.length - l.trimStart().length), [0, 8, 8]);
+  });
+
+  it('lines every disjunction delimiter up with the others', () => {
+    // lfg-mode outdents `| ` by two and a bare `|` by one, so the separators of one
+    // disjunction land in different columns depending on whether a space follows.
+    const out = reindentExpression('VP --> V\n{ A\n|\nB\n| C\n}.');
+    const pipes = out.split('\n')
+      .filter((line) => line.trimStart().startsWith('|') || line.trimStart().startsWith('}'))
+      .map((line) => line.length - line.trimStart().length);
+    assert.equal(new Set(pipes).size, 1, `delimiters at mixed columns: ${pipes}`);
   });
 
   it('aligns a lexical entry\'s schemata under the head line', () => {
