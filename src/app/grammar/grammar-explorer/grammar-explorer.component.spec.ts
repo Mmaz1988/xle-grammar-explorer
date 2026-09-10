@@ -264,6 +264,36 @@ describe('GrammarExplorerComponent', () => {
     expect(tree.hasChild(0, entry as never)).withContext('entries do not').toBeFalse();
   });
 
+  it('drops the pending-change notice once the change is saved', async () => {
+    const lexicon = component.tree.find((g) => g.label === 'LEXICON')!;
+    await component.dropEntry({
+      source: lexicon.children.find((s) => s.label === 'A ENGLISH')!.children[0],
+      target: lexicon.children.find((s) => s.label === 'B ENGLISH')!,
+      copy: false,
+    });
+    fixture.detectChanges();
+    expect(component.notice).withContext('a pending change says so').toContain('Unsaved');
+
+    for (const pane of component.dirtyPanes.slice()) await component.save(pane);
+    fixture.detectChanges();
+
+    expect(component.notice).withContext('and stops saying so once saved').toBe('');
+    expect(fixture.nativeElement.querySelector('.notice')).toBeNull();
+  });
+
+  it('clears the notice when a change is reverted', async () => {
+    await openFirstRule();
+    const pane = component.activePane!;
+    component.onContentChange(pane, `${pane.content}\n"edited"\n`);
+    component.notice = 'Something is pending.';
+
+    await component.revert(pane);
+    fixture.detectChanges();
+
+    expect(component.notice).toBe('');
+    expect(pane.dirty).toBeFalse();
+  });
+
   it('offers both in-file orders regardless of the view', async () => {
     // Neither command depends on the view control: the category order was previously
     // only writable while the tree happened to be showing it.

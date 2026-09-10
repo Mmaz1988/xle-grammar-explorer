@@ -655,6 +655,10 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
     if (!pane || !pane.dirty || this.readOnly) return;
     this.busy = true;
     this.error = '';
+    // Every notice describes a change that is still pending — "Unsaved — review and
+    // save" and the like. Saving answers it, so leaving it on screen contradicts the
+    // clean pane sitting next to it.
+    this.notice = '';
     try {
       await this.fs.writeFile(pane.path, pane.content);
       pane.saved = pane.content;
@@ -696,6 +700,7 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
 
   async revert(pane: EditorPane | undefined = this.activePane): Promise<void> {
     if (!pane) return;
+    this.notice = '';
     pane.content = await this.fs.readFile(pane.path);
     pane.saved = pane.content;
     pane.dirty = false;
