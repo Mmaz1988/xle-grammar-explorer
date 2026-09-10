@@ -87,6 +87,43 @@ describe('lexical headwords', () => {
   });
 });
 
+describe('comments beat the line-start rules', () => {
+  it('treats a commented-out lexical entry as a comment', () => {
+    // The quote is just another character to the headword pattern, so `"outside` was
+    // matched as a headword and the line never became a comment at all.
+    for (const line of [
+      '"outside      ADV * (^ PRED) = \'outside<(^OBJ)>\'; ETC."',
+      '"within      ADV * (^ PRED) = \'within<(^OBJ)>\'; ETC."',
+      '"more    ADV *  @(PRED more)."',
+    ]) {
+      assert.deepEqual(tokens(line), [[line, 'comment']], line);
+    }
+  });
+
+  it('treats a commented-out template or rule as a comment', () => {
+    assert.equal(tokens('"PASS(FRAME) = { FRAME }."')[0][1], 'comment');
+    assert.equal(tokens('"S --> NP VP."')[0][1], 'comment');
+  });
+
+  it('still highlights a real entry that follows one', () => {
+    // The comment closes on its own line, so the next entry is unaffected.
+    assert.equal(headwordToken('quickly   ADV * (^ PRED) = \'quick<>(^OBL-COMP)\'.'), 'keyword');
+  });
+
+  it('keeps a multi-line comment open across lines', () => {
+    const state = lfgStreamMode.startState();
+    const first = new Stream('"British   A * @(DEFAULT-ADJ-SEM british); ETC.');
+    while (!first.eol()) lfgStreamMode.token(first as never, state);
+    assert.equal(state.inComment, true, 'an unterminated quote stays open');
+
+    const second = new Stream('German      A * @(PRED german); ETC."');
+    const out: Array<string | null> = [];
+    while (!second.eol()) out.push(lfgStreamMode.token(second as never, state));
+    assert.deepEqual([...new Set(out)], ['comment'], 'the whole continuation is comment');
+    assert.equal(state.inComment, false, 'and the closing quote ends it');
+  });
+});
+
 describe('token names', () => {
   it('uses names CodeMirror does not already claim', () => {
     // `builtin` and `variable` are in CodeMirror's own stream-language table, which

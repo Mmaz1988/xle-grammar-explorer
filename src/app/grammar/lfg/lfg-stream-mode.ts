@@ -129,6 +129,21 @@ export const lfgStreamMode = {
     const lineStart = state.atLineStart;
     state.atLineStart = false;
 
+    /*
+     * A comment beats every line-start rule.
+     *
+     * A commented-out entry begins `"outside      ADV * ...`, and the quote is just
+     * another character to the headword pattern, so that rule matched `"outside` and
+     * the line was never treated as a comment at all. In emacs the syntax table marks
+     * strings before font-lock keywords run, and keywords do not override them; this
+     * is the same precedence.
+     */
+    if (stream.peek() === '"') {
+      stream.next();
+      state.inComment = true;
+      return tokenComment(stream, state);
+    }
+
     // Rule 0: `#` comments a line, but only at the start of one. This is the
     // MORPHOLOGY section's comment syntax; elsewhere `#` is not special.
     if (lineStart && stream.peek() === '#') {
@@ -176,12 +191,6 @@ export const lfgStreamMode = {
     }
 
     const c = stream.peek();
-
-    if (c === '"') {
-      stream.next();
-      state.inComment = true;
-      return tokenComment(stream, state);
-    }
 
     // A backquote escapes the following character; keep them together so an escaped
     // brace or quote is never mistaken for structure.

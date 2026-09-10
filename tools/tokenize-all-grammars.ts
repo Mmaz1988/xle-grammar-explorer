@@ -71,7 +71,10 @@ function walk(dir: string, out: string[] = []): string[] {
 const files = walk(GRAMMARS).sort();
 let lines = 0;
 let tokens = 0;
+let comments = 0;
 const stalls: string[] = [];
+/** Lines that open a comment but were classified as something else. */
+const misread: string[] = [];
 
 for (const full of files) {
   const path = relative(GRAMMARS, full);
@@ -79,14 +82,25 @@ for (const full of files) {
   const state = lfgStreamMode.startState();
   const docLines = text.split('\n');
   for (let i = 0; i < docLines.length; i++) {
+    // A line starting with a quote opens a comment. Anything else means a line-start
+    // rule beat the comment check, which is how commented-out entries came to be
+    // highlighted as live ones.
+    const opensComment = /^[ \t]*"/.test(docLines[i]) && !state.inComment;
+    let firstToken: string | null | undefined;
+    let firstAt = -1;
+
     const stream = new Stream(docLines[i]);
     lines++;
     let guard = 0;
     while (!stream.eol()) {
       stream.start = stream.pos;
       const before = stream.pos;
-      lfgStreamMode.token(stream as never, state);
+      const token = lfgStreamMode.token(stream as never, state);
       tokens++;
+      if (firstAt < 0 && !/[ \t]/.test(docLines[i][before] ?? '')) {
+        firstAt = before;
+        firstToken = token;
+      }
       if (stream.pos === before) {
         stalls.push(`${path}:${i + 1} col ${before}: token did not advance (${JSON.stringify(docLines[i].slice(before, before + 30))})`);
         break;
@@ -97,12 +111,25 @@ for (const full of files) {
         break;
       }
     }
+
+    if (opensComment) {
+      comments++;
+      if (firstToken !== 'comment') {
+        misread.push(`${path}:${i + 1}: read as ${firstToken} — ${docLines[i].trim().slice(0, 50)}`);
+      }
+    }
   }
 }
 
-console.log(`files   ${files.length}`);
-console.log(`lines   ${lines}`);
-console.log(`tokens  ${tokens}`);
+console.log(`files    ${files.length}`);
+console.log(`lines    ${lines}`);
+console.log(`tokens   ${tokens}`);
+console.log(`comments ${comments - misread.length}/${comments} opening lines read as comments`);
+if (misread.length) {
+  console.error(`\n${misread.length} comment line(s) mis-tokenized:`);
+  for (const m of misread.slice(0, 15)) console.error(`  ${m}`);
+  process.exit(1);
+}
 if (stalls.length) {
   console.error(`\n${stalls.length} stall(s):`);
   for (const s of stalls.slice(0, 15)) console.error(`  ${s}`);
