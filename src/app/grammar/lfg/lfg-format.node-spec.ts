@@ -105,6 +105,37 @@ describe('reindentExpression', () => {
     assert.equal(lines[1].length - lines[1].trimStart().length, lines[0].indexOf('@(TRANS-EV'));
   });
 
+  it('recognises a `*` morphcode head, not only XLE', () => {
+    // `\b` after `*` needs a word character next, but a morphcode is always followed by
+    // space — so every `*` entry failed head detection and formatting restarted at the
+    // first line holding an `=`, part-way down the entry. That is 1044 of the corpus's
+    // 1448 lexical entries.
+    const out = reindentExpression('dog    N * (^ NUM)=sg\n(^ PRED)=\'dog\'.');
+    const lines = out.split('\n');
+    assert.equal(lines[0].length - lines[0].trimStart().length, 0, 'the head line is the head line');
+    assert.equal(lines[1].length - lines[1].trimStart().length, lines[0].indexOf('(^ NUM)'),
+      'and its schemata align under the first one');
+  });
+
+  it('formats a nested disjunction in a real lexical entry', () => {
+    // `more` important` in adj_adv_lex: a `*` entry, a multiword headword, and two
+    // levels of disjunction — the case that surfaced the bug.
+    const path = join(GRAMMARS, 'dev/lfgxdrt_inference_grammar/lexica/adj_adv_lex_fracas.lfg.glue');
+    const text = readFileSync(path, 'utf8');
+    const range = expressionRangeAt(text, text.indexOf('more` important') + 3)!;
+    const out = reindentExpression(text.slice(range.from, range.to)).replace(/^\n+/, '');
+    const lines = out.split('\n');
+
+    assert.ok(lines[0].startsWith('more` important'), 'the head line stays put');
+    // Each `|` and `}` lines up with the others at its own nesting level.
+    const at = (needle: string) => lines
+      .filter((l) => l.trimStart().startsWith(needle))
+      .map((l) => l.length - l.trimStart().length);
+    const pipes = at('|');
+    assert.equal(new Set(pipes).size, 2, `two nesting levels, got columns ${pipes}`);
+    assert.deepEqual(at('}'), pipes, 'closers match their openers');
+  });
+
   it('measures tabs to the next eight-column stop', () => {
     // `hug` ends at column 3, the tab jumps to the stop at 8, `V-S XLE ` runs to 16 —
     // so the continuation is 16 even though the tab is a single character.

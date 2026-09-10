@@ -45,8 +45,15 @@ const BROKEN_LINE_COLUMN = 8;
 /** What kind of definition a head line introduces, which decides where its body starts. */
 type HeadKind = 'rule' | 'template' | 'lexical';
 
-/** A lexical entry's head: headword, category, morphcode. */
-const LEXICAL_HEAD = /^[ \t]*(?:[^\s`]|`.)+[ \t]+\S+[ \t]+(?:\*|XLE)\b/;
+/**
+ * A lexical entry's head: headword, category, morphcode.
+ *
+ * The morphcode is followed by a lookahead for whitespace, not `\b`. A word boundary
+ * after `*` requires a word character next, and a morphcode is always followed by
+ * space — so `\b` matched `XLE` entries and silently missed every `*` one, which is
+ * most of them.
+ */
+const LEXICAL_HEAD = /^[ \t]*(?:[^\s`]|`.)+[ \t]+\S+[ \t]+(?:\*|XLE)(?=\s|$)/;
 
 /** Whether a line opens a definition, and so is where formatting starts. */
 function isHeadLine(line: string): boolean {
