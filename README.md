@@ -163,6 +163,12 @@ entry); on a later line, under the indentation the author chose when they broke 
 Only when that would leave the body flush left, level with the head, is a fixed indent
 of 8 used instead.
 
+Within a rule, a daughter's annotations indent to the column after its own `:`, so each
+daughter's schemata sit under that daughter rather than under the column its siblings
+share. The block ends where XLE ends it — at the `;`, or at the parenthesis that wrapped
+the daughter, as in `(NP: (^ SUBJ) = ! ... )` — and the next daughter returns to the
+shared column. This follows `lfg-format-rule-category`.
+
 Two departures from lfg-mode here. It aligns this way only for lexical entries
 (`(max 10 (current-column))`) and caps rules and templates at column 10
 (`(min 10 ...)`); all three are treated alike. And it outdents `| ` by two columns but

@@ -120,6 +120,73 @@ export function expressionRangeAt(text: string, pos: number): { from: number; to
   return undefined;
 }
 
+/**
+ * A daughter's annotation opening on this line, if it stays open past the line's end.
+ *
+ * In a rule, a category may carry a block of schemata introduced by `:`, and those
+ * continue on following lines. lfg-mode indents them to the column just after the
+ * colon (`lfg-format-rule-category` skips the category and `:` then formats the
+ * constraints at `(current-column)`), so a daughter's annotations sit under its own
+ * annotation rather than under the daughter column shared with its siblings.
+ *
+ * The block is only open if it does not finish on the same line — closed either by the
+ * `;` that ends it or by the parenthesis that wrapped the daughter, as in
+ * `(ADVP: ! $ (^ ADJUNCT))`.
+ *
+ * @param parenAtLineStart Cumulative parenthesis depth before this line.
+ */
+function openAnnotation(
+  line: string,
+  indent: number,
+  parenAtLineStart: number,
+): { column: number; parenBaseline: number } | undefined {
+  // A category, then `:` — but not `::`, which is a projection like `s::^`.
+  const match = /(?:^|[\s({])([^\s:;(){}|[\]]+(?:\[[^\]]*\])?)[ 	]*:(?!:)[ 	]*(?=\S)/.exec(line);
+  if (!match) return undefined;
+  const colonEnd = match.index + match[0].length;
+
+  let paren = parenAtLineStart;
+  for (let i = 0; i < colonEnd; i++) {
+    if (line[i] === '`') { i++; continue; }
+    if (line[i] === '(') paren++;
+    else if (line[i] === ')') paren--;
+  }
+  const parenBaseline = paren;
+
+  // Walk the rest of the line: a `;` at the baseline ends the block, and so does
+  // falling below the baseline, which is the parenthesised-daughter case.
+  for (let i = colonEnd; i < line.length; i++) {
+    if (line[i] === '`') { i++; continue; }
+    if (line[i] === '(') paren++;
+    else if (line[i] === ')') { paren--; if (paren < parenBaseline) return undefined; }
+    else if (line[i] === ';' && paren === parenBaseline) return undefined;
+  }
+  return { column: visualColumn(line, colonEnd, indent), parenBaseline };
+}
+
+/** Net parenthesis depth contributed by a line, ignoring escapes. */
+function parenDelta(line: string): number {
+  let net = 0;
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === '`') { i++; continue; }
+    if (line[i] === '(') net++;
+    else if (line[i] === ')') net--;
+  }
+  return net;
+}
+
+/** Whether a line closes an annotation block open at `baseline`. */
+function closesAnnotation(line: string, parenAtLineStart: number, baseline: number): boolean {
+  let paren = parenAtLineStart;
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === '`') { i++; continue; }
+    if (line[i] === '(') paren++;
+    else if (line[i] === ')') { paren--; if (paren < baseline) return true; }
+    else if (line[i] === ';' && paren === baseline) return true;
+  }
+  return false;
+}
+
 /** Where a line's content starts, ignoring its current indentation. */
 function contentOf(line: string): string {
   return line.replace(/^[ \t]*/, '');
@@ -172,14 +239,47 @@ export function reindentExpression(text: string): string {
   let inComment = openComment(lines[head]);
   column += 2 * netDelimiters(lines[head]);
 
+  // A daughter's annotations indent to the column after its `:`, not to the column its
+  // siblings share, so each daughter's schemata sit under their own daughter. The
+  // saved column is what the next sibling returns to once the block closes; braces
+  // opened inside a block are balanced before it ends, so it is still valid then.
+  let paren = 0;
+  let annotation: { restore: number; parenBaseline: number } | undefined;
+  const headAnnotation = openAnnotation(masked[head], FIRST_LINE_COLUMN, paren);
+  if (headAnnotation) {
+    annotation = { restore: column, parenBaseline: headAnnotation.parenBaseline };
+    column = headAnnotation.column;
+  }
+  paren += parenDelta(masked[head]);
+
   for (let i = head + 1; i < lines.length; i++) {
     const line = lines[i];
+    const maskedLine = masked[i] ?? '';
+
     if (inComment) {
       out.push(line);
     } else {
       const content = contentOf(line);
-      out.push(content === '' ? '' : ' '.repeat(Math.max(0, column - hangingOutdent(content))) + content);
+      const indent = Math.max(0, column - hangingOutdent(content));
+      const emitted = content === '' ? '' : ' '.repeat(indent) + content;
+      out.push(emitted);
       column += 2 * netDelimiters(line);
+
+      const parenBefore = paren;
+      paren += parenDelta(maskedLine);
+
+      if (annotation) {
+        if (closesAnnotation(maskedLine, parenBefore, annotation.parenBaseline)) {
+          column = annotation.restore;
+          annotation = undefined;
+        }
+      } else {
+        const opened = openAnnotation(maskedLine, indent, parenBefore);
+        if (opened) {
+          annotation = { restore: column, parenBaseline: opened.parenBaseline };
+          column = opened.column;
+        }
+      }
     }
     inComment = inComment ? !closesComment(line) : openComment(line);
   }

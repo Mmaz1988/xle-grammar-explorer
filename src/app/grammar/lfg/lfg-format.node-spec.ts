@@ -53,7 +53,8 @@ describe('reindentExpression', () => {
   it('keeps the indentation the author chose when they broke after the arrow', () => {
     // The first daughter is on its own line, so it is what everything aligns with —
     // rather than a fixed column that ignores where the line was broken.
-    const out = reindentExpression('AP[_type $ {x y}] -->\n           e: A\n           B.');
+    // Plain daughters, no annotations — those align under their own colon instead.
+    const out = reindentExpression('AP[_type $ {x y}] -->\n           e\n           ADV.');
     assert.deepEqual(out.split('\n').map((l) => l.length - l.trimStart().length), [0, 11, 11]);
   });
 
@@ -62,6 +63,28 @@ describe('reindentExpression', () => {
     // as a second definition rather than as this one's body.
     const out = reindentExpression('AP[_type $ {x y}] -->\ne\nADV.');
     assert.deepEqual(out.split('\n').map((l) => l.length - l.trimStart().length), [0, 8, 8]);
+  });
+
+  it("indents a daughter's annotations under its own colon", () => {
+    // lfg-format-rule-category skips the category and the colon, then formats the
+    // constraints from there — so schemata sit under their own daughter rather than
+    // under the column its siblings share.
+    const out = reindentExpression('CPrel --> PRON: (! PRON-TYPE) =c rel\n(^ TOPIC) = !\n(^ CASE) = nom;\nVP[fin].');
+    const lines = out.split('\n');
+    const annotation = lines[0].indexOf('(! PRON-TYPE)');
+    assert.equal(lines[1].length - lines[1].trimStart().length, annotation, lines[1]);
+    assert.equal(lines[2].length - lines[2].trimStart().length, annotation, lines[2]);
+    // The `;` closes the block, so the next daughter returns to the daughter column.
+    assert.equal(lines[3].length - lines[3].trimStart().length, lines[0].indexOf('PRON'), lines[3]);
+  });
+
+  it("closes an annotation when the daughter's own parenthesis closes", () => {
+    // `(NP: ... )` ends with the paren, not a semicolon.
+    const out = reindentExpression('S --> A\n(NP: (^ SUBJ) = !\n(^ OBJ) = !)\nVP.');
+    const lines = out.split('\n');
+    const daughter = lines[1].length - lines[1].trimStart().length;
+    assert.ok(lines[2].length - lines[2].trimStart().length > daughter, 'annotation is indented');
+    assert.equal(lines[3].length - lines[3].trimStart().length, daughter, 'and then it returns');
   });
 
   it('lines every disjunction delimiter up with the others', () => {
