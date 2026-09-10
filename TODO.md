@@ -21,6 +21,12 @@ quietly ignored by XLE. See the plan for the full design.
 
 ## 1b. Deferred: stray `"` characters appearing
 
+**Update:** one reordering fault was found and fixed from the `Most` report — entries
+inherited the previous occupant's indentation, which pushed headwords off column 0 and
+could pull a comment onto the previous entry's closing line. That is not quote
+insertion, so the original report stands open.
+
+
 **Status:** waiting for a reproducible example.
 
 Reported after reloading and after reordering a lexicon. Not reproduced, and the file

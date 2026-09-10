@@ -92,20 +92,23 @@ export function moveEntry(request: MoveRequest): MoveResult {
 }
 
 /**
- * Reorder the entries of one section, keeping the text between them where it is.
+ * Reorder the entries of one section.
  *
- * An entry's parsed span runs from the end of the previous entry, so it opens with
- * whatever separated the two — a newline, a blank line, sometimes several. Permuting
- * those spans wholesale would carry each entry's *leading* separator with it, and since
- * the first span has no leading newline at all, moving it anywhere else glues two
- * entries onto one line.
+ * Each entry carries its own leading whitespace with it — its indentation and the blank
+ * lines above it — so an entry looks the same wherever it lands.
  *
- * So the separators stay in place and only the entry bodies move through them. That
- * keeps blank-line grouping where the author put it and makes the diff show exactly the
- * lines that moved, nothing more.
+ * The obvious alternative, keeping each slot's whitespace where it is and moving only
+ * the bodies through it, is worse in a way that is easy to miss: the slot's whitespace
+ * includes the *indentation of the head line*, so an entry inherits whatever the
+ * previous occupant had. Flush-left headwords came out indented by a stray tab, and a
+ * slot whose entry had followed a period on the same line pulled the next entry up onto
+ * that line too.
  *
- * Entry spans are contiguous across a section — verified over the whole corpus, 3165
- * adjacent pairs with no gaps — so this loses nothing, comments included.
+ * The one thing that cannot travel is the very first entry's lack of a leading newline:
+ * whichever entry lands first must not start on the section header's line, and every
+ * other entry must start on a line of its own. Those two are normalised.
+ *
+ * Entry spans are contiguous across a section, so nothing is lost — comments included.
  *
  * @param order Indices of the entries in their new order; a permutation of 0..n-1.
  */
@@ -120,7 +123,18 @@ export function reorderEntries(
   const leads = chunks.map((chunk) => /^\s*/.exec(chunk)![0]);
   const bodies = chunks.map((chunk) => chunk.replace(/^\s*/, ''));
 
-  const rebuilt = spans.map((_, i) => leads[i] + bodies[order[i]]).join('');
+  const rebuilt = order.map((from, position) => {
+    let lead = leads[from];
+    if (position === 0) {
+      // First in the section: no leading blank lines, whatever it had before.
+      lead = lead.replace(/^[\s]*\n/, '');
+    } else if (!lead.includes('\n')) {
+      // It used to sit on the same line as the previous entry's period. Give it a line.
+      lead = `\n${lead}`;
+    }
+    return lead + bodies[from];
+  }).join('');
+
   return text.slice(0, spans[0].start) + rebuilt + text.slice(spans[spans.length - 1].end);
 }
 

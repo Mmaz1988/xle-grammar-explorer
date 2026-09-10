@@ -161,10 +161,10 @@ describe('content preservation across the corpus', () => {
     return out;
   }
 
-  it('sorting a section never adds, drops or alters a character', () => {
-    // Sorting and moving are permutations, so the character multiset is invariant --
-    // and so is the length. Anything else is corruption, however plausible the text
-    // may look afterwards.
+  it('sorting a section never adds, drops or alters content', () => {
+    // Sorting is a permutation of the entries, so every non-whitespace character
+    // survives. Line breaks are the one thing that may change: the entry landing first
+    // loses its leading blank lines and one that had shared a line gains a break.
     let checked = 0;
     for (const full of walkAll(GRAMMARS)) {
       const text = readFileSync(full, 'utf8');
@@ -178,8 +178,9 @@ describe('content preservation across the corpus', () => {
           sortPermutation(entries.map((e) => e.name)),
         );
         const where = `${relative(GRAMMARS, full)} ${section.key} ${section.kind}`;
-        assert.equal(out.length, text.length, `length changed in ${where}`);
         assert.equal(bag(out), bag(text), `content changed in ${where}`);
+        assert.ok(Math.abs(out.length - text.length) <= 8,
+          `whitespace changed more than line-break normalisation explains in ${where}`);
         checked++;
       }
     }
@@ -219,12 +220,38 @@ describe('reorderEntries', () => {
     assert.ok(out.includes('@A') && out.includes('@B') && out.includes('@C'), 'bodies survived');
   });
 
-  it('leaves the separators between entries where they were', () => {
-    // The blank line after the first entry stays after the *first* entry, rather than
-    // travelling with the entry that used to follow it.
+  it('lets each entry keep its own indentation', () => {
+    // Keeping the slot's whitespace and moving only bodies through it made an entry
+    // inherit the previous occupant's indentation, so flush-left headwords came out
+    // indented by a stray tab.
+    const doc = 'A ENGLISH LEXICON (1.0)\n\tzebra N * @Z.\napple N * @A.\n----\n';
+    const spans = sectionOf(doc, 'A ENGLISH').entries.map((e) => ({ start: e.start, end: e.end }));
+    const out = reorderEntries(doc, spans, [1, 0]);
+    const lines = out.split('\n');
+    assert.ok(lines.some((l) => l.startsWith('apple')), `apple stays flush left: ${out}`);
+    assert.ok(lines.some((l) => l.startsWith('\tzebra')), `zebra keeps its tab: ${out}`);
+  });
+
+  it('never pulls an entry onto the previous entry\'s closing line', () => {
+    // An entry that had followed a period on the same line must not drag whichever
+    // entry lands in its place up there too.
+    const doc = 'A ENGLISH LEXICON (1.0)\nalpha N * @A. beta N * @B.\ngamma N * @G.\n----\n';
+    const entries = sectionOf(doc, 'A ENGLISH').entries;
+    const out = reorderEntries(doc, entries.map((e) => ({ start: e.start, end: e.end })), [2, 1, 0]);
+    assert.deepEqual(entryNames(out, 'A ENGLISH'), ['gamma', 'beta', 'alpha']);
+    for (const line of out.split('\n')) {
+      assert.ok(!/\.\s+\S+\s+\S+\s+\*/.test(line), `two entries on one line: ${line}`);
+    }
+  });
+
+  it('keeps each entry\'s own blank-line spacing', () => {
+    // The blank line above `alpha` belongs to `alpha` and follows it, so entries look
+    // the same wherever they land.
     const names = sectionOf(doc, 'A ENGLISH').entries.map((e) => e.name);
     const out = reorderEntries(doc, spans(), sortPermutation(names));
-    assert.ok(/alpha N \* @A\.\n\nbravo/.test(out), out);
+    assert.deepEqual(entryNames(out, 'A ENGLISH'), ['alpha', 'bravo', 'charlie']);
+    assert.ok(!/^\n/.test(out.slice(out.indexOf('(1.0)') + 6).replace(/^\n/, '')),
+      'the first entry does not start with a blank line');
   });
 
   it('never glues two entries onto one line, whatever the permutation', () => {
@@ -271,6 +298,8 @@ describe('reorderEntries', () => {
     const before = entries.map((e) => e.name).slice().sort();
     const after = entryNames(out, sectionKey).slice().sort();
     assert.deepEqual(after, before, 'the same entries, no more and no fewer');
-    assert.equal(out.length, text.length, 'not one character gained or lost');
+    // Whitespace may be normalised; nothing else may change at all.
+    const strip = (x: string) => x.replace(/\s/g, '');
+    assert.equal(strip(out).length, strip(text).length, 'not one character of content lost');
   });
 });
