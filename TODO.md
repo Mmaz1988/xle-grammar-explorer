@@ -63,10 +63,13 @@ not tried again:
 
 What remains is XLE's own answer: a `FRAGMENTS` rule, which makes the chart informative
 on failure. ParGram has one (`english-rules-other.lfg:159`, "category to use when all
-else fails"); no grammar under `grammars/` does. Adding one is a grammar change and a
-judgement call about spurious ambiguity — on the fracas grammar it would interact with
-the `ETC.`/`-unknown` ambiguity `nounlex_fracas.lfg.glue:159` already warns about. So
-this waits on a decision about the grammars, not on code here.
+else fails"); no grammar under `grammars/` does.
+
+**Decided against.** A feature of the editor should not impose a requirement on the
+grammars it edits, and a `FRAGMENTS` rule is a real commitment — on the fracas grammar
+it would interact with the `ETC.`/`-unknown` spurious ambiguity that
+`nounlex_fracas.lfg.glue:159` already warns about. Span-level checking stays out of
+scope unless some other route appears; do not re-propose the three above.
 
 ## 2. Skills for writing XLE and related notations
 
