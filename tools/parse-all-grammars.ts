@@ -82,6 +82,7 @@ let total = 0;
 const problems: string[] = [];
 let merged = 0;
 const mergeExamples: string[] = [];
+const suspects: string[] = [];
 const byKind: Record<string, number> = {};
 
 for (const full of files) {
@@ -99,6 +100,7 @@ for (const full of files) {
       total++;
       named++;
       byKind[e.kind] = (byKind[e.kind] ?? 0) + 1;
+      if (e.suspect) suspects.push(`${path}:${e.line} ${e.name} — ${e.suspect}`);
       if (s.kind === 'LEXICON' && e.kind === 'lex') {
         const eaten = swallowed(masked, e.start, e.end);
         if (eaten > 0) {
@@ -132,6 +134,14 @@ if (merged > 0) {
   for (const example of mergeExamples) console.error(`  ${example}`);
   console.error('An entry contains a line that starts a new entry — see splitEntries.');
   process.exit(1);
+}
+
+// Reported, not fatal: these are defects in the grammars, and this is a harness for
+// the parser. Listing them is the point — each one is invisible until something moves
+// it, which is how the `than` fragment surfaced.
+if (suspects.length > 0) {
+  console.warn(`\n${suspects.length} suspect entr${suspects.length === 1 ? 'y' : 'ies'}:`);
+  for (const suspect of suspects) console.warn(`  ${suspect}`);
 }
 
 console.log('\nOK — every entry named, none swallowed.');

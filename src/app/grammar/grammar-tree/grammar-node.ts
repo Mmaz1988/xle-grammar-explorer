@@ -53,6 +53,8 @@ export interface GrammarNode {
   entryKind?: EntryKind;
   /** A lexical entry's category (`N`, `V-S`, `PRON`), for sorting by it. */
   category?: string;
+  /** Why this entry looks malformed, when it does; shown as a warning marker. */
+  suspect?: string;
   /**
    * The name to use where the tree's grouping is not there to supply context — menus,
    * notices, anywhere a section is mentioned on its own.
@@ -111,6 +113,7 @@ function entryNode(entry: LfgEntry, file: LfgFile, sectionId: string, occurrence
     entry.morphcode ? `morphcode ${entry.morphcode}` : '',
     entry.hasGlue ? 'has glue premises' : '',
     `${file.path}:${entry.line}`,
+    entry.suspect ? `⚠ ${entry.suspect}` : '',
   ].filter(Boolean);
 
   const parts = entryParts(entry);
@@ -118,6 +121,7 @@ function entryNode(entry: LfgEntry, file: LfgFile, sectionId: string, occurrence
     name: entry.name,
     entryKind: entry.kind,
     category: entry.category,
+    suspect: entry.suspect,
     // Names repeat within a section — a lexicon can define the same headword under
     // two categories — so the occurrence disambiguates.
     id: `${sectionId}/${entry.kind}:${entry.name}#${occurrence}`,

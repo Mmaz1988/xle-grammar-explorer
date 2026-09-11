@@ -91,6 +91,14 @@ describe('GrammarExplorerComponent', () => {
     fixture.detectChanges();
   });
 
+  /** Re-read the fixture, for specs that change FILES after the initial load. */
+  function reload(): Promise<void> {
+    return component['load']({
+      name: 'test',
+      source: { listFiles: async () => Object.keys(FILES), readFile: async (p: string) => FILES[p] },
+    });
+  }
+
   function openFirstRule(): Promise<void> {
     const rules = component.tree.find((g) => g.label === 'RULES')!;
     return component.openNode(rules.children[0].children[0]);
@@ -438,6 +446,48 @@ describe('GrammarExplorerComponent', () => {
       .children.find((s) => s.label === 'B ENGLISH')!;
     expect(after.children.map((e) => e.name)).toEqual(['hug', 'owl']);
     expect(component.dirtyPanes.length).withContext('staged, not written').toBeGreaterThan(0);
+  });
+
+  it('refuses to sort a section holding a stranded continuation', async () => {
+    // A stray period ends `than` early, so the constraint below it parses as an entry
+    // headed `((OBL-COMP`. Sorting would move that fragment away from the entry it
+    // continues — which is exactly how it surfaced, at the top of a real lexicon.
+    FILES['lex.lfg'] = FILES['lex.lfg'].replace(
+      'C ENGLISH LEXICON (1.0)\nzebra N * @Z.',
+      'C ENGLISH LEXICON (1.0)\n' +
+        "than CComp * (^PRED) = 'than<(^OBJ)>'.\n" +
+        '        ((OBL-COMP ^) DEGREE) =c comparative.\n' +
+        'zebra N * @Z.',
+    );
+    await reload();
+    fixture.detectChanges();
+
+    const before = FILES['lex.lfg'];
+    const target = component.tree.find((g) => g.label === 'LEXICON')!
+      .children.find((s) => s.label === 'C ENGLISH')!;
+
+    await component.sortSectionInFile(target);
+    fixture.detectChanges();
+
+    expect(component.error).withContext('says why, and where').toContain('((OBL-COMP');
+    expect(component.error).toContain('Not sorted');
+    expect(FILES['lex.lfg']).withContext('nothing written').toBe(before);
+    expect(component.dirtyPanes.length).withContext('nothing staged either').toBe(0);
+  });
+
+  it('marks a malformed entry in the tree rather than hiding it', async () => {
+    FILES['lex.lfg'] = FILES['lex.lfg'].replace(
+      'owl N * @Y.',
+      "owl N * (^PRED) = 'owl'.\n   (^ NUM) =c sg.",
+    );
+    await reload();
+    fixture.detectChanges();
+
+    const entries = component.tree.find((g) => g.label === 'LEXICON')!
+      .children.find((s) => s.label === 'B ENGLISH')!.children;
+    const flagged = entries.filter((e) => e.suspect);
+    expect(flagged.length).withContext('the stranded constraint is flagged').toBe(1);
+    expect(flagged[0].suspect).toContain('not a morphcode');
   });
 
   it('honours Option shortcuts even though macOS composes them into characters', async () => {

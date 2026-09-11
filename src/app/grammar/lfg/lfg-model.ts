@@ -68,6 +68,13 @@ export interface LfgEntry extends Span {
   /** Lexical entries only: the category and morphcode of the first category block. */
   category?: string;
   morphcode?: string;
+  /**
+   * Why this entry looks wrong, when it does.
+   *
+   * Set rather than thrown: the file still parses, and the entry is still shown — it
+   * is the grammar that needs attention, not the parse. See `suspectLexEntry`.
+   */
+  suspect?: string;
   /** True when the entry contains a glue premise (`:$ ...`) or a lollipop. */
   hasGlue?: boolean;
   /** Rules only: the phrase-structure skeleton behind {@link display}. */

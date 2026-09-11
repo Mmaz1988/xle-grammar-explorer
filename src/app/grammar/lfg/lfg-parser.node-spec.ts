@@ -10,6 +10,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { maskComments, splitEntries } from './lfg-lexer';
+import { suspectLexEntry } from './lfg-parser';
 import { parseLfgFile, reduceRule, splitConfigItems } from './lfg-parser';
 
 /** Wrap a body in a section header + terminator, as a real file would. */
@@ -271,5 +272,38 @@ describe('reduceRule', () => {
   it('keeps Kleene markers', () => {
     const out = reduceRule('VP --> V PP* (NP).');
     assert.equal(out, 'VP --> V PP* (NP)');
+  });
+});
+
+describe('suspectLexEntry', () => {
+  it('accepts the only two morphcodes there are', () => {
+    assert.equal(suspectLexEntry('N', '*'), undefined);
+    assert.equal(suspectLexEntry('V-S', 'XLE'), undefined);
+    // Punctuation that ran into the morphcode is still that morphcode: ParGram writes
+    // `+ID !NE_ID_SFX XLE;` with no space before the subentry separator.
+    assert.equal(suspectLexEntry('!NE_ID_SFX', 'XLE;'), undefined);
+    assert.equal(suspectLexEntry('N', '*.'), undefined);
+  });
+
+  it('flags a continuation stranded by a stray period', () => {
+    // functionlex_fracas had `than CComp * (^PRED) = 'than<(^OBJ)>'.` — the period
+    // ended the entry, so the constraint below became an "entry" headed `((OBL-COMP`.
+    // XLE read it the same way and silently ignored the constraint for years.
+    const why = suspectLexEntry('^)', 'DEGREE)');
+    assert.ok(why?.includes('not a morphcode'), String(why));
+  });
+
+  it('flags a category and morphcode run together', () => {
+    // `Most D* @(SPEC-AQUANT-PRED ...)` — the space before `*` was lost.
+    const why = suspectLexEntry('D*', '@(SPEC-AQUANT-PRED');
+    assert.ok(why?.includes('missing space'), String(why));
+    // The diagnosis must not be the generic one: the morphcode is odd *because* of
+    // the missing space, and saying "stray period above" would send you hunting.
+    assert.ok(!why?.includes('stray period'), String(why));
+  });
+
+  it('does not mistake a one-character category for a run-together one', () => {
+    // A category may legitimately be `*`-shaped only if it is longer than the marker.
+    assert.equal(suspectLexEntry('*', '*'), undefined);
   });
 });

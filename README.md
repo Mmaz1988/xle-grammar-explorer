@@ -369,6 +369,29 @@ fallback*. Asking XLE gets the right answer anyway, since the cipher is XLE's ow
 Because XLE loads `.lfg` and never `.lfg.glue`, a glue grammar is checked as of its last
 compile, not as of the editor buffer.
 
+### Malformed entries
+
+An entry is `HEADWORD CATEGORY MORPHCODE`, and there are only two morphcodes: `*` supplies
+the form written, `XLE` defers inflection to the morphology. Anything else in that
+position means the line does not start an entry at all — almost always a continuation
+stranded by a stray period:
+
+```
+than      CComp * (^PRED) = 'than<(^OBJ)>'.
+                  ((OBL-COMP ^) DEGREE) =c comparative.
+```
+
+The period ends the entry, so the constraint below it becomes an "entry" headed
+`((OBL-COMP`. XLE reads it exactly the same way — `print-lex-entry than` returns only the
+PRED — so the constraint had never applied to anything. Nothing reported it, because
+every surviving entry parsed perfectly well.
+
+Such entries are marked ⚠ in the tree with the reason in the tooltip, and **sorting a
+section containing one is refused**, naming the entry instead. Sorting is what makes this
+kind of defect destructive: it moves the fragment away from the entry it continues, and
+since fragments usually start with a bracket they sort to the top of the file, where they
+look like corruption. `npm run harness` lists every instance across a corpus.
+
 ## Filtering
 
 Matching is a plain case-insensitive substring test — nothing is hidden — over each

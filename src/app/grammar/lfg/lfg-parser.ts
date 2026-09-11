@@ -91,6 +91,44 @@ function scanLexHead(chunk: string): { word: string; category: string; morphcode
   return { word, category, morphcode, lead };
 }
 
+/**
+ * Legal morphcodes. `*` supplies only the form written; `XLE` defers inflection to the
+ * morphological analyser. There is no third option.
+ */
+const MORPHCODES = new Set(['*', 'XLE']);
+
+/**
+ * Why a lexical entry looks wrong, or `undefined` if it does not.
+ *
+ * The morphcode is the reliable tell. An entry is `HEADWORD CATEGORY MORPHCODE`, so if
+ * the third token is not `*` or `XLE` the line is not the start of an entry at all —
+ * most often it is a continuation stranded by a stray period earlier in the file:
+ *
+ *     than      CComp * (^PRED) = 'than<(^OBJ)>'.
+ *                       ((OBL-COMP ^) DEGREE) =c comparative.
+ *
+ * The period ends the entry, so the constraint below it becomes an "entry" whose
+ * headword is `((OBL-COMP`. XLE reads it the same way and quietly ignores it, so the
+ * constraint had never applied; nothing reported it until a sort moved the fragment
+ * somewhere visible.
+ *
+ * Measured over the bundled corpus and ParGram: 1516 and 27620 entries respectively
+ * use `*` or `XLE` and nothing else, against four genuine defects. A trailing `;` or
+ * `.` is punctuation that ran into the morphcode, not a different code.
+ */
+export function suspectLexEntry(category: string, morphcode: string): string | undefined {
+  // `Most D* @(...)` — the space before the morphcode was lost, so the category
+  // swallowed it and whatever follows is read as the code. Checked first, because it
+  // explains the odd morphcode that the next test would otherwise report generically.
+  if (category.length > 1 && category.endsWith('*')) {
+    return `category and morphcode look run together in "${category}" — a missing space`;
+  }
+  const code = morphcode.replace(/[;.]+$/, '');
+  if (MORPHCODES.has(code)) return undefined;
+  return `"${morphcode}" is not a morphcode (expected * or XLE) — probably a stray period above`;
+}
+
+
 export interface ParseOptions {
   /** Path recorded on the result; also used for `.lfg.glue` detection. */
   path?: string;
@@ -227,7 +265,14 @@ function nameEntry(
       // Read the headword from the ORIGINAL text rather than the masked copy, so the
       // backquote form survives for display and for locating the entry again.
       const name = text.slice(start + lex.lead, start + lex.lead + lex.word.length);
-      return { ...base, kind: 'lex', name, category: lex.category, morphcode: lex.morphcode };
+      return {
+        ...base,
+        kind: 'lex',
+        name,
+        category: lex.category,
+        morphcode: lex.morphcode,
+        suspect: suspectLexEntry(lex.category, lex.morphcode),
+      };
     }
     return undefined;
   }

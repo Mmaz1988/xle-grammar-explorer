@@ -118,3 +118,8 @@
 /* An empty section is a placeholder in the grammar; say so quietly. */
 .row.section .badge:empty::after { content: "0"; }
 span.twisty { display: inline-block; }
+
+/* An entry whose morphcode is not `*` or `XLE` is almost never an entry: usually a
+   continuation stranded by a stray period. Marked rather than hidden, because the
+   fix belongs in the grammar. */
+.suspect { margin-left: 4px; color: #b3261e; flex: none; font-size: 11px; }

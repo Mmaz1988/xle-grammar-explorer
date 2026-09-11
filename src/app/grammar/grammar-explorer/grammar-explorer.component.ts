@@ -803,6 +803,22 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
     const entries = parsed?.entries ?? [];
     if (entries.length < 2) return;
 
+    // Sorting moves entries apart, so a fragment stranded by a stray period stops
+    // sitting under the entry it belongs to and turns up somewhere baffling — usually
+    // at the top, since it tends to start with a bracket. Refuse and name it instead:
+    // the fix is one character in the grammar, and it is not ours to guess at.
+    const malformed = entries.filter((e) => e.suspect);
+    if (malformed.length > 0) {
+      const first = malformed[0];
+      this.error =
+        `Not sorted: ${section.name} has ${malformed.length} malformed ` +
+        `entr${malformed.length === 1 ? 'y' : 'ies'}. ${section.path}:${first.line} ` +
+        `"${first.name}" — ${first.suspect} Sorting would scatter ${
+          malformed.length === 1 ? 'it' : 'them'
+        } away from the entr${malformed.length === 1 ? 'y' : 'ies'} they continue.`;
+      return;
+    }
+
     const byCategory = order === 'category';
     const keys = entries.map((e) => (byCategory ? [e.category ?? '', e.name] : e.name));
     const sorted = reorderEntries(

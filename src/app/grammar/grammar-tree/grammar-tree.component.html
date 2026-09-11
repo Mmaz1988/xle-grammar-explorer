@@ -29,6 +29,8 @@
       <mat-icon class="kind">{{ node.icon }}</mat-icon>
       <span class="label"><span *ngFor="let p of node.parts"
                                 [class]="p.cls ? 'p-' + p.cls : ''">{{ p.text }}</span></span>
+      <!-- Malformed entries are shown, not hidden: it is the grammar that needs the fix. -->
+      <span class="suspect" *ngIf="node.suspect">⚠</span>
     </button>
   </mat-tree-node>
 
