@@ -113,6 +113,12 @@ export interface ConfigField extends Span {
 }
 
 /** One physical file, with the sections it contains. */
+/** Something wrong in a file, with somewhere to look. */
+export interface LfgDiagnostic {
+  line: number;
+  text: string;
+}
+
 export interface LfgFile {
   /** Path relative to the grammar root, e.g. `lexica/verblex_fracas.lfg.glue`. */
   path: string;
@@ -123,5 +129,5 @@ export interface LfgFile {
   /** True when no CONFIG in the grammar reaches this file. */
   unreferenced?: boolean;
   /** Parse problems that did not stop the parse. */
-  diagnostics?: string[];
+  diagnostics?: LfgDiagnostic[];
 }

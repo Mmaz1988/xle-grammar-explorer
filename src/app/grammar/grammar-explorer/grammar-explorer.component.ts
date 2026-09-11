@@ -914,6 +914,19 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
     this.editors?.get(i)?.focus();
   }
 
+  /**
+   * Open a reported location.
+   *
+   * Every warning names a file and usually a line, which is only worth reading if you
+   * can get there — so the lists render as buttons and this is what they call. Without
+   * a span the line is revealed on its own; with one, the thing complained about is
+   * highlighted.
+   */
+  async showAt(path: string, line?: number, span?: { start: number; end: number }): Promise<void> {
+    await this.show(path, span, line ?? 1);
+    this.tab = 'editor';
+  }
+
   // --- go to definition -----------------------------------------------------
 
   /**

@@ -52,13 +52,26 @@ export interface GrammarUnit {
   missing: string[];
 }
 
+/**
+ * Something worth reporting about a grammar, and where to look.
+ *
+ * Carries the location rather than spelling it into the message, so the UI can offer
+ * it as somewhere to go instead of somewhere to read about.
+ */
+export interface GrammarWarning {
+  path: string;
+  /** Absent when the warning is about the file as a whole, such as a missing include. */
+  line?: number;
+  text: string;
+}
+
 export interface GrammarIndex {
   /** Name of what was opened (the folder, or the file for a direct file open). */
   name: string;
   grammars: GrammarUnit[];
   /** Every parsed file including hidden ones, keyed by path. */
   all: Map<string, LfgFile>;
-  warnings: string[];
+  warnings: GrammarWarning[];
 }
 
 /** Order the tree shows section kinds in — configuration first, then the big three. */
@@ -122,7 +135,7 @@ export function nameGrammar(mainPath: string, files: string[]): string {
 export async function indexGrammar(source: GrammarSource, name = 'grammar'): Promise<GrammarIndex> {
   const paths = (await source.listFiles()).slice().sort();
   const present = new Set(paths);
-  const warnings: string[] = [];
+  const warnings: GrammarWarning[] = [];
 
   // A `.lfg` with a `.lfg.glue` sibling is compiler output. Hide it: it is regenerated
   // by `-glue2lfg` on the next grammar load, so an edit to it would be lost.
@@ -133,7 +146,7 @@ export async function indexGrammar(source: GrammarSource, name = 'grammar'): Pro
     const file = parseLfgFile(await source.readFile(path), { path });
     if (shadowed.has(path)) file.shadowed = true;
     all.set(path, file);
-    for (const d of file.diagnostics ?? []) warnings.push(`${path}: ${d}`);
+    for (const d of file.diagnostics ?? []) warnings.push({ path, line: d.line, text: d.text });
   }
 
   const visible = paths.filter((p) => !shadowed.has(p));
@@ -161,7 +174,9 @@ export async function indexGrammar(source: GrammarSource, name = 'grammar'): Pro
         partial: listed.length > 0 && missing.length === listed.length,
         missing,
       }));
-      for (const m of missing) warnings.push(`${path}: FILES lists "${m}", which was not found`);
+      for (const m of missing) {
+        warnings.push({ path, text: `FILES lists "${m}", which was not found` });
+      }
     }
   }
 

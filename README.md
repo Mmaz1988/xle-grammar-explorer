@@ -369,6 +369,19 @@ fallback*. Asking XLE gets the right answer anyway, since the cipher is XLE's ow
 Because XLE loads `.lfg` and never `.lfg.glue`, a glue grammar is checked as of its last
 compile, not as of the editor buffer.
 
+### Warnings are places, not prose
+
+Unresolved template calls and parse warnings are listed under the tree, and every row is
+a link: clicking one opens the file and highlights what was complained about — the `@NAME`
+itself for a call, not merely the line it sits on. Locations are carried as structured
+fields rather than written into the message text, which is what makes that possible.
+
+An unresolved call is usually a real defect. The dev grammar has three, all to
+`@INTRANS-OBL-EV`, which no file defines. Telling those from the false alarms takes
+knowing that `@` means two things in a `.lfg.glue` file — a template call, and function
+application inside a glue premise (`V@e`) — and in that grammar the distinction accounts
+for 74 of 77 apparently-unresolved calls.
+
 ### Malformed entries
 
 An entry is `HEADWORD CATEGORY MORPHCODE`, and there are only two morphcodes: `*` supplies

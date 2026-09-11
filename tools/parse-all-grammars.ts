@@ -114,7 +114,7 @@ for (const full of files) {
   }
   for (const d of parsed.diagnostics ?? []) {
     total++;
-    problems.push(`${path}: ${d}`);
+    problems.push(`${path}:${d.line} ${d.text}`);
   }
 }
 

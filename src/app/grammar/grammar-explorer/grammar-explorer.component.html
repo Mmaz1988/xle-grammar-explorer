@@ -90,13 +90,23 @@
       <summary>{{ definitions.unresolved.length }} unresolved template call(s)</summary>
       <ul>
         <li *ngFor="let u of definitions.unresolved">
-          <code>&#64;{{ u.name }}</code> — {{ u.path }}:{{ u.line }}
+          <!-- Opening the call is the point: a name and a line number are only useful
+               as somewhere to go. -->
+          <button type="button" class="jump" (click)="showAt(u.path, u.line, u.span)">
+            <code>&#64;{{ u.name }}</code> — {{ u.path }}:{{ u.line }}
+          </button>
         </li>
       </ul>
     </details>
     <details class="warnings" *ngIf="index && index.warnings.length">
       <summary>{{ index.warnings.length }} parse warning(s)</summary>
-      <ul><li *ngFor="let w of index.warnings">{{ w }}</li></ul>
+      <ul>
+        <li *ngFor="let w of index.warnings">
+          <button type="button" class="jump" (click)="showAt(w.path, w.line)">
+            {{ w.path }}<span *ngIf="w.line">:{{ w.line }}</span> — {{ w.text }}
+          </button>
+        </li>
+      </ul>
     </details>
   </div>
 

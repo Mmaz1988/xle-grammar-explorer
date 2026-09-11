@@ -448,6 +448,43 @@ describe('GrammarExplorerComponent', () => {
     expect(component.dirtyPanes.length).withContext('staged, not written').toBeGreaterThan(0);
   });
 
+  it('opens an unresolved call where it is made, not just the file', async () => {
+    // A name and a line number are only useful as somewhere to go. The span matters
+    // too: landing on the line is worse than landing on the `@NAME` complained about.
+    FILES['lex.lfg'] = FILES['lex.lfg'].replace('owl N * @Y.', 'owl N * @NOSUCHTEMPLATE.');
+    await reload();
+    fixture.detectChanges();
+
+    // The fixture's own @X/@Y/@Z are undefined too, so pick the one this spec added.
+    const call = component.definitions!.unresolved.find((u) => u.name === 'NOSUCHTEMPLATE');
+    expect(call).withContext('the added call is reported').toBeTruthy();
+    expect(call!.span).withContext('carries the call itself').toBeTruthy();
+
+    await component.showAt(call!.path, call!.line, call!.span);
+    fixture.detectChanges();
+
+    expect(component.tab).withContext('switches away from the structure view').toBe('editor');
+    const pane = component.panes.find((p) => p.path === 'lex.lfg');
+    expect(pane).withContext('the file is open').toBeTruthy();
+    const revealed = pane!.content.slice(pane!.reveal!.start, pane!.reveal!.end);
+    expect(revealed).withContext('lands on the call').toBe('@NOSUCHTEMPLATE');
+  });
+
+  it('reports a parse warning with somewhere to go', async () => {
+    FILES['lex.lfg'] = FILES['lex.lfg'].replace(
+      'B ENGLISH LEXICON (1.0)\nowl N * @Y.',
+      'B ENGLISH LEXICON (1.0)\nowl N * @Y.\n@(SOMETHING x)',
+    );
+    await reload();
+    fixture.detectChanges();
+
+    const warnings = component.index!.warnings;
+    expect(warnings.length).toBeGreaterThan(0);
+    // The location is structured, not spelled into the prose, so it can be a target.
+    expect(warnings[0].path).toBe('lex.lfg');
+    expect(typeof warnings[0].line).toBe('number');
+  });
+
   it('refuses to sort a section holding a stranded continuation', async () => {
     // A stray period ends `than` early, so the constraint below it parses as an entry
     // headed `((OBL-COMP`. Sorting would move that fragment away from the entry it

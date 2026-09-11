@@ -133,6 +133,13 @@
 .warnings.unresolved summary { color: #b3261e; cursor: pointer; }
 .warnings.unresolved code { color: #b3261e; }
 
+/* A reported location is somewhere to go, not just something to read. */
+.warnings .jump {
+  border: 0; background: none; padding: 1px 0; font: inherit; font-size: inherit;
+  color: inherit; text-align: left; cursor: pointer;
+}
+.warnings .jump:hover { text-decoration: underline; }
+
 /* --- row menu ----------------------------------------------------------- */
 
 .row-menu {

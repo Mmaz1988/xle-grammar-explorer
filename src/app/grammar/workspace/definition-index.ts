@@ -28,6 +28,8 @@ export interface UnresolvedCall {
   name: string;
   path: string;
   line: number;
+  /** The call itself, so opening one lands on `@NAME` rather than on the line. */
+  span: Span;
 }
 
 export interface DefinitionIndex {
@@ -120,7 +122,7 @@ export function buildDefinitionIndex(unit: GrammarUnit, all: Map<string, LfgFile
       const key = `${file.path}:${line}:${call.name}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      unresolved.push({ name: call.name, path: file.path, line });
+      unresolved.push({ name: call.name, path: file.path, line, span: { start: call.start, end: call.end } });
     }
   }
 

@@ -10,7 +10,8 @@
 
 import { maskComments, splitEntries, lineIndex, lineAtIndexed } from './lfg-lexer';
 import type {
-  ConfigField, EntryKind, LabelPart, LfgEntry, LfgFile, LfgSection, RuleSkeleton, SectionKind,
+  ConfigField, EntryKind, LabelPart, LfgDiagnostic, LfgEntry, LfgFile, LfgSection, RuleSkeleton,
+  SectionKind,
 } from './lfg-model';
 
 /**
@@ -139,7 +140,7 @@ export function parseLfgFile(text: string, options: ParseOptions = {}): LfgFile 
   const masked = maskComments(text);
   const starts = lineIndex(text);
   const sections: LfgSection[] = [];
-  const diagnostics: string[] = [];
+  const diagnostics: LfgDiagnostic[] = [];
 
   SECTION_HEADER.lastIndex = 0;
   let header: RegExpExecArray | null;
@@ -195,7 +196,10 @@ export function parseLfgFile(text: string, options: ParseOptions = {}): LfgFile 
           section.entries.push(entry);
         } else {
           const snippet = masked.slice(start, chunks[i].end).trim().slice(0, 60);
-          diagnostics.push(`unnamed ${kind} entry at line ${lineAtIndexed(starts, start)}: ${snippet}`);
+          diagnostics.push({
+            line: lineAtIndexed(starts, start),
+            text: `unnamed ${kind} entry: ${snippet}`,
+          });
         }
       }
     }
