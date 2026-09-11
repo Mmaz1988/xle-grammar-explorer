@@ -42,6 +42,16 @@ keypress wraps a line in quotes, and doubles any quotes already in it. That matc
 symptom exactly. If it recurs, worth checking whether ⌘; was pressed; the fix would be
 to require a selection, or to make the binding harder to hit by accident.
 
+## 1c. Sentence checking: spans that match rules
+
+**Status:** the lexical half is built (see the README). The other half is not.
+
+Right now the sentence bar answers "which words does the lexicon know?". The ambitious
+version answers "which spans of this sentence already match rules?" — showing, say, that
+`the tall linguist` is already an NP the grammar builds, and that the gap is elsewhere.
+That needs the c-structure rules interpreted rather than just indexed, which is a
+different piece of work from lexical lookup.
+
 ## 2. Skills for writing XLE and related notations
 
 **Status:** not started. Best done in its own session.

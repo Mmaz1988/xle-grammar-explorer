@@ -16,6 +16,7 @@ import { buildStructure, type StructureGraph, type StructureNode } from '../stru
 import type { StructureAction } from '../structure-view/structure-graph.component';
 import type { ConfigField, LfgSection, SectionKind } from '../lfg/lfg-model';
 import type { CompletionEntry } from '../lfg/lfg-completion';
+import { buildLexiconIndex, type LexiconHit, type LexiconIndex } from '../lfg/lexicon-lookup';
 import { GrammarEditorComponent, type GotoRequest } from '../grammar-editor/grammar-editor.component';
 import { GrammarTreeComponent } from '../grammar-tree/grammar-tree.component';
 import {
@@ -56,6 +57,10 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
   filter = '';
   /** Display order only; writing it to the file is a separate command. */
   sortMode: SortMode = 'file';
+
+  /** Headword lookup for the sentence bar, rebuilt when the grammar changes. */
+  lexicon?: LexiconIndex;
+  showSentenceBar = false;
 
   panes: EditorPane[] = [];
   /**
@@ -275,6 +280,7 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
     this.tree = unit ? buildTree(unit) : [];
     this.refreshStructure();
     this.definitions = unit && this.index ? buildDefinitionIndex(unit, this.index.all) : undefined;
+    this.lexicon = unit && unit.kind === 'grammar' ? buildLexiconIndex(unit) : undefined;
     this.completions = this.definitions
       ? [...this.definitions.byName.entries()].map(([name, defs]) => ({
           name,
@@ -287,6 +293,18 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
 
   onGrammarChange(id: string): void {
     this.selectGrammar(this.index?.grammars.find((g) => g.id === id));
+  }
+
+  // --- sentence bar ---------------------------------------------------------
+
+  toggleSentenceBar(): void {
+    this.showSentenceBar = !this.showSentenceBar;
+  }
+
+  /** Open the lexical entry behind a word found in a sentence. */
+  async openLexiconHit(hit: LexiconHit): Promise<void> {
+    await this.show(hit.path, hit.span, hit.line);
+    this.tab = 'editor';
   }
 
   // --- structure view -------------------------------------------------------

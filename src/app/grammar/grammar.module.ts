@@ -9,6 +9,7 @@ import { GrammarExplorerComponent } from './grammar-explorer/grammar-explorer.co
 import { GrammarTreeComponent } from './grammar-tree/grammar-tree.component';
 import { GrammarEditorComponent } from './grammar-editor/grammar-editor.component';
 import { StructureGraphComponent } from './structure-view/structure-graph.component';
+import { SentenceSearchComponent } from './sentence-search/sentence-search.component';
 
 /**
  * The grammar view, packaged so a host application can import this one module and use
@@ -24,6 +25,7 @@ import { StructureGraphComponent } from './structure-view/structure-graph.compon
     GrammarTreeComponent,
     GrammarEditorComponent,
     StructureGraphComponent,
+    SentenceSearchComponent,
   ],
   imports: [CommonModule, FormsModule, MatTreeModule, MatIconModule, MatButtonModule],
   exports: [GrammarExplorerComponent],

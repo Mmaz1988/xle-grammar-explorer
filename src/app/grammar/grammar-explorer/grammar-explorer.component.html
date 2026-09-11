@@ -1,3 +1,13 @@
+<!--
+  The sentence bar spans both panes: it asks about the grammar as a whole, not about
+  the file open in the editor.
+-->
+<app-sentence-search *ngIf="showSentenceBar && lexicon"
+                     [lexicon]="lexicon"
+                     [grammarName]="active?.name || ''"
+                     (openEntry)="openLexiconHit($event)"
+                     (hide)="toggleSentenceBar()"></app-sentence-search>
+
 <div class="explorer" (mousemove)="onDrag($event)" (mouseup)="endDrag()" (mouseleave)="endDrag()">
 
   <div class="pane left" [style.flex-basis.%]="splitFraction * 100">
@@ -6,6 +16,9 @@
         Open folder…
       </button>
       <button type="button" (click)="pickFile()" [disabled]="busy || !supported">Open file…</button>
+      <button type="button" class="sentence-toggle" *ngIf="lexicon"
+              [class.on]="showSentenceBar" (click)="toggleSentenceBar()"
+              title="Check a sentence against the lexicon">Sentence</button>
     </div>
 
     <!--

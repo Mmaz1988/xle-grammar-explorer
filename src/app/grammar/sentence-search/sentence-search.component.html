@@ -1,0 +1,41 @@
+<div class="search-bar">
+  <label for="sentence">Sentence</label>
+  <input id="sentence" type="text" [(ngModel)]="sentence" (ngModelChange)="analyse()"
+         [placeholder]="grammarName ? 'Check a sentence against ' + grammarName + '…' : 'Check a sentence against the lexicon…'"
+         autocomplete="off" spellcheck="false" />
+  <button type="button" class="link" (click)="clear()" [disabled]="!sentence">Clear</button>
+  <button type="button" class="link" (click)="hide.emit()" title="Hide the sentence bar">Hide</button>
+</div>
+
+<div class="results" *ngIf="tokens.length">
+  <!--
+    The sentence itself, coloured word by word. Green is covered; amber means the base
+    form is there but only as a literal, so the inflection may not parse; red is
+    unknown to the lexicon.
+  -->
+  <p class="sentence">
+    <ng-container *ngFor="let t of tokens">
+      <span *ngIf="!t.word" class="plain">{{ t.text }}</span>
+      <span *ngIf="t.word" class="word {{ t.match }}"
+            [class.continues]="t.spans === 0"
+            [title]="t.matched ? t.match + ' — ' + t.matched : 'not in the lexicon'"
+            (click)="t.match !== 'missing' && open(t)">{{ t.text }}</span>
+    </ng-container>
+  </p>
+
+  <p class="summary">
+    {{ knownCount }}/{{ wordCount }} covered
+    <span class="miss" *ngIf="missing.length">· {{ missing.length }} missing</span>
+  </p>
+
+  <div class="boxes">
+    <button type="button" class="box {{ t.match }}" *ngFor="let t of boxes"
+            (click)="open(t)"
+            [title]="t.hits[0].path + ':' + t.hits[0].line + ' — ' + (t.hits[0].category || '')">
+      <span class="box-word">{{ t.text }}</span>
+      <span class="box-head" *ngIf="t.matched !== t.text">{{ t.matched }}</span>
+      <span class="box-cat" *ngIf="t.hits[0].category">{{ t.hits[0].category }}</span>
+    </button>
+    <span class="none" *ngIf="!boxes.length">Nothing in this sentence is in the lexicon.</span>
+  </div>
+</div>

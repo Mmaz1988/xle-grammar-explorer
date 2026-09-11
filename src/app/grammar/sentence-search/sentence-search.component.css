@@ -1,0 +1,47 @@
+:host { display: block; border-bottom: 1px solid #d8dee8; background: #f7f9fc; flex: none; }
+
+.search-bar { display: flex; align-items: center; gap: 8px; padding: 7px 10px; }
+.search-bar label { font-size: 11px; color: #6b7a8f; flex: none; }
+.search-bar input {
+  flex: 1; min-width: 0; font: inherit; font-size: 13px; padding: 5px 8px;
+  border: 1px solid #d8dee8; border-radius: 3px;
+}
+.search-bar .link {
+  border: 0; background: none; font: inherit; font-size: 11px; color: #6b7a8f;
+  cursor: pointer; padding: 3px 4px; flex: none;
+}
+.search-bar .link:hover:not(:disabled) { text-decoration: underline; color: #243247; }
+.search-bar .link:disabled { color: #c3ccd8; cursor: default; }
+
+.results { padding: 0 10px 8px; }
+
+.sentence {
+  margin: 0 0 5px; font-family: 'SF Mono', 'Menlo', 'Consolas', monospace; font-size: 13px;
+  line-height: 1.7;
+}
+.sentence .plain { color: #6b7a8f; white-space: pre; }
+.word { border-radius: 3px; padding: 1px 2px; }
+/* Covered: the grammar has this form, or has the base form and defers inflection to
+   its morphology. */
+.word.exact, .word.inflected { background: #d9f2e3; color: #14512f; cursor: pointer; }
+/* The base form is there, but as a literal entry, so this inflection may not parse. */
+.word.base-only { background: #fdf0d5; color: #7a5b00; cursor: pointer; }
+.word.missing { background: #fbdedb; color: #8a2118; }
+.word.continues { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+
+.summary { margin: 0 0 6px; font-size: 11px; color: #6b7a8f; }
+.summary .miss { color: #b3261e; }
+
+.boxes { display: flex; flex-wrap: wrap; gap: 5px; }
+.box {
+  display: inline-flex; align-items: baseline; gap: 5px;
+  border: 1px solid #b7e0c7; background: #eafaf0; border-radius: 3px;
+  padding: 3px 7px; cursor: pointer; font: inherit; font-size: 12px; color: #14512f;
+  font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+}
+.box:hover { border-color: #63b985; }
+.box.base-only { border-color: #e8cf9a; background: #fdf6e8; color: #7a5b00; }
+.box-head { opacity: .75; font-size: 11px; }
+.box-head::before { content: "→ "; }
+.box-cat { font-size: 10px; color: #6b7a8f; }
+.none { font-size: 11px; color: #9aa7ba; }

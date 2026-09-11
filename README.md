@@ -291,6 +291,31 @@ rendering, and two things keep it bounded:
   would otherwise re-create the same freeze; past the cap the tree expands to section
   level and says so.
 
+## Checking a sentence
+
+**Sentence** on the toolbar opens a bar across the top: type a sentence and see which of
+its words the grammar already knows — the question you ask before adding anything to it.
+Each word found becomes a box; clicking it opens that entry.
+
+Words are coloured by what kind of claim the match is:
+
+- **green** — the lexicon lists this form, or lists its base form as an entry whose
+  morphcode is `XLE`, meaning the morphological analyser supplies the inflection. *eating*
+  is covered by `eat V-S XLE` without appearing anywhere;
+- **amber** — the base form is there but as a `*` entry, which supplies only the form
+  written, so this inflection may well not parse. A real difference, not worth the same
+  green;
+- **red** — nothing in the lexicon.
+
+Base forms come from a small English stemmer, not a real analyser: the grammar's own
+morphology is the authority, and this only has to be good enough to say where to look.
+Multiword headwords are matched across tokens, longest first, so `At least three` finds
+the entry `At` least` rather than leaving *At* and *least* to fail separately.
+
+Note that a grammar shipping encrypted headwords — ParGram's lexica cipher the wordlist
+while leaving the structure readable — will report almost everything missing. That is
+the encryption working, not the lookup failing.
+
 ## Filtering
 
 Matching is a plain case-insensitive substring test — nothing is hidden — over each
