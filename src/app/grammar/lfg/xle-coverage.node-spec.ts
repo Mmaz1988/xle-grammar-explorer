@@ -8,7 +8,10 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { tokenize, type SentenceToken } from './lexicon-lookup';
-import { applyXleVerdicts, isCovered, type XleToken, type XleVerdict } from './xle-coverage';
+import type { LexiconHit, LexiconIndex } from './lexicon-lookup';
+import {
+  applyXleVerdicts, isCovered, resolveXleHits, type XleToken, type XleVerdict,
+} from './xle-coverage';
 
 function reported(text: string, verdict: XleVerdict, stems: string[] = []): XleToken {
   return { text, variants: [text], from: 0, to: 0, verdict, stems };
@@ -79,5 +82,71 @@ describe('isCovered', () => {
     assert.equal(isCovered('guessed'), true);
     assert.equal(isCovered('no-entry'), false);
     assert.equal(isCovered('unanalyzable'), false);
+  });
+});
+
+function hit(headword: string, path: string, line: number): LexiconHit {
+  return { headword, path, line, span: { start: 0, end: 1 } };
+}
+
+/** A lexicon holding `see` and the grammar's `-unknown` entry, and nothing else. */
+function lexicon(): LexiconIndex {
+  return new Map([
+    ['see', [hit('see', 'lexica/verblex.lfg.glue', 196)]],
+    ['-unknown', [hit('-unknown', 'morph.lfg.glue', 74)]],
+  ]);
+}
+
+describe('resolveXleHits', () => {
+  it('follows an irregular form to the stem XLE used', () => {
+    // Our own stemmer cannot get from `saw` to `see`; XLE reports the stem outright.
+    const tokens = tokenize('Kim saw it');
+    applyXleVerdicts(tokens, [
+      reported('Kim', 'lexicon'),
+      reported('saw', 'lexicon', ['see', 'saw']),
+      reported('it', 'lexicon'),
+    ]);
+    resolveXleHits(tokens, lexicon());
+
+    const saw = wordsOf(tokens)[1];
+    assert.equal(saw.matched, 'see');
+    assert.equal(saw.hits[0]?.line, 196);
+    assert.equal(saw.viaUnknown, false);
+  });
+
+  it('points a word covered only by default at the -unknown entry', () => {
+    const tokens = tokenize('a tractor');
+    applyXleVerdicts(tokens, [
+      reported('a', 'lexicon'),
+      reported('tractor', 'unknown-entry', ['tractor']),
+    ]);
+    resolveXleHits(tokens, lexicon());
+
+    const tractor = wordsOf(tokens)[1];
+    assert.equal(tractor.matched, '-unknown');
+    assert.equal(tractor.hits[0]?.line, 74, 'opens the entry actually responsible');
+    assert.equal(tractor.viaUnknown, true);
+  });
+
+  it('does the same for a guessed word, which is covered the same way', () => {
+    const tokens = tokenize('blurgy');
+    applyXleVerdicts(tokens, [reported('blurgy', 'guessed', ['blurgy'])]);
+    resolveXleHits(tokens, lexicon());
+    assert.equal(wordsOf(tokens)[0].viaUnknown, true);
+  });
+
+  it('leaves a word XLE rejected with nothing to open', () => {
+    const tokens = tokenize('blurgy');
+    applyXleVerdicts(tokens, [reported('blurgy', 'unanalyzable')]);
+    resolveXleHits(tokens, lexicon());
+    assert.deepEqual(wordsOf(tokens)[0].hits, []);
+  });
+
+  it('offers nothing when the grammar has no -unknown entry', () => {
+    // Not every grammar guesses; inventing a target would send the click nowhere.
+    const tokens = tokenize('tractor');
+    applyXleVerdicts(tokens, [reported('tractor', 'unknown-entry', ['tractor'])]);
+    resolveXleHits(tokens, new Map([['see', [hit('see', 'v.lfg', 1)]]]));
+    assert.deepEqual(wordsOf(tokens)[0].hits, []);
   });
 });

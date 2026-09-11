@@ -58,6 +58,8 @@
 .box.defaulted { border-color: #e8cf9a; background: #fdf6e8; color: #7a5b00; }
 .box.guessed { border-color: #e0c3a0; background: #fbf1e6; color: #8a4b12; font-style: italic; }
 .box.missing { border-color: #e8b4ae; background: #fdeceb; color: #8a2118; }
+/* The box stands for the default analysis, not an entry written for this word. */
+.box.via-unknown { border-style: dashed; }
 .box-head { opacity: .75; font-size: 11px; }
 .box-head::before { content: "→ "; }
 .box-cat { font-size: 10px; color: #6b7a8f; }

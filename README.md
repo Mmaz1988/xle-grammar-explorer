@@ -337,6 +337,14 @@ Words are coloured by what kind of claim the match is:
 Hovering a word says which of these applies and which stems XLE found: *saw* reports
 *see*.
 
+Clicking follows XLE's stem rather than our own guess at one, which is what makes
+irregular forms work: nothing in a suffix stripper gets from *saw* to *see*, but XLE
+reports the stem it used, so the entry is one lookup away. A word covered only by
+default opens `-unknown` itself — that is the entry responsible for it, and the one you
+want to read on finding a word analysed by default rather than by design. Those boxes
+are drawn with a dashed border, since they stand for a rule about unlisted stems rather
+than an entry written for that word.
+
 Without the oracle the same four colours are driven by headword matching alone, where
 green means the lexicon lists the form or defers it to `XLE`, amber means a `*` entry
 supplies only the form written, and red means nothing matched. Base forms then come from

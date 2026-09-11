@@ -13,7 +13,7 @@
  * never be ambiguous between "XLE says no" and "nothing asked XLE".
  */
 
-import type { SentenceToken } from './lexicon-lookup';
+import type { LexiconIndex, SentenceToken } from './lexicon-lookup';
 
 /** XLE's verdict for one word, worst to best. */
 export type XleVerdict = 'unanalyzable' | 'no-entry' | 'guessed' | 'unknown-entry' | 'lexicon';
@@ -84,4 +84,52 @@ function findRun(
     }
   }
   return undefined;
+}
+
+/** The headword a grammar uses for stems its lexicon does not list. */
+export const UNKNOWN_HEADWORD = '-unknown';
+
+/**
+ * Point each word at an entry worth opening, using what XLE found.
+ *
+ * The local lookup can only follow a word to an entry when its own stemmer gets
+ * there, which rules out every irregular form: nothing takes `saw` to `see`. XLE
+ * reports the stem it actually used, so the entry is one lookup away.
+ *
+ * A word covered without a lexicon entry is pointed at `-unknown` instead — that
+ * genuinely is the entry responsible for it, and it is the one you would want to read
+ * (or edit) on finding a word analysed by default rather than by design.
+ */
+export function resolveXleHits(tokens: SentenceToken[], index: LexiconIndex): SentenceToken[] {
+  for (const token of tokens) {
+    const xle = token.xle;
+    if (!xle) continue;
+
+    const hits = [];
+    let matched: string | undefined;
+    for (const stem of xle.stems) {
+      const found = index.get(stem.toLowerCase().trim());
+      if (!found?.length) continue;
+      if (!matched) matched = stem;
+      hits.push(...found);
+    }
+
+    if (hits.length > 0) {
+      token.hits = hits;
+      token.matched = matched;
+      token.viaUnknown = false;
+      continue;
+    }
+
+    // Covered, but by the default analysis rather than by an entry of its own.
+    if (isCovered(xle.verdict)) {
+      const unknown = index.get(UNKNOWN_HEADWORD);
+      if (unknown?.length) {
+        token.hits = unknown;
+        token.matched = UNKNOWN_HEADWORD;
+        token.viaUnknown = true;
+      }
+    }
+  }
+  return tokens;
 }

@@ -3,7 +3,9 @@ import {
   analyseSentence, foundHeadwords, missingWords,
   type LexiconHit, type LexiconIndex, type SentenceToken,
 } from '../lfg/lexicon-lookup';
-import { applyXleVerdicts, isCovered, type XleVerdict } from '../lfg/xle-coverage';
+import {
+  applyXleVerdicts, isCovered, resolveXleHits, UNKNOWN_HEADWORD, type XleVerdict,
+} from '../lfg/xle-coverage';
 import { XleOracleService } from '../workspace/xle-oracle.service';
 
 /** The four states a word is shown in, whichever source answered. */
@@ -79,8 +81,10 @@ export class SentenceSearchComponent implements OnChanges {
     if (!this.mainPath) return;
     const reported = await this.oracle.coverage(this.mainPath, sentence);
     // The sentence moved on while XLE was working; its answer is about the old one.
-    if (mine !== this.generation || !reported) return;
-    this.tokens = applyXleVerdicts([...this.tokens], reported);
+    if (mine !== this.generation || !reported || !this.lexicon) return;
+    // XLE's stems reach entries our own stemmer cannot: nothing takes `saw` to `see`.
+    this.tokens = resolveXleHits(applyXleVerdicts([...this.tokens], reported), this.lexicon);
+    this.found = this.tokens.filter((t) => t.word && t.spans > 0 && t.hits.length > 0);
   }
 
   clear(): void {
@@ -133,8 +137,12 @@ export class SentenceSearchComponent implements OnChanges {
       const stems = xle.stems.length ? ` (${xle.stems.join(', ')})` : '';
       const reasons: Record<XleVerdict, string> = {
         lexicon: `XLE: a lexical entry matches${stems}`,
-        'unknown-entry': `XLE: no entry — the -unknown entry supplies a default analysis${stems}`,
-        guessed: `XLE: the morphology guessed this word${stems}`,
+        'unknown-entry':
+          `XLE: no entry — -unknown supplies a default analysis${stems}` +
+          (token.viaUnknown ? ' · click to open -unknown' : ''),
+        guessed:
+          `XLE: the morphology guessed this word${stems}` +
+          (token.viaUnknown ? ' · click to open -unknown' : ''),
         'no-entry': `XLE: analysed${stems} but no lexical entry matches`,
         unanalyzable: 'XLE: the morphology cannot analyse this word',
       };
@@ -143,16 +151,26 @@ export class SentenceSearchComponent implements OnChanges {
     return token.matched ? `lexicon: ${token.match} — ${token.matched}` : 'not in the lexicon';
   }
 
-  /** Distinct headwords, so a word repeated in the sentence yields one box. */
+  /**
+   * Distinct entries, so a word repeated in the sentence yields one box.
+   *
+   * Keyed on the entry rather than the word: several words of one sentence can be
+   * covered by the same `-unknown`, and one box for it says more than three.
+   */
   get boxes(): SentenceToken[] {
     const seen = new Set<string>();
     return this.found.filter((t) => {
-      const key = `${t.matched}`;
+      const hit = t.hits[0];
+      if (!hit) return false;
+      const key = `${t.matched}|${hit.path}:${hit.line}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
     });
   }
+
+  /** Shown on a box that stands for the default analysis rather than an entry. */
+  readonly unknownHeadword = UNKNOWN_HEADWORD;
 
   /** True once any word carries an XLE verdict, which is what the notice reflects. */
   get usingXle(): boolean {

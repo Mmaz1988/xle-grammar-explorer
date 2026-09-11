@@ -59,6 +59,8 @@ export interface SentenceToken {
    * a different thing from a word it rejected — see `xle-coverage.ts`.
    */
   xle?: import('./xle-coverage').XleToken;
+  /** True when `hits` point at `-unknown` rather than at an entry for this word. */
+  viaUnknown?: boolean;
 }
 
 /** Resolve backquote escapes, so `New` York` reads as the two words it is. */
