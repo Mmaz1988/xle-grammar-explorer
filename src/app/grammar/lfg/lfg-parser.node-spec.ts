@@ -85,6 +85,35 @@ describe('splitEntries', () => {
     assert.equal(chunks.length, 2);
     assert.ok(body.slice(chunks[0].start, chunks[0].end).includes('PERIOD'));
   });
+
+  it('does not read brackets in a ciphered headword as grouping', () => {
+    // ParGram ciphers its headwords, and about one in five of the results holds an
+    // unpaired bracket. Counted as grouping, each swallowed the entries after it until
+    // the depth happened to rebalance: its verb lexicon parsed as 313 entries of 10695.
+    const body = [
+      '` OU>_ZaAaK[ !V XLE @(V-SUBJ %stem); ETC.',
+      '` G^G\\W]Jc !V XLE @(V-SUBJ-OBJ %stem); ETC.',
+      '` KQg[W]cUMSmfSYM !V XLE @(V-SUBJ %stem); ETC.',
+    ].join('\n');
+    const chunks = splitEntries(maskComments(body), 0, body.length, { lexical: true });
+    assert.equal(chunks.length, 3);
+  });
+
+  it('still treats brackets in an entry body as grouping', () => {
+    // The headword is the only part exempt; a period inside the body's brackets is not
+    // a terminator, which is what keeps glue premises in one piece.
+    const body = 'know V-S XLE :$ (\\P.(\\Q.([],[P -> Q]))) : (%a_t -o %c_t).\nsee V-S XLE @X.';
+    const chunks = splitEntries(maskComments(body), 0, body.length, { lexical: true });
+    assert.equal(chunks.length, 2);
+  });
+
+  it('keeps a backquoted multiword headword whole', () => {
+    // The backquote escapes the space, so the headword token does not end there.
+    const body = 'New` York N * (^ PRED) = %stem.\nat` least D * @Q.';
+    const chunks = splitEntries(maskComments(body), 0, body.length, { lexical: true });
+    assert.equal(chunks.length, 2);
+    assert.ok(body.slice(chunks[0].start, chunks[0].end).includes('New` York'));
+  });
 });
 
 describe('sections', () => {

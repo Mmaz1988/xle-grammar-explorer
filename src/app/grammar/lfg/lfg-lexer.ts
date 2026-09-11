@@ -83,12 +83,29 @@ export function maskComments(text: string): string {
  * @param start   Offset to begin at (normally just past the section header line).
  * @param end     Offset to stop at (the `----` terminator, or end of file).
  */
-export function splitEntries(masked: string, start: number, end: number): Array<{ start: number; end: number }> {
+export function splitEntries(
+  masked: string,
+  start: number,
+  end: number,
+  options: { lexical?: boolean } = {},
+): Array<{ start: number; end: number }> {
   const out: Array<{ start: number; end: number }> = [];
   let depth = 0;
   let chunkStart = start;
   let i = start;
+  // In a lexicon the first token of an entry is its headword, whose characters are
+  // literal. ParGram ciphers its headwords, and about one in five of the results holds
+  // an unpaired bracket (`OU>_ZaAaK[`, `G^G\W]Jc`) — counted as grouping, each one
+  // swallows the entries after it until the depth happens to rebalance, which cost
+  // that lexicon 97% of its entries.
+  let atHeadword = options.lexical === true;
+
   while (i < end) {
+    if (atHeadword) {
+      i = skipHeadword(masked, i, end);
+      atHeadword = false;
+      continue;
+    }
     const c = masked[i];
     if (c === '`') {
       i += 2;
@@ -105,6 +122,7 @@ export function splitEntries(masked: string, start: number, end: number): Array<
       if (chunk.replace(/[.\s]/g, '') !== '') {
         out.push({ start: chunkStart, end: i + 1 });
         chunkStart = i + 1;
+        atHeadword = options.lexical === true;
       }
     }
     i++;
@@ -113,6 +131,25 @@ export function splitEntries(masked: string, start: number, end: number): Array<
     out.push({ start: chunkStart, end });
   }
   return out;
+}
+
+/**
+ * Step over an entry's headword: leading space, then one token.
+ *
+ * A backquote escapes the next character including a space, which is how multiword
+ * headwords are written (`New` York`), so the token does not end there.
+ */
+function skipHeadword(masked: string, from: number, end: number): number {
+  let i = from;
+  while (i < end && /\s/.test(masked[i])) i++;
+  while (i < end && !/\s/.test(masked[i])) {
+    if (masked[i] === '`') {
+      i += 2;
+      continue;
+    }
+    i++;
+  }
+  return i;
 }
 
 /** 1-based line number of `offset`. */

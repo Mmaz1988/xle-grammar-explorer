@@ -145,7 +145,7 @@ export function parseLfgFile(text: string, options: ParseOptions = {}): LfgFile 
       // like a terminator — ParGram has `b.` and `d.` as abbreviations of "born" and
       // "died". Joining it to what follows recovers the entry; only a chunk that still
       // will not name itself is reported.
-      const chunks = splitEntries(masked, bodyStart, bodyEnd);
+      const chunks = splitEntries(masked, bodyStart, bodyEnd, { lexical: kind === 'LEXICON' });
       for (let i = 0; i < chunks.length; i++) {
         let start = chunks[i].start;
         let entry = nameEntry(text, masked, start, chunks[i].end, kind, starts);
