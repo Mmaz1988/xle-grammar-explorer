@@ -21,16 +21,29 @@
 }
 .sentence .plain { color: #6b7a8f; white-space: pre; }
 .word { border-radius: 3px; padding: 1px 2px; }
-/* Covered: the grammar has this form, or has the base form and defers inflection to
-   its morphology. */
-.word.exact, .word.inflected { background: #d9f2e3; color: #14512f; cursor: pointer; }
-/* The base form is there, but as a literal entry, so this inflection may not parse. */
-.word.base-only { background: #fdf0d5; color: #7a5b00; cursor: pointer; }
+/* Covered by a real lexical entry. */
+.word.covered { background: #d9f2e3; color: #14512f; }
+/* Parses, but only because -unknown supplies a default analysis for the stem. */
+.word.defaulted { background: #fdf0d5; color: #7a5b00; }
+/* Parses only because the morphology guessed it: a guessing grammar accepts anything,
+   so this is a weaker claim again than a default analysis of a known stem. */
+.word.guessed { background: #fbeada; color: #8a4b12; font-style: italic; }
 .word.missing { background: #fbdedb; color: #8a2118; }
+.word.openable { cursor: pointer; }
 .word.continues { border-top-left-radius: 0; border-bottom-left-radius: 0; }
 
 .summary { margin: 0 0 6px; font-size: 11px; color: #6b7a8f; }
 .summary .miss { color: #b3261e; }
+.summary .source { color: #3f7a57; }
+
+.notice {
+  margin: 0 0 6px; font-size: 11px; color: #7a5b00;
+  background: #fdf6e8; border: 1px solid #e8cf9a; border-radius: 3px; padding: 4px 7px;
+}
+.notice code { font-size: 11px; background: #f4e6c8; padding: 0 3px; border-radius: 2px; }
+.notice .why { color: #8a6a2a; }
+.notice .link { border: 0; background: none; font: inherit; font-size: 11px;
+  color: #6b7a8f; cursor: pointer; text-decoration: underline; padding: 0 0 0 4px; }
 
 .hint { margin: 0 0 5px; font-size: 10px; color: #9aa7ba; }
 
@@ -42,7 +55,9 @@
   font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
 }
 .box:hover { border-color: #63b985; }
-.box.base-only { border-color: #e8cf9a; background: #fdf6e8; color: #7a5b00; }
+.box.defaulted { border-color: #e8cf9a; background: #fdf6e8; color: #7a5b00; }
+.box.guessed { border-color: #e0c3a0; background: #fbf1e6; color: #8a4b12; font-style: italic; }
+.box.missing { border-color: #e8b4ae; background: #fdeceb; color: #8a2118; }
 .box-head { opacity: .75; font-size: 11px; }
 .box-head::before { content: "→ "; }
 .box-cat { font-size: 10px; color: #6b7a8f; }

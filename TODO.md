@@ -44,13 +44,29 @@ to require a selection, or to make the binding harder to hit by accident.
 
 ## 1c. Sentence checking: spans that match rules
 
-**Status:** the lexical half is built (see the README). The other half is not.
+**Status:** the lexical half is built and now asks XLE itself (see the README). The
+span half is not, and the obvious route to it is closed.
 
-Right now the sentence bar answers "which words does the lexicon know?". The ambitious
-version answers "which spans of this sentence already match rules?" — showing, say, that
-`the tall linguist` is already an NP the grammar builds, and that the gap is elsewhere.
-That needs the c-structure rules interpreted rather than just indexed, which is a
-different piece of work from lexical lookup.
+The ambitious version answers "which spans of this sentence already match rules?" —
+showing that `the tall linguist` is already an NP the grammar builds, and that the gap
+is elsewhere. Two approaches were tried and rejected, both worth recording so they are
+not tried again:
+
+- **Harvest the chart after a failed parse.** `xlerc`'s `export-chart-to-file` suggests
+  this, but XLE parses top-down from ROOTCAT, so a failed parse builds no phrasal edges
+  at all. Measured on the fracas grammar: `Kim saw a tractor` leaves ~40 constituent
+  edges, `Kim saw a blurgy` leaves exactly one, `*TOP*[0,0]`. The chart survives the
+  failure; it is simply empty of the thing we want.
+- **Probe sub-spans.** `parse {NP: a dog}` requires naming the category, so this is
+  spans × categories rather than spans, and the category list has to come from the
+  grammar.
+
+What remains is XLE's own answer: a `FRAGMENTS` rule, which makes the chart informative
+on failure. ParGram has one (`english-rules-other.lfg:159`, "category to use when all
+else fails"); no grammar under `grammars/` does. Adding one is a grammar change and a
+judgement call about spurious ambiguity — on the fracas grammar it would interact with
+the `ETC.`/`-unknown` ambiguity `nounlex_fracas.lfg.glue:159` already warns about. So
+this waits on a decision about the grammars, not on code here.
 
 ## 2. Skills for writing XLE and related notations
 

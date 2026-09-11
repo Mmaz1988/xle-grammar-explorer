@@ -3,13 +3,23 @@ import {
   analyseSentence, foundHeadwords, missingWords,
   type LexiconHit, type LexiconIndex, type SentenceToken,
 } from '../lfg/lexicon-lookup';
+import { applyXleVerdicts, isCovered, type XleVerdict } from '../lfg/xle-coverage';
+import { XleOracleService } from '../workspace/xle-oracle.service';
+
+/** The four states a word is shown in, whichever source answered. */
+export type WordState = 'covered' | 'defaulted' | 'guessed' | 'missing';
+
+/** How long to wait after a keystroke before asking XLE. */
+const ASK_AFTER_MS = 250;
 
 /**
- * A sentence, checked against the grammar's lexicon.
+ * A sentence, checked against the grammar.
  *
- * Type a sentence and see which of its words the grammar already knows — the question
- * you ask before adding anything to it. Each word found is a box you can click to open
- * its entry.
+ * Two sources can answer. When the XLE oracle is running the grammar's own morphology
+ * decides, which is the only way to know whether a word absent from the lexicon still
+ * parses through `-unknown`, or whether an inflection the lexicon implies is actually
+ * analysable. Otherwise the bar falls back to matching headwords itself and says so —
+ * a red word must never be ambiguous between "XLE rejected it" and "nothing asked".
  */
 @Component({
   selector: 'app-sentence-search',
@@ -20,6 +30,8 @@ export class SentenceSearchComponent implements OnChanges {
   @Input() lexicon?: LexiconIndex;
   /** Named in the placeholder, so it is clear which grammar is being asked. */
   @Input() grammarName = '';
+  /** The grammar's main file, which the oracle resolves to a path XLE can load. */
+  @Input() mainPath?: string;
 
   /** `newPane` when the click was shift-held, matching ⇧ in the editor. */
   @Output() openEntry = new EventEmitter<{ hit: LexiconHit; newPane: boolean }>();
@@ -30,12 +42,23 @@ export class SentenceSearchComponent implements OnChanges {
   found: SentenceToken[] = [];
   missing: SentenceToken[] = [];
 
+  /** Bumped per keystroke so a slow reply cannot overwrite a newer sentence. */
+  private generation = 0;
+  private timer?: ReturnType<typeof setTimeout>;
+
+  constructor(readonly oracle: XleOracleService) {
+    void this.oracle.check();
+  }
+
   ngOnChanges(changes: SimpleChanges): void {
     // A different grammar knows different words, so the answer has to be recomputed.
-    if (changes['lexicon']) this.analyse();
+    if (changes['lexicon'] || changes['mainPath']) this.analyse();
   }
 
   analyse(): void {
+    this.generation++;
+    if (this.timer) clearTimeout(this.timer);
+
     if (!this.lexicon || this.sentence.trim() === '') {
       this.tokens = [];
       this.found = [];
@@ -45,10 +68,29 @@ export class SentenceSearchComponent implements OnChanges {
     this.tokens = analyseSentence(this.sentence, this.lexicon);
     this.found = foundHeadwords(this.tokens);
     this.missing = missingWords(this.tokens);
+
+    // Asking XLE means parsing, so wait for a pause rather than firing per keystroke.
+    const mine = this.generation;
+    const sentence = this.sentence;
+    this.timer = setTimeout(() => void this.askXle(mine, sentence), ASK_AFTER_MS);
+  }
+
+  private async askXle(mine: number, sentence: string): Promise<void> {
+    if (!this.mainPath) return;
+    const reported = await this.oracle.coverage(this.mainPath, sentence);
+    // The sentence moved on while XLE was working; its answer is about the old one.
+    if (mine !== this.generation || !reported) return;
+    this.tokens = applyXleVerdicts([...this.tokens], reported);
   }
 
   clear(): void {
     this.sentence = '';
+    this.analyse();
+  }
+
+  /** Retry after starting the service, without reloading the page. */
+  async retryOracle(): Promise<void> {
+    await this.oracle.recheck();
     this.analyse();
   }
 
@@ -63,6 +105,44 @@ export class SentenceSearchComponent implements OnChanges {
     if (hit) this.openEntry.emit({ hit, newPane: event?.shiftKey === true });
   }
 
+  /**
+   * How to colour a word.
+   *
+   * XLE's verdict wins when it answered: it is the grammar's own morphology rather
+   * than our reading of the lexicon. `guessed` is kept apart from `defaulted` because
+   * they fail differently — a guessing grammar will analyse any string at all, so
+   * showing that as a hit would make the bar meaningless.
+   */
+  stateOf(token: SentenceToken): WordState {
+    const verdict = token.xle?.verdict;
+    if (verdict) {
+      if (verdict === 'lexicon') return 'covered';
+      if (verdict === 'unknown-entry') return 'defaulted';
+      if (verdict === 'guessed') return 'guessed';
+      return 'missing';
+    }
+    if (token.match === 'missing') return 'missing';
+    if (token.match === 'base-only') return 'defaulted';
+    return 'covered';
+  }
+
+  /** What the word's colour means, spelled out on hover. */
+  explain(token: SentenceToken): string {
+    const xle = token.xle;
+    if (xle) {
+      const stems = xle.stems.length ? ` (${xle.stems.join(', ')})` : '';
+      const reasons: Record<XleVerdict, string> = {
+        lexicon: `XLE: a lexical entry matches${stems}`,
+        'unknown-entry': `XLE: no entry — the -unknown entry supplies a default analysis${stems}`,
+        guessed: `XLE: the morphology guessed this word${stems}`,
+        'no-entry': `XLE: analysed${stems} but no lexical entry matches`,
+        unanalyzable: 'XLE: the morphology cannot analyse this word',
+      };
+      return reasons[xle.verdict];
+    }
+    return token.matched ? `lexicon: ${token.match} — ${token.matched}` : 'not in the lexicon';
+  }
+
   /** Distinct headwords, so a word repeated in the sentence yields one box. */
   get boxes(): SentenceToken[] {
     const seen = new Set<string>();
@@ -74,11 +154,26 @@ export class SentenceSearchComponent implements OnChanges {
     });
   }
 
+  /** True once any word carries an XLE verdict, which is what the notice reflects. */
+  get usingXle(): boolean {
+    return this.tokens.some((t) => t.xle);
+  }
+
+  private get words(): SentenceToken[] {
+    return this.tokens.filter((t) => t.word && t.spans > 0);
+  }
+
   get knownCount(): number {
-    return this.tokens.filter((t) => t.word && t.spans > 0 && t.match !== 'missing').length;
+    return this.words.filter((t) =>
+      t.xle ? isCovered(t.xle.verdict) : t.match !== 'missing',
+    ).length;
+  }
+
+  get missingCount(): number {
+    return this.words.length - this.knownCount;
   }
 
   get wordCount(): number {
-    return this.tokens.filter((t) => t.word && t.spans > 0).length;
+    return this.words.length;
   }
 }

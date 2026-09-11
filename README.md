@@ -299,24 +299,57 @@ Each word found becomes a box; clicking it opens that entry, and shift-clicking 
 in a pane beside what is already there — the same gesture as ⇧ on a go-to-definition,
 and the way to line several words of a sentence up at once.
 
+### Asking XLE
+
+The lexicon cannot actually answer "will this word parse". A word in no lexicon may
+still parse, because the `-unknown` entry supplies a default analysis for any stem the
+morphology knows; and an inflection the lexicon seems to imply may not be analysable at
+all. Which of the two happens differs per grammar — the fracas grammar's transducer is
+closed-vocabulary, ParGram's guesses at anything.
+
+So if XLE is installed, ask it:
+
+```
+npm run xle        # a local oracle on 127.0.0.1:8085
+```
+
+It finds XLE on `PATH` or at `XLEPATH`, and on Windows through `wsl`, translating paths
+the way LiGER's `XLEStarter` does. It keeps one warm XLE process per grammar, because
+`create-parser` costs 0.4s for the fracas grammar and 2.3s for ParGram while a lookup
+after that is milliseconds. Grammars are found under `XLE_GRAMMAR_ROOTS` (colon
+separated; the bundled `grammars` symlink by default), matched by the main file's name —
+the File System Access API never reveals a path, so a name is all the browser has.
+
+The service is optional and the explorer still needs no backend: without it the bar
+falls back to matching headwords itself and says so, because a red word must never be
+ambiguous between *XLE rejected it* and *nothing asked XLE*.
+
 Words are coloured by what kind of claim the match is:
 
-- **green** — the lexicon lists this form, or lists its base form as an entry whose
-  morphcode is `XLE`, meaning the morphological analyser supplies the inflection. *eating*
-  is covered by `eat V-S XLE` without appearing anywhere;
-- **amber** — the base form is there but as a `*` entry, which supplies only the form
-  written, so this inflection may well not parse. A real difference, not worth the same
-  green;
-- **red** — nothing in the lexicon.
+- **green** — a real lexical entry matches;
+- **amber** — it parses, but only because `-unknown` supplies a default analysis for a
+  stem the morphology knows. `tractor` is not in the fracas lexicon, yet
+  `@(DEFAULT-NOUN-SEM %stem)` gives it a PRED;
+- **amber, italic** — it parses only because the morphology *guessed* it. ParGram
+  analyses `xqzzy` as happily as `tractor`, so this is a weaker claim again;
+- **red** — the morphology cannot analyse it, so the grammar cannot parse it.
 
-Base forms come from a small English stemmer, not a real analyser: the grammar's own
-morphology is the authority, and this only has to be good enough to say where to look.
-Multiword headwords are matched across tokens, longest first, so `At least three` finds
-the entry `At` least` rather than leaving *At* and *least* to fail separately.
+Hovering a word says which of these applies and which stems XLE found: *saw* reports
+*see*.
+
+Without the oracle the same four colours are driven by headword matching alone, where
+green means the lexicon lists the form or defers it to `XLE`, amber means a `*` entry
+supplies only the form written, and red means nothing matched. Base forms then come from
+a small English stemmer, good enough to say where to look and no more. Multiword
+headwords are matched across tokens, longest first, so `At least three` finds the entry
+`At` least` rather than leaving *At* and *least* to fail separately.
 
 Note that a grammar shipping encrypted headwords — ParGram's lexica cipher the wordlist
-while leaving the structure readable — will report almost everything missing. That is
-the encryption working, not the lookup failing.
+while leaving the structure readable — will report almost everything missing *in the
+fallback*. Asking XLE gets the right answer anyway, since the cipher is XLE's own.
+
+Because XLE loads `.lfg` and never `.lfg.glue`, a glue grammar is checked as of its last
+compile, not as of the editor buffer.
 
 ## Filtering
 

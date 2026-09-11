@@ -54,6 +54,11 @@ export interface SentenceToken {
   hits: LexiconHit[];
   /** How many tokens this match covers, for multiword headwords. */
   spans: number;
+  /**
+   * XLE's verdict, when the oracle answered. Absent means nothing asked it, which is
+   * a different thing from a word it rejected — see `xle-coverage.ts`.
+   */
+  xle?: import('./xle-coverage').XleToken;
 }
 
 /** Resolve backquote escapes, so `New` York` reads as the two words it is. */

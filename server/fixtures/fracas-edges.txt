@@ -1,0 +1,37 @@
+"""Kim saw a tractor and a blurgy"""
+@@@E	(Edge)0x138378600	+Prop:9[3,4]		(Edge)0x138378000	T	
+@@@E	(Edge)0x13837a940	+Noun:56[35,36]		(Edge)0x13837a640	T	
+@@@E	(Edge)0x13837a1c0	+LCLet:46[25,26]		(Edge)0x138379ec0	T	T
+@@@E	(Edge)0x138378fc0	+PastTense:22[19,20]		(Edge)0x138378cc0	T	
+@@@E	(Edge)0x138379e00	+Verb:41[13,14]		(Edge)0x138378cc0	T	
+@@@E	(Edge)0x1383795c0	+Noun:30[13,16]		(Edge)0x138378cc0	T	
+@@@E	(Edge)0x138378e40	+123SP:20[20,24]		(Edge)0x138378cc0	T	
+@@@E	(Edge)0x1383792c0	see:26[8,18]		(Edge)0x138378cc0	T	
+@@@E	(Edge)0x13837bb40	+LCLet:80[45,46]		(Edge)0x13837b840	T	T
+@@@E	(Edge)0x138379740	saw:32[8,13]		(Edge)0x138378cc0	T	T
+@@@E	(Edge)0x138378cc0	saw:18[8,24]	T			T
+@@@E	(Edge)0x13837a4c0	a:50[24,25]??		(Edge)0x138379ec0		T
+@@@E	(Edge)0x138379ec0	a:42[24,28]	T		T	
+@@@E	(Edge)0x138379c80	+Pres:39[14,15]		(Edge)0x138378cc0	T	
+@@@E	(Edge)0x13837af40	+Coord:64[42,44]		(Edge)0x13837adc0	T	T
+@@@E	(Edge)0x138378180	+Sg:3[6,8]		(Edge)0x138378000	T	
+@@@E	(Edge)0x13837bfc0	blurgy:86[48,56]	T			T
+@@@E	(Edge)0x13837be40	a:84[44,45]??		(Edge)0x13837b840		T
+@@@E	(Edge)0x13837b840	a:76[44,48]	T		T	
+@@@E	(Edge)0x138379440	+Sg:28[16,24]		(Edge)0x138378cc0	T	
+@@@E	(Edge)0x13837b600	and:73[38,41]??		(Edge)0x13837adc0		T
+@@@E	(Edge)0x13837adc0	and:62[38,44]	T		T	
+@@@E	(Edge)0x1383786c0	Kim:10[0,3]??		(Edge)0x138378000		T
+@@@E	(Edge)0x138378000	Kim:1[0,8]	T		T	
+@@@E	(Edge)0x138379140	+Verb:24[18,19]		(Edge)0x138378cc0	T	
+@@@E	(Edge)0x13837a040	+Sg:44[26,28]		(Edge)0x138379ec0	T	
+@@@E	(Edge)0x138378300	+Fem:5[5,6]		(Edge)0x138378000	T	
+@@@E	(Edge)0x13837a7c0	+Sg:54[36,38]		(Edge)0x13837a640	T	
+@@@E	(Edge)0x138378480	+Giv:7[4,5]		(Edge)0x138378000	T	
+@@@E	(Edge)0x13837b9c0	+Sg:78[46,48]		(Edge)0x13837b840	T	
+@@@E	(Edge)0x13837aac0	tractor:58[28,35]		(Edge)0x13837a640	T	T
+@@@E	(Edge)0x13837a640	tractor:52[28,38]	T			T
+@@@E	(Edge)0x138378900	+Fam:13[4,6]		(Edge)0x138378000	T	T
+@@@E	(Edge)0x138378780	+Masc:11[5,6]		(Edge)0x138378000	T	
+@@@E	(Edge)0x138379b00	+Non3sg:37[15,24]		(Edge)0x138378cc0	T	
+@@@E	(Edge)0x13837b300	+Conj:69[41,42]		(Edge)0x13837adc0	T	T

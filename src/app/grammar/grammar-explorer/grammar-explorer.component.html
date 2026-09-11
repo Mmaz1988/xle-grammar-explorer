@@ -5,6 +5,7 @@
 <app-sentence-search *ngIf="showSentenceBar && lexicon"
                      [lexicon]="lexicon"
                      [grammarName]="active?.name || ''"
+                     [mainPath]="active?.mainPath"
                      (openEntry)="openLexiconHit($event)"
                      (hide)="toggleSentenceBar()"></app-sentence-search>
 

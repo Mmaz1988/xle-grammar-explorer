@@ -1,0 +1,56 @@
+"""Kim saw a tractor and a blurgy"""
+@@@E	(Edge)0x119d2d7c0	+Det:118[30,32]		(Edge)0x119d2cd40	T	
+@@@E	(Edge)0x119d2bc00	+PastTense:81[19,20]		(Edge)0x119d29bc0	T	
+@@@E	(Edge)0x119d32200	+LCLet:217[54,58]		(Edge)0x119d32080	T	
+@@@E	(Edge)0x119d2d4c0	+Indef:114[33,34]		(Edge)0x119d2cd40	T	
+@@@E	(Edge)0x119d34480	_,:263[73,73]	T		T	
+@@@E	(Edge)0x119d34000	+Pres:257[68,69]		(Edge)0x119d322c0	T	
+@@@E	(Edge)0x119d2d100	+Sg:109[34,37]		(Edge)0x119d2e6c0 (Edge)0x119d2cd40	T	
+@@@E	(Edge)0x119d2b9c0	+123SP:78[20,29]		(Edge)0x119d29bc0	T	
+@@@E	(Edge)0x119d2b480	+Pres:71[23,24]		(Edge)0x119d29bc0	T	
+@@@E	(Edge)0x119d30340	+Coord:176[51,53]		(Edge)0x119d2fec0	T	
+@@@E	(Edge)0x119d33b80	+Adj:251[67,71]		(Edge)0x119d322c0	T	
+@@@E	(Edge)0x119d32440	+Guessed:220[71,73]		(Edge)0x119d322c0	T	
+@@@E	(Edge)0x119d2d640	+Art:116[32,33]		(Edge)0x119d2cd40	T	
+@@@E	(Edge)0x119d28540	+Fem:8[10,11]		(Edge)0x119d28000	T	
+@@@E	(Edge)0x119d31300	a:197[53,54]		(Edge)0x119d32080 (Edge)0x119d30700	T	
+@@@E	(Edge)0x119d32080	a:215[53,61]	T		T	
+@@@E	(Edge)0x119d2cd40	a_:104[29,37]	T		T	
+@@@E	(Edge)0x119d286c0	+Giv:10[9,10]		(Edge)0x119d28000	T	
+@@@E	(Edge)0x119d29ec0	+Sg:42[25,29]		(Edge)0x119d29bc0	T	
+@@@E	(Edge)0x119d30640	and:180[47,50]		(Edge)0x119d2fec0	T	
+@@@E	(Edge)0x119d2fec0	and:170[47,53]	T		T	
+@@@E	(Edge)0x119d32680	+Sg:223[70,71]		(Edge)0x119d322c0	T	
+@@@E	(Edge)0x119d29800	+Fam:33[9,11]		(Edge)0x119d28000	T	
+@@@E	(Edge)0x119d29680	+Masc:31[10,11]		(Edge)0x119d28000	T	
+@@@E	(Edge)0x119d32c80	blurgy:231[61,67]		(Edge)0x119d322c0	T	T
+@@@E	(Edge)0x119d322c0	blurgy:218[61,73]	T		T	
+@@@E	(Edge)0x119d31180	+Det:195[54,56]		(Edge)0x119d30700	T	
+@@@E	(Edge)0x119d2ea80	+Sg:143[45,47]		(Edge)0x119d2e900	T	
+@@@E	(Edge)0x119d28840	+Prop:12[8,9]		(Edge)0x119d28000	T	
+@@@E	(Edge)0x119d2e840	+LCLet:140[30,34]		(Edge)0x119d2e6c0	T	
+@@@E	(Edge)0x119d30e80	+Indef:191[57,58]		(Edge)0x119d30700	T	
+@@@E	(Edge)0x119d30ac0	+Sg:186[58,61]		(Edge)0x119d32080 (Edge)0x119d30700	T	
+@@@E	(Edge)0x119d289c0	Kim:14[0,8]		(Edge)0x119d28000	T	T
+@@@E	(Edge)0x119d28000	Kim:1[0,13]	T		T	
+@@@E	(Edge)0x119d2f080	tractor:151[37,44]		(Edge)0x119d2e900	T	
+@@@E	(Edge)0x119d2e900	tractor:141[37,47]	T		T	
+@@@E	(Edge)0x119d2bd80	+Verb:83[18,19]		(Edge)0x119d29bc0	T	
+@@@E	(Edge)0x119d33dc0	+Non3sg:254[69,71]		(Edge)0x119d322c0	T	
+@@@E	(Edge)0x119d2c080	see:87[13,18]		(Edge)0x119d29bc0	T	
+@@@E	(Edge)0x119d29b00	kim:37[0,13]	T	(Edge)0x119d29a40	T	
+@@@E	(Edge)0x119d2b240	+Non3sg:68[24,29]		(Edge)0x119d29bc0	T	
+@@@E	(Edge)0x119d31000	+Art:193[56,57]		(Edge)0x119d30700	T	
+@@@E	(Edge)0x119d304c0	+Conj:178[50,51]		(Edge)0x119d2fec0	T	
+@@@E	(Edge)0x119d2ee40	+Noun:148[44,45]		(Edge)0x119d2e900	T	
+@@@E	(Edge)0x119d2a4c0	saw:50[13,22]		(Edge)0x119d29bc0	T	
+@@@E	(Edge)0x119d29bc0	saw:38[13,29]	T		T	
+@@@E	(Edge)0x119d30700	a_:181[53,61]	T		T	
+@@@E	(Edge)0x119d2d940	a:120[29,30]		(Edge)0x119d2e6c0 (Edge)0x119d2cd40	T	
+@@@E	(Edge)0x119d2e6c0	a:138[29,37]	T		T	
+@@@E	(Edge)0x119d34240	+Verb:260[67,68]		(Edge)0x119d322c0	T	
+@@@E	(Edge)0x119d32a40	+Noun:228[67,70]		(Edge)0x119d322c0	T	
+@@@E	(Edge)0x119d2b6c0	+Verb:74[22,23]		(Edge)0x119d29bc0	T	
+@@@E	(Edge)0x119d2a280	+Noun:47[22,25]		(Edge)0x119d29bc0	T	
+@@@E	(Edge)0x119d29a40	^ kim:36[0,13]	T			
+@@@E	(Edge)0x119d28180	+Sg:3[11,13]		(Edge)0x119d28000	T	

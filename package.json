@@ -9,13 +9,15 @@
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "npm run test:parser && npm run test:tokens && npm run harness",
+    "test": "npm run test:parser && npm run test:tokens && npm run test:xle && npm run harness",
     "test:parser": "tsc -p tsconfig.harness.json && node --test '.harness/src/**/*.node-spec.js'",
     "test:ng": "ng test --watch=false --browsers=ChromeHeadlessNoSandbox",
     "harness": "tsc -p tsconfig.harness.json && node .harness/tools/parse-all-grammars.js",
     "index": "tsc -p tsconfig.harness.json && node .harness/tools/index-grammar.js",
     "test:tokens": "tsc -p tsconfig.harness.json && node .harness/tools/tokenize-all-grammars.js && node tools/parse-with-codemirror.mjs",
-    "test:all": "npm test && npm run test:ng"
+    "test:all": "npm test && npm run test:ng",
+    "xle": "node server/index.mjs",
+    "test:xle": "node --test 'server/*.test.mjs'"
   },
   "devDependencies": {
     "@angular-devkit/build-angular": "^16.1.3",

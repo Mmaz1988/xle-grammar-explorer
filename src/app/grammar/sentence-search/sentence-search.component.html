@@ -9,29 +9,41 @@
 
 <div class="results" *ngIf="tokens.length">
   <!--
-    The sentence itself, coloured word by word. Green is covered; amber means the base
-    form is there but only as a literal, so the inflection may not parse; red is
-    unknown to the lexicon.
+    The sentence, coloured word by word. Green is covered by a real entry; amber means
+    it parses only through a default or guessed analysis; red means it does not parse.
   -->
   <p class="sentence">
     <ng-container *ngFor="let t of tokens">
       <span *ngIf="!t.word" class="plain">{{ t.text }}</span>
-      <span *ngIf="t.word" class="word {{ t.match }}"
+      <span *ngIf="t.word" class="word {{ stateOf(t) }}"
             [class.continues]="t.spans === 0"
-            [title]="t.matched ? t.match + ' — ' + t.matched : 'not in the lexicon'"
-            (click)="t.match !== 'missing' && open(t, $event)">{{ t.text }}</span>
+            [class.openable]="t.hits.length > 0"
+            [title]="explain(t)"
+            (click)="t.hits.length && open(t, $event)">{{ t.text }}</span>
     </ng-container>
   </p>
 
   <p class="summary">
     {{ knownCount }}/{{ wordCount }} covered
-    <span class="miss" *ngIf="missing.length">· {{ missing.length }} missing</span>
+    <span class="miss" *ngIf="missingCount">· {{ missingCount }} missing</span>
+    <span class="source" *ngIf="usingXle">· checked with XLE</span>
+  </p>
+
+  <!--
+    Saying which source answered matters: without XLE a red word only means "no
+    headword matched", which is a weaker claim than "this grammar cannot parse it".
+  -->
+  <p class="notice" *ngIf="!usingXle && oracle.status === 'absent'">
+    Matching headwords only — start <code>npm run xle</code> to check against the
+    grammar's morphology.
+    <span class="why" *ngIf="oracle.error">{{ oracle.error }}</span>
+    <button type="button" class="link" (click)="retryOracle()">Retry</button>
   </p>
 
   <p class="hint" *ngIf="boxes.length">Click a word to open its entry · shift-click to open it in a new pane</p>
 
   <div class="boxes">
-    <button type="button" class="box {{ t.match }}" *ngFor="let t of boxes"
+    <button type="button" class="box {{ stateOf(t) }}" *ngFor="let t of boxes"
             (click)="open(t, $event)"
             [title]="t.hits[0].path + ':' + t.hits[0].line + ' — ' + (t.hits[0].category || '')">
       <span class="box-word">{{ t.text }}</span>
