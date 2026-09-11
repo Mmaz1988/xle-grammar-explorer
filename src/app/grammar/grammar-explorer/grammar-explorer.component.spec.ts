@@ -308,6 +308,21 @@ describe('GrammarExplorerComponent', () => {
     expect(pane.dirty).toBeFalse();
   });
 
+  it('opens a word from the sentence bar, beside the current file when shift-held', async () => {
+    const lexicon = component.lexicon!;
+    expect(lexicon).withContext('a lexicon is indexed for the sentence bar').toBeTruthy();
+    const hit = [...lexicon.values()][0][0];
+
+    await component.openLexiconHit({ hit, newPane: false });
+    fixture.detectChanges();
+    expect(component.panes.length).toBe(1);
+    expect(component.tab).withContext('and shows it').toBe('editor');
+
+    await component.openLexiconHit({ hit, newPane: true });
+    fixture.detectChanges();
+    expect(component.panes.length).withContext('shift opens beside').toBe(2);
+  });
+
   it('builds a structure graph and switches to it', () => {
     expect(component.structure).withContext('a graph is available').toBeTruthy();
     expect(component.structure!.undeclared)

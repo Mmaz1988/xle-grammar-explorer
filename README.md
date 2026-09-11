@@ -295,7 +295,9 @@ rendering, and two things keep it bounded:
 
 **Sentence** on the toolbar opens a bar across the top: type a sentence and see which of
 its words the grammar already knows — the question you ask before adding anything to it.
-Each word found becomes a box; clicking it opens that entry.
+Each word found becomes a box; clicking it opens that entry, and shift-clicking opens it
+in a pane beside what is already there — the same gesture as ⇧ on a go-to-definition,
+and the way to line several words of a sentence up at once.
 
 Words are coloured by what kind of claim the match is:
 

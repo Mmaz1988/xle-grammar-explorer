@@ -21,7 +21,8 @@ export class SentenceSearchComponent implements OnChanges {
   /** Named in the placeholder, so it is clear which grammar is being asked. */
   @Input() grammarName = '';
 
-  @Output() openEntry = new EventEmitter<LexiconHit>();
+  /** `newPane` when the click was shift-held, matching ⇧ in the editor. */
+  @Output() openEntry = new EventEmitter<{ hit: LexiconHit; newPane: boolean }>();
   @Output() hide = new EventEmitter<void>();
 
   sentence = '';
@@ -51,10 +52,15 @@ export class SentenceSearchComponent implements OnChanges {
     this.analyse();
   }
 
-  /** Open the first entry for a matched token. */
-  open(token: SentenceToken): void {
+  /**
+   * Open the first entry for a matched token.
+   *
+   * Shift opens it beside whatever is already there, the same gesture as ⇧ on a
+   * go-to-definition — useful for lining several words of a sentence up at once.
+   */
+  open(token: SentenceToken, event?: MouseEvent): void {
     const hit = token.hits[0];
-    if (hit) this.openEntry.emit(hit);
+    if (hit) this.openEntry.emit({ hit, newPane: event?.shiftKey === true });
   }
 
   /** Distinct headwords, so a word repeated in the sentence yields one box. */

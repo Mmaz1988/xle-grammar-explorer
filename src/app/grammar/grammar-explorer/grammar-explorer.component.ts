@@ -302,8 +302,14 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
   }
 
   /** Open the lexical entry behind a word found in a sentence. */
-  async openLexiconHit(hit: LexiconHit): Promise<void> {
-    await this.show(hit.path, hit.span, hit.line);
+  async openLexiconHit(request: { hit: LexiconHit; newPane: boolean }): Promise<void> {
+    const { hit, newPane } = request;
+    this.error = '';
+    if (newPane && this.panes.length >= MAX_PANES) {
+      this.error = `Too many open panes (${MAX_PANES}). Close one first.`;
+      return;
+    }
+    await this.show(hit.path, hit.span, hit.line, { newPane });
     this.tab = 'editor';
   }
 
