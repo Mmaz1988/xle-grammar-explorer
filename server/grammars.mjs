@@ -79,3 +79,54 @@ export function resolveGrammar(mainPath, grammars = listGrammars()) {
   const matches = grammars.filter((p) => basename(p) === wanted);
   return { wanted, matches };
 }
+
+/**
+ * A stamp that changes whenever the grammar on disk does.
+ *
+ * A warm process holds the grammar `create-parser` read, so without this an edit is
+ * invisible until the service restarts — which is exactly what you do not want while
+ * adding the entry you are checking for. Watching only the main file is not enough,
+ * since entries live in the lexica beside it, so the whole directory is stamped.
+ *
+ * `needsCompile` reports the other staleness, the one no reload here can fix: XLE
+ * loads `.lfg`, so an edited `.lfg.glue` does not reach it until LiGER recompiles.
+ */
+export function grammarStamp(mainPath) {
+  const root = dirname(mainPath);
+  let newest = 0;
+  let needsCompile = false;
+  const seen = [];
+  stampWalk(root, seen, 0);
+  for (const [path, mtime] of seen) {
+    if (mtime > newest) newest = mtime;
+    if (path.endsWith('.lfg.glue')) {
+      const compiled = seen.find(([p]) => p === path.slice(0, -'.glue'.length));
+      if (!compiled || compiled[1] < mtime) needsCompile = true;
+    }
+  }
+  return { stamp: newest, needsCompile };
+}
+
+function stampWalk(dir, out, depth) {
+  if (depth > 4) return;
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    const path = join(dir, entry.name);
+    if (entry.name.startsWith('.') || entry.name.endsWith('.fileindexdir')) continue;
+    let stats;
+    try {
+      stats = statSync(path);
+    } catch {
+      continue;
+    }
+    if (stats.isDirectory()) stampWalk(path, out, depth + 1);
+    else if (entry.name.endsWith('.lfg') || entry.name.endsWith('.lfg.glue')) {
+      out.push([path, stats.mtimeMs]);
+    }
+  }
+}

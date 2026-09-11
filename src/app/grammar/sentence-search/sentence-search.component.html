@@ -40,6 +40,12 @@
     <button type="button" class="link" (click)="retryOracle()">Retry</button>
   </p>
 
+  <!-- XLE reads the compiled .lfg, so an edited .lfg.glue has not reached it yet. -->
+  <p class="notice" *ngIf="usingXle && oracle.needsCompile">
+    Checked against the last compiled <code>.lfg</code> — this grammar has
+    <code>.lfg.glue</code> edits that XLE has not seen. Reload the grammar to recompile.
+  </p>
+
   <p class="hint" *ngIf="boxes.length">Click a word to open its entry · shift-click to open it in a new pane</p>
 
   <div class="boxes">

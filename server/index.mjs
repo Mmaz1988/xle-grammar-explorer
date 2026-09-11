@@ -14,22 +14,23 @@ import { createServer } from 'node:http';
 import { locateXle } from './xle-locate.mjs';
 import { XleSessionPool } from './xle-session.mjs';
 import { coverageScript, classify } from './coverage.mjs';
-import { grammarRoots, listGrammars, resolveGrammar } from './grammars.mjs';
+import { grammarRoots, listGrammars, resolveGrammar, grammarStamp } from './grammars.mjs';
+import { originFor } from './cors.mjs';
 
 const CONTROL = /[\u0000-\u001f]/;
 
 const PORT = Number(process.env.XLE_SERVICE_PORT ?? 8085);
-const ORIGIN = process.env.XLE_SERVICE_ORIGIN ?? 'http://localhost:4200';
 
 const xle = locateXle();
 const pool = xle ? new XleSessionPool(xle) : undefined;
 const ROOTS = grammarRoots();
 
-function send(response, status, body) {
+function send(response, status, body, origin = 'null') {
   response.writeHead(status, {
     'content-type': 'application/json',
-    'access-control-allow-origin': ORIGIN,
+    'access-control-allow-origin': origin,
     'access-control-allow-headers': 'content-type',
+    vary: 'origin',
   });
   response.end(JSON.stringify(body));
 }
@@ -46,30 +47,31 @@ async function readJson(request) {
 }
 
 const server = createServer(async (request, response) => {
-  if (request.method === 'OPTIONS') return send(response, 204, {});
+  const origin = originFor(request.headers.origin);
+  if (request.method === 'OPTIONS') return send(response, 204, {}, origin);
 
   if (request.url === '/health') {
     return send(response, 200, {
       xle: xle ? xle.mode : null,
       command: xle?.command ?? null,
       roots: ROOTS,
-    });
+    }, origin);
   }
 
   if (request.url === '/grammars') {
-    return send(response, 200, { roots: ROOTS, grammars: listGrammars(ROOTS) });
+    return send(response, 200, { roots: ROOTS, grammars: listGrammars(ROOTS) }, origin);
   }
 
   if (request.url === '/coverage' && request.method === 'POST') {
-    if (!pool) return send(response, 503, { error: 'XLE is not installed on this machine.' });
+    if (!pool) return send(response, 503, { error: 'XLE is not installed on this machine.' }, origin);
     try {
       const { grammar, mainPath, sentence } = await readJson(request);
       if (typeof sentence !== 'string') {
-        return send(response, 400, { error: 'Expected {sentence}.' });
+        return send(response, 400, { error: 'Expected {sentence}.' }, origin);
       }
       // A newline would end the Tcl command early and run whatever followed it.
       if (CONTROL.test(sentence)) {
-        return send(response, 400, { error: 'Control characters are not allowed.' });
+        return send(response, 400, { error: 'Control characters are not allowed.' }, origin);
       }
 
       // The browser knows a grammar by name, never by path; resolve it against the
@@ -77,28 +79,31 @@ const server = createServer(async (request, response) => {
       let path = typeof grammar === 'string' ? grammar : undefined;
       if (!path) {
         if (typeof mainPath !== 'string') {
-          return send(response, 400, { error: 'Expected {grammar} or {mainPath}.' });
+          return send(response, 400, { error: 'Expected {grammar} or {mainPath}.' }, origin);
         }
         const { wanted, matches } = resolveGrammar(mainPath, listGrammars(ROOTS));
         if (matches.length === 0) {
           return send(response, 404, {
             error: `No ${wanted} under ${ROOTS.join(', ') || 'any configured root'}. ` +
               'Set XLE_GRAMMAR_ROOTS to the folder holding this grammar.',
-          });
+          }, origin);
         }
         if (matches.length > 1) {
-          return send(response, 409, { error: `Several files named ${wanted}.`, matches });
+          return send(response, 409, { error: `Several files named ${wanted}.`, matches }, origin);
         }
         path = matches[0];
       }
       if (CONTROL.test(path)) {
-        return send(response, 400, { error: 'Control characters are not allowed.' });
+        return send(response, 400, { error: 'Control characters are not allowed.' }, origin);
       }
-      const session = pool.get(path);
+      // Reload if the grammar changed on disk, so adding an entry and re-checking
+      // works without restarting the service.
+      const { stamp, needsCompile } = grammarStamp(path);
+      const session = pool.get(path, stamp);
       const output = await session.run(coverageScript(sentence));
-      return send(response, 200, { tokens: classify(output) });
+      return send(response, 200, { tokens: classify(output), path, needsCompile }, origin);
     } catch (error) {
-      return send(response, 500, { error: String(error?.message ?? error) });
+      return send(response, 500, { error: String(error?.message ?? error) }, origin);
     }
   }
 

@@ -107,14 +107,26 @@ export class XleSessionPool {
     this.max = max;
   }
 
-  get(grammarPath) {
+  /**
+   * The session for a grammar, rebuilt when `stamp` shows the files changed.
+   *
+   * Reloading is just dropping the process: `create-parser` costs a couple of seconds
+   * at worst, and it happens only on the first lookup after an edit.
+   */
+  get(grammarPath, stamp = 0) {
     this.#retireIdle();
     let session = this.#sessions.get(grammarPath);
+    if (session && stamp && session.stamp !== stamp) {
+      session.close();
+      this.#sessions.delete(grammarPath);
+      session = undefined;
+    }
     if (!session) {
       if (this.#sessions.size >= this.max) this.#retireOldest();
       session = new XleSession(this.xle, grammarPath, {
         onExit: () => this.#sessions.delete(grammarPath),
       });
+      session.stamp = stamp;
       this.#sessions.set(grammarPath, session);
     }
     return session;

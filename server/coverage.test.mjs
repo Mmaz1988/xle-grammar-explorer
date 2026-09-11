@@ -16,6 +16,8 @@ import { fileURLToPath } from 'node:url';
 import { parseLabel, classify } from './coverage.mjs';
 import { tclQuote } from './xle-session.mjs';
 import { toWslPath } from './xle-locate.mjs';
+import { originFor } from './cors.mjs';
+import { spawn } from 'node:child_process';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixture = (name) => readFileSync(join(here, 'fixtures', `${name}-edges.txt`), 'utf8');
@@ -82,4 +84,48 @@ test('quotes text for Tcl so a sentence cannot become a command', () => {
 test('translates Windows paths for WSL, as LiGER does', () => {
   assert.equal(toWslPath('C:\\grammars\\main.lfg'), '/mnt/c/grammars/main.lfg');
   assert.equal(toWslPath('/already/posix'), '/already/posix');
+});
+
+test('allows any loopback origin, not one pinned port', () => {
+  // ng serve takes whatever port is free; pinning 4200 silently broke the bar on 4300.
+  assert.equal(originFor('http://localhost:4300', ''), 'http://localhost:4300');
+  assert.equal(originFor('http://127.0.0.1:4200', ''), 'http://127.0.0.1:4200');
+  // Anything not loopback gets no grant at all.
+  assert.equal(originFor('https://example.com', ''), 'null');
+  assert.equal(originFor('http://localhost.evil.com:80', ''), 'null');
+  assert.equal(originFor(undefined, ''), 'null');
+  // An explicit setting still wins.
+  assert.equal(originFor('http://localhost:4300', 'http://x'), 'http://x');
+});
+
+test('the service starts and answers', async () => {
+  // `node --check` validates syntax but not references, so an edit that deleted a
+  // top-level declaration once shipped a server that died on its first request.
+  // Only actually booting it catches that.
+  const port = 8099;
+  const child = spawn(process.execPath, [join(here, 'index.mjs')], {
+    env: { ...process.env, XLE_SERVICE_PORT: String(port) },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const errors = [];
+  child.stderr.on('data', (chunk) => errors.push(String(chunk)));
+
+  try {
+    await new Promise((resolve, reject) => {
+      child.stdout.once('data', resolve);
+      child.once('exit', (code) => reject(new Error(`exited ${code}: ${errors.join('')}`)));
+      setTimeout(() => reject(new Error('timed out starting')), 10000).unref();
+    });
+
+    const response = await fetch(`http://127.0.0.1:${port}/health`, {
+      headers: { origin: 'http://localhost:4321' },
+    });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('access-control-allow-origin'), 'http://localhost:4321');
+    const health = await response.json();
+    assert.ok(Array.isArray(health.roots), 'reports the roots it will search');
+    assert.equal(errors.join(''), '', 'starts without writing to stderr');
+  } finally {
+    child.kill();
+  }
 });

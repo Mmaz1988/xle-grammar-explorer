@@ -30,6 +30,13 @@ export class XleOracleService {
   health?: OracleHealth;
   /** Why the last call failed, shown next to the fallback notice. */
   error = '';
+  /**
+   * True when a `.lfg.glue` is newer than the `.lfg` compiled from it.
+   *
+   * XLE only ever loads the `.lfg`, so until LiGER recompiles, the answer describes
+   * the grammar as it was — the one staleness reloading the parser cannot fix.
+   */
+  needsCompile = false;
 
   private probe?: Promise<OracleStatus>;
 
@@ -82,6 +89,7 @@ export class XleOracleService {
         return undefined;
       }
       this.error = '';
+      this.needsCompile = body.needsCompile === true;
       return body.tokens as XleToken[];
     } catch (error) {
       this.error = String((error as Error)?.message ?? error);
