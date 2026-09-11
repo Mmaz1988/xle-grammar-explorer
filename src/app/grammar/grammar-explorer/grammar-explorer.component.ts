@@ -7,6 +7,7 @@ import { WorkspaceStore, type StoredSession } from '../workspace/workspace-store
 import { GrammarStateService } from '../workspace/grammar-state.service';
 import { buildGroups, indexGrammar, type GrammarIndex, type GrammarUnit } from '../workspace/grammar-index';
 import { buildDefinitionIndex, lookup, type Definition, type DefinitionIndex } from '../workspace/definition-index';
+import { markFor, relocate, type BackMark } from '../workspace/back-stack';
 import { parseLfgFile } from '../lfg/lfg-parser';
 import { buildTree, canDrop, type GrammarNode, type SortMode } from '../grammar-tree/grammar-node';
 import { moveEntry, movePermutation, reorderEntries, sortPermutation } from '../lfg/lfg-move';
@@ -96,7 +97,7 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
   private nextPaneId = 1;
   private dragging?: { axis: 'main' } | { axis: 'col'; i: number } | { axis: 'row'; col: number; i: number };
   /** Where a jump came from, so it can be undone. */
-  private backStack: Array<{ path: string; line: number; span: { start: number; end: number } }> = [];
+  private backStack: BackMark[] = [];
 
   /** A remembered directory that needs a permission grant before it can be reopened. */
   resumable?: { handle: FileSystemDirectoryHandle; name: string };
@@ -920,7 +921,11 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
     // Only a jump that replaces the current view needs an undo; opening beside it
     // leaves the starting point on screen.
     if (here && !request.newPane) {
-      this.backStack.push({ path: here.path, line: this.selected?.line ?? 1, span: here.reveal ?? { start: 0, end: 0 } });
+      // Remembered with its text, not just its offset, so editing what we jump into
+      // does not send Back to the wrong line — see `back-stack.ts`.
+      this.backStack.push(
+        markFor(here.path, here.content, here.reveal, this.selected?.line ?? 1),
+      );
     }
     if (request.newPane && this.panes.length >= MAX_PANES) {
       this.error = `Too many open panes (${MAX_PANES}). Close one first.`;
@@ -938,11 +943,35 @@ export class GrammarExplorerComponent implements OnInit, OnDestroy {
     await this.show(def.path, def.span, def.line, { newPane });
   }
 
-  /** Return to where the last jump started, mirroring the emacs mode's C-". */
+  /**
+   * Return to where the last jump started, mirroring the emacs mode's C-".
+   *
+   * The spot is found by its text when the file has been edited since, which is the
+   * common case: following a template call is usually the prelude to changing it.
+   */
   async back(): Promise<void> {
     const previous = this.backStack.pop();
     if (!previous) return;
-    await this.show(previous.path, previous.span, previous.line);
+    this.error = '';
+    this.notice = '';
+
+    // Prefer the open buffer: it holds unsaved edits that the file on disk does not.
+    const open = this.panes.find((p) => p.path === previous.path);
+    let content = open?.content;
+    if (content === undefined) {
+      try {
+        content = await this.fs.readFile(previous.path);
+      } catch {
+        this.notice = `${previous.path} is no longer available.`;
+        return;
+      }
+    }
+
+    const where = relocate(content, previous);
+    if (where.how === 'lost') {
+      this.notice = `Back: the place this jump started from is gone from ${previous.path}.`;
+    }
+    await this.show(previous.path, where.span, where.line);
     this.tab = 'editor';
   }
 

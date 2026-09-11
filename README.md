@@ -156,7 +156,17 @@ LiGER would make that preference a no-op rather than break it.
 across files; `← Back` returns. Hold **Shift** (⌘⇧-click, or `Shift-F12`) to open the
 definition in a pane beside the current file instead of replacing it, for reading a
 template and its call site together. A jump that opens beside pushes nothing onto the
-back stack, since where you came from is still on screen. A bare identifier also resolves, so a category in a
+back stack, since where you came from is still on screen.
+
+`← Back` is in the pane toolbar, beside Rows/Grid, and it remembers the *text* it left
+rather than only the offset. Following a call is usually the prelude to editing what you
+land on, and any edit above the remembered spot would otherwise send Back a few lines
+off — which is worse than not offering it, because it looks like it worked. So when the
+file has changed, the spot is found again by its text, nearest to where it used to be;
+if it has been deleted outright, Back opens the file and says so instead of scrolling to
+an offset that no longer means anything.
+
+A bare identifier also resolves, so a category in a
 rule's right-hand side jumps to the rule defining it. When a name is defined more than
 once the CONFIG `TEMPLATES`/`RULES` order decides which wins — exactly as it does for
 XLE — and the alternatives are named rather than silently dropped. (In
