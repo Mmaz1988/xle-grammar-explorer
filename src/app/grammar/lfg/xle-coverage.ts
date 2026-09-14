@@ -173,14 +173,13 @@ export function resolveXleHits(tokens: SentenceToken[], index: LexiconIndex): Se
       continue;
     }
 
-    // Covered, but by the default analysis rather than by an entry of its own.
-    if (usesUnknownEntry(xle.verdict)) {
-      const unknown = index.get(UNKNOWN_HEADWORD);
-      if (unknown?.length) {
-        token.hits = unknown;
-        token.matched = UNKNOWN_HEADWORD;
-        token.viaUnknown = true;
-      }
+    // Covered, but by the default analysis rather than by an entry of its own — and
+    // only when `-unknown` supplies a category this word's readings actually ask for.
+    const unknown = unknownEntryFor(token, index);
+    if (unknown.hits.length > 0) {
+      token.hits = unknown.hits;
+      token.matched = UNKNOWN_HEADWORD;
+      token.viaUnknown = true;
     }
   }
   return tokens;
@@ -226,6 +225,72 @@ export function matchesFor(token: SentenceToken, index: LexiconIndex): XleMatch[
  */
 export function unknownEntry(index: LexiconIndex): LexiconHit[] {
   return index.get(UNKNOWN_HEADWORD) ?? [];
+}
+
+/**
+ * The stem category a morphological tag asks for.
+ *
+ * The sublexical convention a ParGram-derived morphology is written in: a rule pairs a
+ * `X-POS` tag with an `X-S` stem — `V --> V-S_BASE V-POS_BASE …` — and an entry
+ * supplies stems, not tags. Written out rather than derived because deriving it means
+ * asking XLE for each tag's own category and pairing that against the morphology
+ * rules, a lookup per tag for a table that has not varied across these grammars.
+ *
+ * Only the part-of-speech tags are here. Inflectional tags (`+Sg`, `+PastTense`) sit
+ * on other sublexical categories entirely and say nothing about which stem is needed.
+ */
+const STEM_CATEGORY: Record<string, string> = {
+  '+Noun': 'N-S',
+  '+Prop': 'N-S',
+  '+Verb': 'V-S',
+  '+Adj': 'ADJ-S',
+  '+Adv': 'ADV-S',
+  '+Num': 'NUMBER-S',
+};
+
+/** `N-S_BASE` and `N-S` are the same category; the suffix is XLE's, not the grammar's. */
+const bareCategory = (category: string) => category.replace(/_BASE$/, '');
+
+/**
+ * `-unknown`, but only for a word whose analyses it could actually supply.
+ *
+ * `-unknown` is not a general fallback: it lists the sublexical categories it covers,
+ * four in the fracas grammar (`ADJ-S`, `NUMBER-S`, `ADV-S`, `N-S`) and no verb among
+ * them. Offering it for a word analysed only as a verb points at a rule that cannot
+ * have applied. So the entry's own categories are checked against the categories this
+ * word's readings ask for.
+ *
+ * Conservative where it cannot tell: if the entry declares no categories, or the word
+ * has no readings, or none of its tags is one we know a stem category for, the entry
+ * is offered rather than suppressed. Hiding a real link is the worse failure — it is
+ * the one that leaves someone hunting for where a word got its analysis.
+ */
+export function unknownEntryFor(
+  token: SentenceToken,
+  index: LexiconIndex,
+): { hits: LexiconHit[]; categories: string[] } {
+  const none = { hits: [], categories: [] };
+  const xle = token.xle;
+  if (!xle || !usesUnknownEntry(xle.verdict)) return none;
+
+  const hits = unknownEntry(index);
+  if (hits.length === 0) return none;
+
+  const supplies = new Set(
+    hits.flatMap((hit) => (hit.categories ?? []).map(bareCategory)),
+  );
+  const wanted = [
+    ...new Set(
+      (xle.readings ?? [])
+        .flatMap((reading) => reading.tags)
+        .map((tag) => STEM_CATEGORY[tag])
+        .filter((category): category is string => category !== undefined),
+    ),
+  ];
+  if (supplies.size === 0 || wanted.length === 0) return { hits, categories: [] };
+
+  const matched = wanted.filter((category) => supplies.has(category));
+  return matched.length > 0 ? { hits, categories: matched } : none;
 }
 
 /**

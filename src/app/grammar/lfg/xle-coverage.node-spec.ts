@@ -11,7 +11,8 @@ import { tokenize, type SentenceToken } from './lexicon-lookup';
 import type { LexiconHit, LexiconIndex } from './lexicon-lookup';
 import {
   applyXleVerdicts, isCovered, matchesFor, resolveXleHits, surfaceMatches,
-  unknownEntry, usesUnknownEntry, type XleReading, type XleToken, type XleVerdict,
+  unknownEntry, unknownEntryFor, usesUnknownEntry,
+  type XleReading, type XleToken, type XleVerdict,
 } from './xle-coverage';
 
 function reported(
@@ -300,5 +301,75 @@ describe('usesUnknownEntry', () => {
     ]));
     assert.deepEqual(wordsOf(tokens)[0].hits, []);
     assert.ok(!wordsOf(tokens)[0].viaUnknown);
+  });
+});
+
+describe('unknownEntryFor', () => {
+  /** The fracas `-unknown`: four sublexical categories in one entry, no verb. */
+  function defaults(): LexiconIndex {
+    return new Map([
+      ['-unknown', [{
+        headword: '-unknown',
+        category: 'ADJ-S',
+        categories: ['ADJ-S', 'NUMBER-S', 'ADV-S', 'N-S'],
+        path: 'morph_fracas.lfg.glue',
+        line: 74,
+        span: { start: 0, end: 1 },
+      }]],
+    ]);
+  }
+
+  function word(verdict: XleVerdict, readings: XleReading[]) {
+    const tokens = tokenize('x');
+    applyXleVerdicts(tokens, [reported('x', verdict, [], readings)]);
+    return wordsOf(tokens)[0];
+  }
+
+  it('offers it for a noun reading, and names the category that matched', () => {
+    const out = unknownEntryFor(
+      word('unknown-entry', [reading('walk', '+Noun', '+Pl')]), defaults(),
+    );
+    assert.deepEqual(out.hits.map((h) => h.line), [74]);
+    // Not `ADJ-S`, which is merely the first category the entry happens to write.
+    assert.deepEqual(out.categories, ['N-S']);
+  });
+
+  it('withholds it from a word analysed only as a verb', () => {
+    // `-unknown` supplies no `V-S`, so it cannot be where a verb-only reading came
+    // from — linking to it would send someone to a rule that never applied.
+    const out = unknownEntryFor(
+      word('unknown-entry', [reading('walk', '+Verb', '+Pres', '+3sg')]), defaults(),
+    );
+    assert.deepEqual(out.hits, []);
+  });
+
+  it('offers it when any one reading is covered', () => {
+    const out = unknownEntryFor(word('unknown-entry', [
+      reading('walk', '+Verb', '+Pres', '+3sg'),
+      reading('walk', '+Noun', '+Pl'),
+    ]), defaults());
+    assert.deepEqual(out.categories, ['N-S']);
+  });
+
+  it('offers it when the tags say nothing we can check', () => {
+    // Conservative on purpose: hiding a real link leaves someone hunting for where a
+    // word got its analysis, which is worse than one link too many.
+    const out = unknownEntryFor(
+      word('guessed', [reading('blurgy', '+Frobnicate')]), defaults(),
+    );
+    assert.deepEqual(out.hits.map((h) => h.line), [74]);
+    assert.deepEqual(out.categories, []);
+  });
+
+  it('offers it when the entry declares no categories', () => {
+    const bare: LexiconIndex = new Map([
+      ['-unknown', [hit('-unknown', 'morph.lfg.glue', 74)]],
+    ]);
+    const out = unknownEntryFor(word('unknown-entry', [reading('x', '+Verb')]), bare);
+    assert.deepEqual(out.hits.map((h) => h.line), [74]);
+  });
+
+  it('withholds it from a word that matched an entry of its own', () => {
+    assert.deepEqual(unknownEntryFor(word('lexicon', [reading('x', '+Noun')]), defaults()).hits, []);
   });
 });

@@ -23,6 +23,8 @@ export interface LexiconHit {
   /** The headword as written, backquotes and all. */
   headword: string;
   category?: string;
+  /** Every category the entry defines; `-unknown` supplies four in one entry. */
+  categories?: string[];
   morphcode?: string;
   path: string;
   line: number;
@@ -89,6 +91,7 @@ function add(index: LexiconIndex, file: LfgFile, entry: LfgEntry): void {
   const hit: LexiconHit = {
     headword: entry.name,
     category: entry.category,
+    categories: entry.categories,
     morphcode: entry.morphcode,
     path: file.path,
     line: entry.line,

@@ -307,3 +307,60 @@ describe('suspectLexEntry', () => {
     assert.equal(suspectLexEntry('*', '*'), undefined);
   });
 });
+
+describe('every category a lexical entry defines', () => {
+  const lexOf = (text: string) =>
+    parseLfgFile(text).sections[0].entries.filter((e) => e.kind === 'lex');
+
+  it('collects the blocks a `;` separates, not only the first', () => {
+    // The fracas `-unknown`, which supplies four sublexical categories in one entry.
+    // Reading only the first makes it an adjective rule, which is what the sentence
+    // bar showed for every word it covered — `-unknown ADJ-S` on a determiner.
+    const entries = lexOf(`MORPH ENGLISH LEXICON (1.0)
+
+-unknown  ADJ-S XLE @(DEFAULT-ADJ-SEM %stem);
+          NUMBER-S XLE { @(NUMBER-PL %stem pl) | @(NUMBER-PART %stem)};
+          ADV-S XLE @(PRED %stem);
+          N-S XLE @(DEFAULT-NOUN-SEM %stem).
+----
+`);
+    assert.deepEqual(entries[0].categories, ['ADJ-S', 'NUMBER-S', 'ADV-S', 'N-S']);
+  });
+
+  it('ignores a `;` inside brackets and the ETC. terminator', () => {
+    // `;ETC.` sits where a category block would and is not one; a `;` inside a glue
+    // premise or a disjunction is not a block boundary at all.
+    const entries = lexOf(`VERB ENGLISH LEXICON (1.0)
+
+hug  V-S XLE @(TRANS-EV %stem);ETC.
+
+sit  V-S XLE { (^ PRED)='sit<(^ SUBJ)>' ; (^ TENSE)=pres };
+     N-S XLE @(PRED %stem).
+----
+`);
+    assert.deepEqual(entries[0].categories, ['V-S']);
+    assert.deepEqual(entries[1].categories, ['V-S', 'N-S']);
+  });
+
+  it('does not read a stray `;` as a category block', () => {
+    // The same failure the malformed-entry guard exists for, one level down: text
+    // after a stray separator looks exactly like `CATEGORY MORPHCODE` unless the
+    // morphcode is checked. `(^ NUM) = sg` would otherwise register as a category.
+    const entries = lexOf(`NOUN ENGLISH LEXICON (1.0)
+
+Kim  N * (^ PRED)='Kim'; (^ NUM) = sg.
+----
+`);
+    assert.deepEqual(entries[0].categories, ['N']);
+  });
+
+  it('keeps a multiword headword and a bracketed category intact', () => {
+    const entries = lexOf(`VERB ENGLISH LEXICON (1.0)
+
+take\` part  V[base] XLE (^ PRED)='take'; V[fin] XLE (^ PRED)='take'.
+----
+`);
+    assert.equal(entries[0].name, 'take` part');
+    assert.deepEqual(entries[0].categories, ['V[base]', 'V[fin]']);
+  });
+});

@@ -67,6 +67,11 @@ export interface LfgEntry extends Span {
   line: number;
   /** Lexical entries only: the category and morphcode of the first category block. */
   category?: string;
+  /**
+   * Lexical entries only: every category the entry defines, `;`-separated blocks and
+   * all. `-unknown` supplies four at once, and the first of them is the least telling.
+   */
+  categories?: string[];
   morphcode?: string;
   /**
    * Why this entry looks wrong, when it does.

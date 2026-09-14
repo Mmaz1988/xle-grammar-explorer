@@ -361,6 +361,16 @@ silently reduced to the first. `-unknown` is listed after a word's own entries, 
 on a word it actually covered: showing it beside an entry XLE says matched claims the
 grammar analysed the word by default when it did not.
 
+It is also only offered for a reading it could have supplied. `-unknown` is not a
+general fallback — it declares the sublexical categories it covers, four in the fracas
+grammar (`ADJ-S`, `NUMBER-S`, `ADV-S`, `N-S`) with no verb among them — so a word
+analysed only as a verb cannot have come from it. Those categories are read off the
+entry rather than assumed, and the one shown on the row is whichever the word's readings
+ask for, not the first one written. Where the check cannot decide — the entry declares
+no categories, or the tags are ones we know no stem category for — the entry is offered
+rather than suppressed: hiding a real link leaves you hunting for where a word got its
+analysis, which is the worse failure.
+
 A word matched by a `*` entry has no reading at all, because that entry matches the
 *token* and the morphology contributes no stem to it — `the` and `PC-6082` arrive
 covered with nothing underneath. The row for those is the form itself, which is how the

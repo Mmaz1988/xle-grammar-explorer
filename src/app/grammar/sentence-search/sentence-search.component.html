@@ -56,9 +56,17 @@
         no analysis
       </span>
 
-      <span class="peek-rows peek-fallback" *ngIf="peekedFallback.length">
-        <span class="peek-row" *ngFor="let h of peekedFallback">
-          <span class="peek-analysis"><span class="peek-stem">{{ h.headword }}</span></span>
+      <!--
+        `-unknown` supplies several sublexical categories at once, so the one shown is
+        whichever of them this word's readings ask for — not the first one written.
+      -->
+      <span class="peek-rows peek-fallback" *ngIf="peekedFallback.hits.length">
+        <span class="peek-row" *ngFor="let h of peekedFallback.hits">
+          <span class="peek-analysis">
+            <span class="peek-stem">{{ h.headword }}</span>
+            <span class="peek-sep" *ngIf="peekedFallback.categories.length">:</span>
+            <span class="peek-tags">{{ peekedFallback.categories.join(' ') }}</span>
+          </span>
           <span class="peek-hits">
             <button type="button" class="peek-hit" (click)="openHit(h, $event)"
                     [title]="h.path + ':' + h.line">the default for unlisted stems</button>

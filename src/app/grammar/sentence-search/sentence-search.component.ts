@@ -4,7 +4,7 @@ import {
 } from '../lfg/lexicon-lookup';
 import {
   applyXleVerdicts, isCovered, matchesFor, resolveXleHits, surfaceMatches,
-  unknownEntry, usesUnknownEntry, type XleMatch, type XleVerdict,
+  unknownEntryFor, type XleMatch, type XleVerdict,
 } from '../lfg/xle-coverage';
 import { XleOracleService } from '../workspace/xle-oracle.service';
 
@@ -206,12 +206,12 @@ export class SentenceSearchComponent implements OnChanges {
    *
    * Offering it beside an entry XLE says matched would claim the grammar analysed the
    * word by default when it did not — `than` has `than CComp *` and needs no default
-   * at all. So it appears only on the verdicts that went through it.
+   * at all. And `-unknown` covers only the categories it lists, so a word analysed
+   * only as a verb cannot have come from it either.
    */
-  get peekedFallback(): LexiconHit[] {
-    if (!this.peeked || !this.lexicon) return [];
-    if (!this.peeked.xle || !usesUnknownEntry(this.peeked.xle.verdict)) return [];
-    return unknownEntry(this.lexicon);
+  get peekedFallback(): { hits: LexiconHit[]; categories: string[] } {
+    if (!this.peeked || !this.lexicon) return { hits: [], categories: [] };
+    return unknownEntryFor(this.peeked, this.lexicon);
   }
 
   /** Open one entry from the popup. Shift puts it in a new pane, as elsewhere. */

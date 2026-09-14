@@ -68,9 +68,12 @@ const MACRO_HEAD = /^([A-Za-z_][A-Za-z0-9_'\-]*(?:[ \t]*(?:\([^)]*\)|\[[^\]]*\])
  * ``North` American``, ``more` important``. A whitespace-splitting regex reads those as
  * headword ``New` ``, category `York`, morphcode `N` — plausible-looking and wrong.
  */
-function scanLexHead(chunk: string): { word: string; category: string; morphcode: string; lead: number } | undefined {
+function readTokens(chunk: string, count: number): { tokens: string[]; lead: number } {
   let i = 0;
-  const readToken = (): string | undefined => {
+  const tokens: string[] = [];
+  while (i < chunk.length && /\s/.test(chunk[i])) { i++; }
+  const lead = i;
+  for (let n = 0; n < count; n++) {
     while (i < chunk.length && /\s/.test(chunk[i])) { i++; }
     const start = i;
     while (i < chunk.length) {
@@ -79,17 +82,49 @@ function scanLexHead(chunk: string): { word: string; category: string; morphcode
       if (/\s/.test(c)) { break; }
       i++;
     }
-    return i > start ? chunk.slice(start, i) : undefined;
-  };
-  while (i < chunk.length && /\s/.test(chunk[i])) { i++; }
-  const lead = i;
-  const word = readToken();
-  const category = readToken();
-  const morphcode = readToken();
-  if (word === undefined || category === undefined || morphcode === undefined) {
-    return undefined;
+    if (i <= start) break;
+    tokens.push(chunk.slice(start, i));
   }
-  return { word, category, morphcode, lead };
+  return { tokens, lead };
+}
+
+function scanLexHead(chunk: string): { word: string; category: string; morphcode: string; lead: number } | undefined {
+  const { tokens, lead } = readTokens(chunk, 3);
+  if (tokens.length < 3) return undefined;
+  return { word: tokens[0], category: tokens[1], morphcode: tokens[2], lead };
+}
+
+/**
+ * Every category a lexical entry defines, not just the first.
+ *
+ * One entry may define its headword several times over, with `;` separating the blocks
+ * at bracket depth zero: `APCOM` is an `N` and an `NMod`, and `-unknown` supplies four
+ * sublexical categories at once —
+ *
+ *   -unknown  ADJ-S XLE …; NUMBER-S XLE …; ADV-S XLE …; N-S XLE ….
+ *
+ * Taking only the first makes `-unknown` read as an adjective rule, which is both
+ * wrong and the least useful of the four. A block after the first is `CATEGORY
+ * MORPHCODE`, the headword being carried over; `ETC.` and `ONLY.` sit in the same
+ * position but terminate the entry rather than opening a block.
+ */
+function scanLexCategories(masked: string, first: string): string[] {
+  const out = [first];
+  let depth = 0;
+  for (let i = 0; i < masked.length; i++) {
+    const c = masked[i];
+    if (c === '`') { i++; continue; }
+    if (c === '(' || c === '{' || c === '[') depth++;
+    else if (c === ')' || c === '}' || c === ']') depth--;
+    else if (c === ';' && depth === 0) {
+      const { tokens } = readTokens(masked.slice(i + 1), 2);
+      if (tokens.length < 2) continue;
+      const [category, morphcode] = tokens;
+      if (!MORPHCODES.has(morphcode.replace(/[;.]+$/, ''))) continue;
+      if (!out.includes(category)) out.push(category);
+    }
+  }
+  return out;
 }
 
 /**
@@ -274,6 +309,7 @@ function nameEntry(
         kind: 'lex',
         name,
         category: lex.category,
+        categories: scanLexCategories(maskedChunk, lex.category),
         morphcode: lex.morphcode,
         suspect: suspectLexEntry(lex.category, lex.morphcode),
       };
