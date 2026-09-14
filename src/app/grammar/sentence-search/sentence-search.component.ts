@@ -1,11 +1,10 @@
 import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from '@angular/core';
 import {
-  analyseSentence, foundHeadwords, missingWords,
-  type LexiconHit, type LexiconIndex, type SentenceToken,
+  analyseSentence, type LexiconHit, type LexiconIndex, type SentenceToken,
 } from '../lfg/lexicon-lookup';
 import {
   applyXleVerdicts, isCovered, matchesFor, resolveXleHits, unknownEntry,
-  UNKNOWN_HEADWORD, type XleMatch, type XleVerdict,
+  type XleMatch, type XleVerdict,
 } from '../lfg/xle-coverage';
 import { XleOracleService } from '../workspace/xle-oracle.service';
 
@@ -50,8 +49,6 @@ export class SentenceSearchComponent implements OnChanges {
 
   sentence = '';
   tokens: SentenceToken[] = [];
-  found: SentenceToken[] = [];
-  missing: SentenceToken[] = [];
 
   /** Bumped per keystroke so a slow reply cannot overwrite a newer sentence. */
   private generation = 0;
@@ -72,13 +69,11 @@ export class SentenceSearchComponent implements OnChanges {
 
     if (!this.lexicon || this.sentence.trim() === '') {
       this.tokens = [];
-      this.found = [];
-      this.missing = [];
+      this.closePeek();
       return;
     }
     this.tokens = analyseSentence(this.sentence, this.lexicon);
-    this.found = foundHeadwords(this.tokens);
-    this.missing = missingWords(this.tokens);
+    this.closePeek();
 
     // Asking XLE means parsing, so wait for a pause rather than firing per keystroke.
     const mine = this.generation;
@@ -93,7 +88,6 @@ export class SentenceSearchComponent implements OnChanges {
     if (mine !== this.generation || !reported || !this.lexicon) return;
     // XLE's stems reach entries our own stemmer cannot: nothing takes `saw` to `see`.
     this.tokens = resolveXleHits(applyXleVerdicts([...this.tokens], reported), this.lexicon);
-    this.found = this.tokens.filter((t) => t.word && t.spans > 0 && t.hits.length > 0);
   }
 
   clear(): void {
@@ -105,17 +99,6 @@ export class SentenceSearchComponent implements OnChanges {
   async retryOracle(): Promise<void> {
     await this.oracle.recheck();
     this.analyse();
-  }
-
-  /**
-   * Open the first entry for a matched token.
-   *
-   * Shift opens it beside whatever is already there, the same gesture as ⇧ on a
-   * go-to-definition — useful for lining several words of a sentence up at once.
-   */
-  open(token: SentenceToken, event?: MouseEvent): void {
-    const hit = token.hits[0];
-    if (hit) this.openEntry.emit({ hit, newPane: event?.shiftKey === true });
   }
 
   /**
@@ -203,10 +186,21 @@ export class SentenceSearchComponent implements OnChanges {
     this.peeked = undefined;
   }
 
-  /** One row per analysis, with the entries the lexicon has under its stem. */
+  /**
+   * One row per analysis, with the entries the lexicon has under its stem.
+   *
+   * Without the oracle there are no analyses, so the row falls back to the headword we
+   * matched ourselves. The popup is the only way to open an entry, so it has to keep
+   * working when nothing asked XLE — that is also the case where the match is a guess
+   * from a small stemmer and seeing which headword it landed on matters most.
+   */
   get peekedMatches(): XleMatch[] {
     if (!this.peeked || !this.lexicon) return [];
-    return matchesFor(this.peeked, this.lexicon);
+    const rows = matchesFor(this.peeked, this.lexicon);
+    if (rows.length > 0) return rows;
+    if (this.peeked.hits.length === 0) return [];
+    return [{ reading: { stem: this.peeked.matched ?? this.peeked.text, tags: [] },
+              hits: this.peeked.hits }];
   }
 
   /**
@@ -227,27 +221,6 @@ export class SentenceSearchComponent implements OnChanges {
     this.openEntry.emit({ hit, newPane: event.shiftKey === true });
     this.closePeek();
   }
-
-  /**
-   * Distinct entries, so a word repeated in the sentence yields one box.
-   *
-   * Keyed on the entry rather than the word: several words of one sentence can be
-   * covered by the same `-unknown`, and one box for it says more than three.
-   */
-  get boxes(): SentenceToken[] {
-    const seen = new Set<string>();
-    return this.found.filter((t) => {
-      const hit = t.hits[0];
-      if (!hit) return false;
-      const key = `${t.matched}|${hit.path}:${hit.line}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }
-
-  /** Shown on a box that stands for the default analysis rather than an entry. */
-  readonly unknownHeadword = UNKNOWN_HEADWORD;
 
   /** True once any word carries an XLE verdict, which is what the notice reflects. */
   get usingXle(): boolean {

@@ -20,7 +20,8 @@
   line-height: 1.7;
 }
 .sentence .plain { color: #6b7a8f; white-space: pre; }
-.word { border-radius: 3px; padding: 1px 2px; }
+/* Hovering is the only way in now, so the words have to look worth hovering. */
+.word { border-radius: 3px; padding: 1px 2px; cursor: help; }
 /* Covered by a real lexical entry. */
 .word.covered { background: #d9f2e3; color: #14512f; }
 /* Parses, but only because -unknown supplies a default analysis for the stem. */
@@ -29,7 +30,6 @@
    so this is a weaker claim again than a default analysis of a known stem. */
 .word.guessed { background: #fbeada; color: #8a4b12; font-style: italic; }
 .word.missing { background: #fbdedb; color: #8a2118; }
-.word.openable { cursor: pointer; }
 .word.continues { border-top-left-radius: 0; border-bottom-left-radius: 0; }
 
 .summary { margin: 0 0 6px; font-size: 11px; color: #6b7a8f; }
@@ -44,26 +44,6 @@
 .notice .why { color: #8a6a2a; }
 .notice .link { border: 0; background: none; font: inherit; font-size: 11px;
   color: #6b7a8f; cursor: pointer; text-decoration: underline; padding: 0 0 0 4px; }
-
-.hint { margin: 0 0 5px; font-size: 10px; color: #9aa7ba; }
-
-.boxes { display: flex; flex-wrap: wrap; gap: 5px; }
-.box {
-  display: inline-flex; align-items: baseline; gap: 5px;
-  border: 1px solid #b7e0c7; background: #eafaf0; border-radius: 3px;
-  padding: 3px 7px; cursor: pointer; font: inherit; font-size: 12px; color: #14512f;
-  font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
-}
-.box:hover { border-color: #63b985; }
-.box.defaulted { border-color: #e8cf9a; background: #fdf6e8; color: #7a5b00; }
-.box.guessed { border-color: #e0c3a0; background: #fbf1e6; color: #8a4b12; font-style: italic; }
-.box.missing { border-color: #e8b4ae; background: #fdeceb; color: #8a2118; }
-/* The box stands for the default analysis, not an entry written for this word. */
-.box.via-unknown { border-style: dashed; }
-.box-head { opacity: .75; font-size: 11px; }
-.box-head::before { content: "→ "; }
-.box-cat { font-size: 10px; color: #6b7a8f; }
-.none { font-size: 11px; color: #9aa7ba; }
 
 /* The word details popup.
 

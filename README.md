@@ -305,9 +305,9 @@ rendering, and two things keep it bounded:
 
 **Sentence** on the toolbar opens a bar across the top: type a sentence and see which of
 its words the grammar already knows — the question you ask before adding anything to it.
-Each word found becomes a box; clicking it opens that entry, and shift-clicking opens it
-in a pane beside what is already there — the same gesture as ⇧ on a go-to-definition,
-and the way to line several words of a sentence up at once.
+Hovering a word opens its details, and every entry listed there opens on click —
+shift-click puts it in a pane beside what is already there, the same gesture as ⇧ on a
+go-to-definition, and the way to line several words of a sentence up at once.
 
 ### Asking XLE
 
@@ -379,13 +379,16 @@ is. The readings are therefore reported rather than judged. Recovering them is f
 XLE lays a token's morphemes out as a chart over character positions inside the token's
 own span, so each analysis is already a path across the dump the bar fetches anyway.
 
-Clicking follows XLE's stem rather than our own guess at one, which is what makes
+The rows follow XLE's stem rather than our own guess at one, which is what makes
 irregular forms work: nothing in a suffix stripper gets from *saw* to *see*, but XLE
-reports the stem it used, so the entry is one lookup away. A word covered only by
-default opens `-unknown` itself — that is the entry responsible for it, and the one you
-want to read on finding a word analysed by default rather than by design. Those boxes
-are drawn with a dashed border, since they stand for a rule about unlisted stems rather
-than an entry written for that word.
+reports the stem it used, so the entry is one lookup away. `-unknown` is drawn with a
+dashed border, since it stands for a rule about unlisted stems rather than an entry
+written for that word.
+
+The popup is the only way in, so there is no click-to-open on the word itself. That is
+deliberate: opening "the" entry meant opening `hits[0]`, which silently picked one of
+several — and picking one is exactly what a word with two readings, two stems or an
+entry plus `-unknown` does not let you do.
 
 Without the oracle the same four colours are driven by headword matching alone, where
 green means the lexicon lists the form or defers it to `XLE`, amber means a `*` entry
