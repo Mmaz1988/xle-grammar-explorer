@@ -23,8 +23,18 @@ export interface OracleHealth {
 
 @Injectable({ providedIn: 'root' })
 export class XleOracleService {
-  /** Where `npm run xle` listens; overridden in tests. */
-  baseUrl = 'http://127.0.0.1:8085';
+  /**
+   * Where the oracle listens; overridden in tests.
+   *
+   * Empty means *this origin*, which is the case when the oracle served the page —
+   * `npm run app` is one process for both, and then there is no cross-origin question
+   * to answer. Under `ng serve` the page comes from another port, so the fixed address
+   * is tried next. Both are attempted, in that order, rather than configured: a build
+   * that guessed wrong would fail silently and look like a missing service.
+   */
+  baseUrl = '';
+
+  private static readonly FALLBACK = 'http://127.0.0.1:8085';
 
   status: OracleStatus = 'unchecked';
   health?: OracleHealth;
@@ -45,17 +55,22 @@ export class XleOracleService {
     if (this.probe) return this.probe;
     this.status = 'checking';
     this.probe = (async () => {
-      try {
-        const response = await fetch(`${this.baseUrl}/health`);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        this.health = await response.json();
-        // The service runs without XLE too, and then it cannot answer anything.
-        this.status = this.health?.xle ? 'ready' : 'absent';
-        if (this.status === 'absent') this.error = 'The service is running but XLE was not found.';
-      } catch {
-        this.status = 'absent';
-        this.error = '';
+      for (const base of [this.baseUrl, XleOracleService.FALLBACK]) {
+        try {
+          const response = await fetch(`${base}/health`);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          this.health = await response.json();
+          this.baseUrl = base;
+          // The service runs without XLE too, and then it cannot answer anything.
+          this.status = this.health?.xle ? 'ready' : 'absent';
+          if (this.status === 'absent') this.error = 'The service is running but XLE was not found.';
+          return this.status;
+        } catch {
+          /* try the next address */
+        }
       }
+      this.status = 'absent';
+      this.error = '';
       return this.status;
     })();
     return this.probe;

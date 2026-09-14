@@ -23,24 +23,37 @@ and, of course, in the file.
 
 ## Running it
 
-```sh
+Double-click **XLE Grammar Explorer.command** (macOS) or **XLE Grammar Explorer.cmd**
+(Windows). It builds the app if needed, serves it, starts the XLE oracle, and opens a
+browser. The window it opens stays open: Ctrl-C there stops the explorer, and anything
+that went wrong is written there rather than swallowed.
+
+Equivalently, from a terminal:
+
+```
 npm install
-npm start          # http://localhost:4200
+npm run app          # build, serve, open a browser
+npm run app:quick    # same without rebuilding
 ```
 
-Then click **Open folder…** and pick a directory, e.g. `grammars/dev`. A folder may
-hold several grammars — `grammars/dev` holds two — so a selector above the tree chooses
-which one to view. **Open file…** opens a single `.lfg`/`.lfg.glue` directly; that works
-fully for a self-contained grammar, and for a multi-file one the app says so and offers
-to open the containing folder instead.
+Three things are checked before anything starts, because each fails differently:
 
-**Chrome or Edge only.** The app reads and writes files directly through the File
-System Access API, which Firefox and Safari do not implement. There is no server and
-no backend: nothing in the xleplusglue stack can write a file, so the browser does it.
+- **the app has to be built** — it is a static bundle, so a missing `dist/` is a
+  "run `npm run build`", not a crash;
+- **the browser has to be Chromium-based** — Chrome, Edge, Chromium or Brave. This is
+  not a preference: the explorer reads and writes your grammar files through the File
+  System Access API, which Firefox and Safari do not implement, so opening the default
+  browser would give a page that loads and then cannot open a folder;
+- **XLE is optional** — without it the sentence bar falls back to matching headwords
+  and says so in the page, so a missing XLE is reported and then carried on from.
 
-`grammars/` is a symlink to `../xleplusglue/grammars`, so the app has real grammars to
-work on. Editing through the app edits those files for real — they will show up in
-that repo's `git status`.
+A port already in use is asked who it is: a second launch joins the explorer that is
+already running rather than starting a rival, and anything else on that port is
+reported instead of being mistaken for it.
+
+For development the two halves still run apart — `ng serve` on 4200 with `npm run xle`
+beside it — and the app tries its own origin for the oracle before the fixed port, so
+the same build works both ways without being told which it is.
 
 ## Verification
 

@@ -11,11 +11,14 @@
  */
 
 import { createServer } from 'node:http';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { locateXle } from './xle-locate.mjs';
 import { XleSessionPool } from './xle-session.mjs';
 import { coverageScript, classify } from './coverage.mjs';
 import { grammarRoots, listGrammars, resolveGrammar, grammarStamp } from './grammars.mjs';
 import { originFor } from './cors.mjs';
+import { findBundle, serveStatic } from './static.mjs';
 
 const CONTROL = /[\u0000-\u001f]/;
 
@@ -24,6 +27,10 @@ const PORT = Number(process.env.XLE_SERVICE_PORT ?? 8085);
 const xle = locateXle();
 const pool = xle ? new XleSessionPool(xle) : undefined;
 const ROOTS = grammarRoots();
+
+// Present once `ng build` has run. Without it this is the oracle alone, which is what
+// `npm run xle` beside `ng serve` wants; with it, one process serves the whole app.
+const BUNDLE = findBundle(join(dirname(fileURLToPath(import.meta.url)), '..', 'dist'));
 
 function send(response, status, body, origin = 'null') {
   response.writeHead(status, {
@@ -107,13 +114,34 @@ const server = createServer(async (request, response) => {
     }
   }
 
+  // Anything that is not the API is the app, when the app has been built.
+  if (BUNDLE && request.method === 'GET') return serveStatic(BUNDLE, request.url ?? '/', response);
+
   send(response, 404, { error: 'Not found' });
 });
 
-server.listen(PORT, '127.0.0.1', () => {
-  const where = xle ? xle.mode + ' (' + xle.command + ')' : 'not found - /coverage will refuse';
-  console.log('XLE oracle on http://127.0.0.1:' + PORT + ' - XLE: ' + where);
-});
+export const url = () => 'http://127.0.0.1:' + PORT;
+export const status = () => ({ xle, bundle: BUNDLE, port: PORT });
+
+/** Start listening. Resolves once the port is bound, or rejects if it cannot be. */
+export function start(port = PORT) {
+  return new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(port, '127.0.0.1', () => resolve(server));
+  });
+}
+
+// Started directly (`npm run xle`) rather than imported by the launcher.
+if (process.argv[1] && import.meta.url === new URL(process.argv[1], 'file:').href) {
+  start().then(() => {
+    const where = xle ? xle.mode + ' (' + xle.command + ')' : 'not found - /coverage will refuse';
+    console.log('XLE oracle on ' + url() + ' - XLE: ' + where);
+    if (BUNDLE) console.log('Serving the app from ' + BUNDLE);
+  }, (error) => {
+    console.error('Could not listen on port ' + PORT + ': ' + error.message);
+    process.exit(1);
+  });
+}
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => {
