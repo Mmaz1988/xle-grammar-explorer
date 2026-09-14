@@ -80,6 +80,53 @@ const isArtefact = (text) => /^[_^]/.test(text) || text === 'TB';
 const isVariant = (text) => text.endsWith('_');
 
 /**
+ * How many analyses of one word to report. A tooltip nobody can read is no better
+ * than no tooltip, and past the first handful the rest say the same thing.
+ */
+const MAX_READINGS = 12;
+
+/**
+ * The morphological analyses of one token.
+ *
+ * XLE lays a token's morphemes out as a chart over character positions *inside* the
+ * token's own span, and each analysis is a path across it:
+ *
+ *   train:[21,31]   train[21,25] +Verb[25,27] +Pres[27,29] +Non3sg[29,31]
+ *                   train[21,25] +Noun[25,28] +Sg[28,31]
+ *
+ * Which matters because the stem edge is shared between those two paths, so its
+ * `lexentry_found` is a property of the word and not of a reading: `train` is in the
+ * verb lexicon, and the flag it earns there is the same flag the noun reading shows.
+ * Reporting the paths separately is what lets a reader see which analysis the entry
+ * is actually for. Recovering them costs nothing — they are already in the dump.
+ *
+ * Offsets increase strictly along an edge, so the walk terminates.
+ */
+function readingsOf(under, from, to) {
+  const out = [];
+  const seen = new Set();
+
+  const walk = (at, path) => {
+    if (out.length >= MAX_READINGS) return;
+    if (at === to) {
+      const text = path.join(' ');
+      if (!seen.has(text)) {
+        seen.add(text);
+        out.push(text);
+      }
+      return;
+    }
+    for (const edge of under) {
+      if (edge.from !== at || edge.to <= at) continue;
+      walk(edge.to, [...path, edge.text]);
+    }
+  };
+
+  walk(from, []);
+  return out;
+}
+
+/**
  * Classify each token of the sentence.
  *
  * Three things learnt the hard way from running this against both grammars:
@@ -135,6 +182,8 @@ export function classify(output) {
         verdict,
         // The stems XLE found, for the tooltip: `saw` reports `see`.
         stems: [...new Set(stems.map((e) => e.text))],
+        // Each analysis the morphology offers, for the tooltip.
+        readings: readingsOf(under, group[0].from, group[0].to),
       };
     })
     .sort((a, b) => a.from - b.from || a.to - b.to);

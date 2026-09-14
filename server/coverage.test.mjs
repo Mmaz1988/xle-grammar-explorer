@@ -23,6 +23,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 const fixture = (name) => readFileSync(join(here, 'fixtures', `${name}-edges.txt`), 'utf8');
 const verdicts = (name) =>
   Object.fromEntries(classify(fixture(name)).map((t) => [t.text, t.verdict]));
+const readings = (name) =>
+  Object.fromEntries(classify(fixture(name)).map((t) => [t.text, t.readings]));
 
 test('parses the span out of an edge label', () => {
   assert.deepEqual(parseLabel('tractor:58[28,35]'), { text: 'tractor', from: 28, to: 35 });
@@ -59,6 +61,44 @@ test('several tokenisations of one span are one word', () => {
     words.map((w) => w.text),
     ['Kim', 'saw', 'a', 'tractor', 'and', 'a', 'blurgy'],
   );
+});
+
+test('a word is reported once per analysis the morphology offers', () => {
+  const seen = readings('fracas');
+  // The point of reporting these: one stem edge, three analyses. `see` is in the verb
+  // lexicon and earns the edge its `lexentry_found`, which the two `saw` analyses then
+  // show as well — so the word is green whichever reading the sentence needed.
+  assert.deepEqual(seen['saw'], [
+    'see +Verb +PastTense +123SP',
+    'saw +Verb +Pres +Non3sg',
+    'saw +Noun +Sg',
+  ]);
+  // Ambiguity in the tags alone still makes separate readings.
+  assert.deepEqual(seen['Kim'], [
+    'Kim +Prop +Giv +Fem +Sg',
+    'Kim +Prop +Giv +Masc +Sg',
+    'Kim +Prop +Fam +Sg',
+  ]);
+  // Nothing to report rather than a bogus empty analysis.
+  assert.deepEqual(seen['blurgy'], []);
+});
+
+test('readings survive a tokeniser that reports one span several ways', () => {
+  // ParGram returns Kim, kim and `^ kim` for one span, and only one of those variants
+  // carries the morphemes — so the readings have to be collected for the group rather
+  // than per token edge, or the word they belong to may be the one reporting none.
+  const seen = readings('pargram');
+  assert.deepEqual(seen['saw'], [
+    'see +Verb +PastTense +123SP',
+    'saw +Verb +Pres +Non3sg',
+    'saw +Noun +Sg',
+  ]);
+  // A guessed word is still analysed, and the guess is what the reader needs to see.
+  assert.ok(
+    seen['blurgy'].every((r) => r.includes('+Guessed')),
+    `expected every guessed reading tagged, got ${seen['blurgy'].join(' / ')}`,
+  );
+  assert.ok(seen['blurgy'].includes('blurgy +Noun +Sg +Guessed'));
 });
 
 test('tag morphemes are not evidence that a word is covered', () => {

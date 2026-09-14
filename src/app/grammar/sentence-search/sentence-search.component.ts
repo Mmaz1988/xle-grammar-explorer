@@ -130,7 +130,16 @@ export class SentenceSearchComponent implements OnChanges {
     return 'covered';
   }
 
-  /** What the word's colour means, spelled out on hover. */
+  /**
+   * What the word's colour means, spelled out on hover.
+   *
+   * The colour answers "is this word in the grammar", which for a word the morphology
+   * reads two ways is genuinely ambiguous — `train` is in the verb lexicon, `walks`
+   * only in the noun default. Deciding between them needs the category the syntax
+   * would assign, so the readings are listed underneath instead and left to the
+   * reader: seeing `walk +Verb +Pres +3sg` next to a word that will not parse is the
+   * whole diagnosis.
+   */
   explain(token: SentenceToken): string {
     const xle = token.xle;
     if (xle) {
@@ -146,7 +155,8 @@ export class SentenceSearchComponent implements OnChanges {
         'no-entry': `XLE: analysed${stems} but no lexical entry matches`,
         unanalyzable: 'XLE: the morphology cannot analyse this word',
       };
-      return reasons[xle.verdict];
+      const readings = xle.readings?.length ? `\n\n${xle.readings.join('\n')}` : '';
+      return reasons[xle.verdict] + readings;
     }
     return token.matched ? `lexicon: ${token.match} — ${token.matched}` : 'not in the lexicon';
   }

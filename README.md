@@ -345,7 +345,28 @@ Words are coloured by what kind of claim the match is:
 - **red** — the morphology cannot analyse it, so the grammar cannot parse it.
 
 Hovering a word says which of these applies and which stems XLE found: *saw* reports
-*see*.
+*see*, followed by every analysis the morphology offers for it.
+
+Those analyses are worth reading, because the colour is one verdict for a word the
+morphology may read several ways. `train` shows green in *Kim sees a train*, which does
+not parse: the grammar has `train V-S XLE` and no noun entry at all, and the single stem
+edge XLE returns carries the `lexentry_found` the verb reading earns for both readings.
+Hovering gives the two apart:
+
+```
+train +Verb +Pres +Non3sg
+train +Noun +Sg
+```
+
+Nothing in the lexicon can decide which of those the sentence needed — that is the
+category the syntax would assign, and the bar does only lexical matching. Colouring by
+*some reading has no entry* was tried and does not work: over thirteen sentences it
+flagged eleven words, of which two were real and nine were ordinary — every verb in this
+lexicon lacks a plural-noun entry, and every `-unknown` noun lacks a verb entry, so
+`laughs` in a sentence that parses is split exactly the way `walks` in one that does not
+is. The readings are therefore reported rather than judged. Recovering them is free:
+XLE lays a token's morphemes out as a chart over character positions inside the token's
+own span, so each analysis is already a path across the dump the bar fetches anyway.
 
 Clicking follows XLE's stem rather than our own guess at one, which is what makes
 irregular forms work: nothing in a suffix stripper gets from *saw* to *see*, but XLE

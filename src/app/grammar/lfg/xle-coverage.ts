@@ -26,6 +26,19 @@ export interface XleToken {
   verdict: XleVerdict;
   /** Stems the morphology produced: `saw` reports `see`. */
   stems: string[];
+  /**
+   * Every analysis the morphology offers, as `see +Verb +PastTense +123SP`.
+   *
+   * The verdict above is one colour for the whole word, but a word is only in the
+   * grammar *as something*: `train` is in the verb lexicon and has a noun reading
+   * nothing backs, which is why a sentence needing the noun fails while the word
+   * shows green. Nothing in the lexicon can settle which reading was meant — that is
+   * the category the syntax would assign — so the readings are reported rather than
+   * judged, and the person reading them can see at a glance which one is missing.
+   *
+   * Optional because an older service will not send them.
+   */
+  readings?: string[];
 }
 
 /** Whether a word is covered at all, for the counts and the colouring. */
