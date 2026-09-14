@@ -92,8 +92,12 @@ describe('isCovered', () => {
   });
 });
 
-function hit(headword: string, path: string, line: number): LexiconHit {
-  return { headword, path, line, span: { start: 0, end: 1 } };
+/**
+ * `morphcode` is not decoration here: `*` supplies only the form written and sits
+ * outside the morphology, so it decides whether a reading can reach the entry at all.
+ */
+function hit(headword: string, path: string, line: number, morphcode = 'XLE'): LexiconHit {
+  return { headword, path, line, morphcode, span: { start: 0, end: 1 } };
 }
 
 /** A lexicon holding `see` and the grammar's `-unknown` entry, and nothing else. */
@@ -216,6 +220,63 @@ describe('matchesFor', () => {
     assert.deepEqual(matchesFor(wordsOf(tokens)[1], index)[0].hits.map((h) => h.line), [44]);
   });
 
+  it('does not offer a full-form entry under a morphological reading', () => {
+    // `than CComp *` covers the token and nothing else — no sublexical rule reaches a
+    // `*` entry. The analyser still offers `+Conj +Subord` and `+Prep`, and listing
+    // the entry under each claims two readings the grammar cannot have. Like
+    // `PC-6082`, `than` has one entry and one row.
+    const tokens = tokenize('faster than a train');
+    applyXleVerdicts(tokens, [
+      reported('faster', 'lexicon', ['fast']),
+      reported('than', 'lexicon', ['than'], [
+        reading('than', '+Conj', '+Subord'),
+        reading('than', '+Prep'),
+      ]),
+    ]);
+    const index: LexiconIndex = new Map([
+      ['than', [hit('than', 'lexica/functionlex_fracas.lfg.glue', 14, '*')]],
+    ]);
+
+    const rows = matchesFor(wordsOf(tokens)[1], index);
+    assert.deepEqual(rows.map((r) => r.reading.tags), [[]], 'one row, carrying no tags');
+    assert.deepEqual(rows[0].hits.map((h) => h.line), [14]);
+  });
+
+  it('does not offer a full-form entry for a stem either', () => {
+    // `is AUX[fin] *` is what covers `is`; the analyser reports the stem `be`, whose
+    // only entry is `be AUX[base] *` — also full-form, so also not reachable this way.
+    const tokens = tokenize('Kim is fast');
+    applyXleVerdicts(tokens, [
+      reported('Kim', 'lexicon'),
+      reported('is', 'lexicon', ['be'], [reading('be', '+Verb', '+Pres', '+3sg')]),
+    ]);
+    const index: LexiconIndex = new Map([
+      ['is', [hit('is', 'lexica/verblex_fracas.lfg.glue', 267, '*')]],
+      ['be', [hit('be', 'lexica/verblex_fracas.lfg.glue', 358, '*')]],
+    ]);
+
+    const rows = matchesFor(wordsOf(tokens)[1], index);
+    assert.deepEqual(rows.map((r) => r.hits.map((h) => h.line)), [[267]]);
+  });
+
+  it('keeps an unbacked reading when the word has no full-form entry', () => {
+    // `walks` is the case the rows exist for: seeing the verb analysis with nothing
+    // behind it is the diagnosis, so it must not be filtered away as unbacked.
+    const tokens = tokenize('Kim walks');
+    applyXleVerdicts(tokens, [
+      reported('Kim', 'lexicon'),
+      reported('walks', 'unknown-entry', ['walk'], [
+        reading('walk', '+Verb', '+Pres', '+3sg'),
+        reading('walk', '+Noun', '+Pl'),
+      ]),
+    ]);
+    const rows = matchesFor(wordsOf(tokens)[1], new Map());
+    assert.deepEqual(rows.map((r) => r.reading.tags.join(' ')), [
+      '+Verb +Pres +3sg',
+      '+Noun +Pl',
+    ]);
+  });
+
   it('has no rows when nothing asked XLE', () => {
     const tokens = tokenize('Kim walks');
     assert.deepEqual(matchesFor(wordsOf(tokens)[0], lexicon()), []);
@@ -238,10 +299,10 @@ describe('words matched by a `*` entry, which have no stem at all', () => {
     return new Map([
       // Both cases are written out in the grammar, on consecutive lines.
       ['the', [
-        hit('the', 'lexica/detpronlex_fracas.lfg.glue', 242),
-        hit('The', 'lexica/detpronlex_fracas.lfg.glue', 248),
+        hit('the', 'lexica/detpronlex_fracas.lfg.glue', 242, '*'),
+        hit('The', 'lexica/detpronlex_fracas.lfg.glue', 248, '*'),
       ]],
-      ['pc-6082', [hit('PC-6082', 'lexica/nounlex_fracas.lfg.glue', 133)]],
+      ['pc-6082', [hit('PC-6082', 'lexica/nounlex_fracas.lfg.glue', 133, '*')]],
       ['-unknown', [hit('-unknown', 'morph_fracas.lfg.glue', 74)]],
     ]);
   }
@@ -269,17 +330,23 @@ describe('words matched by a `*` entry, which have no stem at all', () => {
     assert.ok(!words[1].viaUnknown);
   });
 
-  it('still gives the popup a row to show', () => {
+  it('gives the popup one row, tagless, for the entry that covered it', () => {
     const tokens = tokenize('The PC-6082 is fast');
     applyXleVerdicts(tokens, [reported('The', 'lexicon')]);
     resolveXleHits(tokens, starLexicon());
 
-    const word = wordsOf(tokens)[0];
-    // No reading, so no row from the analyses — the entry still has to be reachable.
-    assert.deepEqual(matchesFor(word, starLexicon()), []);
-    const rows = surfaceMatches(word, starLexicon());
+    const rows = matchesFor(wordsOf(tokens)[0], starLexicon());
     assert.deepEqual(rows.map((r) => r.reading.tags), [[]]);
-    assert.deepEqual(rows[0].hits.map((h) => h.line), [248]);
+    assert.deepEqual(rows[0].hits.map((h) => h.line), [248], 'The D *');
+  });
+
+  it('still has a row when nothing asked XLE', () => {
+    // The no-oracle path, where there are no analyses to build rows from at all.
+    const tokens = tokenize('The PC-6082 is fast');
+    const word = wordsOf(tokens)[0];
+    word.hits = starLexicon().get('the') ?? [];
+    word.matched = 'The';
+    assert.deepEqual(surfaceMatches(word, starLexicon()).map((r) => r.reading.stem), ['The']);
   });
 });
 
@@ -316,6 +383,7 @@ describe('unknownEntryFor', () => {
         headword: '-unknown',
         category: 'ADJ-S',
         categories: ['ADJ-S', 'NUMBER-S', 'ADV-S', 'N-S'],
+        morphcode: 'XLE',
         path: 'morph_fracas.lfg.glue',
         line: 74,
         span: { start: 0, end: 1 },
@@ -383,10 +451,10 @@ describe('case, which the grammar cares about and the index does not', () => {
   function cased(): LexiconIndex {
     return new Map([
       ['the', [
-        hit('the', 'lexica/detpronlex_fracas.lfg.glue', 242),
-        hit('The', 'lexica/detpronlex_fracas.lfg.glue', 248),
+        hit('the', 'lexica/detpronlex_fracas.lfg.glue', 242, '*'),
+        hit('The', 'lexica/detpronlex_fracas.lfg.glue', 248, '*'),
       ]],
-      ['kim', [hit('Kim', 'lexica/nounlex_fracas.lfg.glue', 31)]],
+      ['kim', [hit('Kim', 'lexica/nounlex_fracas.lfg.glue', 31, '*')]],
       ['-unknown', [hit('-unknown', 'morph_fracas.lfg.glue', 74)]],
     ]);
   }

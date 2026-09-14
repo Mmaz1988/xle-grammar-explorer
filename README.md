@@ -371,10 +371,15 @@ no categories, or the tags are ones we know no stem category for — the entry i
 rather than suppressed: hiding a real link leaves you hunting for where a word got its
 analysis, which is the worse failure.
 
-A word matched by a `*` entry has no reading at all, because that entry matches the
-*token* and the morphology contributes no stem to it — `the` and `PC-6082` arrive
-covered with nothing underneath. The row for those is the form itself, which is how the
-entry is keyed.
+**The two kinds of entry do not mix.** A morphological reading can only be backed by an
+entry that defers to the morphology (`XLE`); a full-form entry (`*`) supplies just the
+form written and sits outside the morphology, where no sublexical rule reaches it. So a
+word covered by a `*` entry gets one row carrying no tags — the form and its entry —
+even when the analyser does have readings for that form. `than CComp *` is the case
+that shows why: the analyser offers `than +Conj +Subord` and `than +Prep`, and listing
+the entry under each claims two readings the grammar cannot have. Like `PC-6082`, `than`
+has one entry and one row. The same goes the other way: `is` is covered by
+`is AUX[fin] *`, not by `be AUX[base] *` via the stem the analyser reports.
 
 **Case has to match.** XLE folds none of it: *Kim laughs* parses and *Kim Laughs* does
 not, because the lexicon has `laugh V-S XLE` and no `Laugh`. A grammar that wants a

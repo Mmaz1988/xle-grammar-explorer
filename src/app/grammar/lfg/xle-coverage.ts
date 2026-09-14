@@ -142,34 +142,12 @@ export const UNKNOWN_HEADWORD = '-unknown';
  */
 export function resolveXleHits(tokens: SentenceToken[], index: LexiconIndex): SentenceToken[] {
   for (const token of tokens) {
-    const xle = token.xle;
-    if (!xle) continue;
+    if (!token.xle) continue;
 
-    const hits = [];
-    let matched: string | undefined;
-    for (const stem of xle.stems) {
-      const found = hitsFor(index, stem);
-      if (found.length === 0) continue;
-      if (!matched) matched = stem;
-      hits.push(...found);
-    }
-
-    // An entry with morphcode `*` matches the *token*, so the morphology contributes
-    // no stem to it: XLE reports `the` and `PC-6082` covered with nothing underneath.
-    // The headword is then the form itself, which is the one place left to look.
-    if (hits.length === 0) {
-      for (const surface of [xle.text, token.text]) {
-        const found = hitsFor(index, surface);
-        if (found.length === 0) continue;
-        matched = surface;
-        hits.push(...found);
-        break;
-      }
-    }
-
-    if (hits.length > 0) {
-      token.hits = hits;
-      token.matched = matched;
+    const rows = matchesFor(token, index).filter((row) => row.hits.length > 0);
+    if (rows.length > 0) {
+      token.hits = rows.flatMap((row) => row.hits);
+      token.matched = rows[0].reading.stem;
       token.viaUnknown = false;
       continue;
     }
@@ -201,18 +179,53 @@ export interface XleMatch {
 }
 
 /**
- * The rows for one word: every reading, with whatever the lexicon has under its stem.
+ * A full-form entry for the word: morphcode `*`, matching the token itself.
+ *
+ * `*` supplies only the form written, so it sits outside the morphology altogether —
+ * no sublexical rule reaches it and no stem the analyser produces is looked up in it.
+ * `PC-6082 N *` is the clear case, but so are `than CComp *` and `is AUX[fin] *`,
+ * whose forms the analyser does happen to have readings for.
+ */
+function fullFormMatches(token: SentenceToken, index: LexiconIndex): XleMatch[] {
+  for (const form of [token.xle?.text, token.text]) {
+    if (form === undefined) continue;
+    const hits = hitsFor(index, form).filter((hit) => hit.morphcode === '*');
+    if (hits.length > 0) return [{ reading: { stem: form.trim(), tags: [] }, hits }];
+  }
+  return [];
+}
+
+/**
+ * The rows for one word: what covered it, and every reading with what backs it.
+ *
+ * The two kinds of entry do not mix. A morphological reading can only be backed by an
+ * entry that defers to the morphology (`XLE`); a full-form entry (`*`) covers the
+ * token and nothing else. `than CComp *` is the case that shows why: the analyser
+ * offers `than +Conj +Subord` and `than +Prep`, but no sublexical rule licenses either
+ * against a `*` entry, so listing the entry twice under those tags claims two readings
+ * the grammar cannot have. Like `PC-6082`, `than` has one entry and one row.
  *
  * Several readings usually share a stem (`train +Verb …` and `train +Noun …`), and
  * each stays a row of its own: the tags are what distinguishes them, and collapsing by
- * stem would hide exactly the ambiguity worth seeing.
+ * stem would hide exactly the ambiguity worth seeing. A reading nothing backs still
+ * gets a row when the word has no full-form entry either — that is `walks`, where
+ * seeing the unbacked verb analysis is the whole point.
  */
 export function matchesFor(token: SentenceToken, index: LexiconIndex): XleMatch[] {
-  const readings = token.xle?.readings ?? [];
-  return readings.map((reading) => ({
+  const fullForm = fullFormMatches(token, index);
+  // A word can have stems that chain into no complete analysis. The stems are still
+  // the entries to offer — this is the path that gets `saw` to `see`.
+  const analyses = token.xle?.readings?.length
+    ? token.xle.readings
+    : (token.xle?.stems ?? []).map((stem) => ({ stem, tags: [] }));
+  const readings = analyses.map((reading) => ({
     reading,
-    hits: hitsFor(index, reading.stem),
+    hits: hitsFor(index, reading.stem).filter((hit) => hit.morphcode !== '*'),
   }));
+  return [
+    ...fullForm,
+    ...readings.filter((row) => row.hits.length > 0 || fullForm.length === 0),
+  ];
 }
 
 /**
