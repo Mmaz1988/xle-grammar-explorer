@@ -12,15 +12,62 @@
     The sentence, coloured word by word. Green is covered by a real entry; amber means
     it parses only through a default or guessed analysis; red means it does not parse.
   -->
-  <p class="sentence">
+  <p class="sentence" (mouseleave)="release()">
     <ng-container *ngFor="let t of tokens">
       <span *ngIf="!t.word" class="plain">{{ t.text }}</span>
       <span *ngIf="t.word" class="word {{ stateOf(t) }}"
             [class.continues]="t.spans === 0"
             [class.openable]="t.hits.length > 0"
-            [title]="explain(t)"
+            [class.peeked]="peeked === t"
+            (mouseenter)="peek(t, $event)"
+            (mouseleave)="release()"
             (click)="t.hits.length && open(t, $event)">{{ t.text }}</span>
     </ng-container>
+
+    <!--
+      Hovering a word opens this rather than a native tooltip: the readings are only
+      half of what is worth having, and the other half — the entries behind them — has
+      to be clickable. Rows stay unannotated on purpose; see `verdict()`.
+    -->
+    <span class="peek" *ngIf="peeked" [style.left.px]="peekLeft" [style.top.px]="peekTop"
+          (mouseenter)="hold()" (mouseleave)="release()">
+      <span class="peek-head">
+        <b>{{ peeked.text }}</b>
+        <span class="peek-why">{{ verdict(peeked) }}</span>
+      </span>
+
+      <span class="peek-rows" *ngIf="peekedMatches.length">
+        <span class="peek-row" *ngFor="let m of peekedMatches">
+          <span class="peek-analysis">
+            <span class="peek-stem">{{ m.reading.stem }}</span>
+            <span class="peek-sep">:</span>
+            <span class="peek-tags">{{ m.reading.tags.join(' ') }}</span>
+          </span>
+          <span class="peek-hits">
+            <button type="button" class="peek-hit" *ngFor="let h of m.hits"
+                    (click)="openHit(h, $event)"
+                    [title]="h.path + ':' + h.line">
+              {{ h.headword }}<span class="peek-cat" *ngIf="h.category">{{ h.category }}</span>
+            </button>
+            <span class="peek-nohit" *ngIf="!m.hits.length">no entry under this stem</span>
+          </span>
+        </span>
+      </span>
+
+      <span class="peek-none" *ngIf="!peekedMatches.length && peeked.xle">
+        no analysis
+      </span>
+
+      <span class="peek-rows peek-fallback" *ngIf="peekedFallback.length">
+        <span class="peek-row" *ngFor="let h of peekedFallback">
+          <span class="peek-analysis"><span class="peek-stem">{{ h.headword }}</span></span>
+          <span class="peek-hits">
+            <button type="button" class="peek-hit" (click)="openHit(h, $event)"
+                    [title]="h.path + ':' + h.line">the default for unlisted stems</button>
+          </span>
+        </span>
+      </span>
+    </span>
   </p>
 
   <p class="summary">

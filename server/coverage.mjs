@@ -100,6 +100,11 @@ const MAX_READINGS = 12;
  * Reporting the paths separately is what lets a reader see which analysis the entry
  * is actually for. Recovering them costs nothing — they are already in the dump.
  *
+ * Reported as stem and tags apart, because they are looked up in different places: the
+ * stem is a headword the lexicon may have an entry for, the tags are the morphology's.
+ * A stem can be several words — a multiword headword such as `take` a` swim` analyses
+ * as one — so it is joined rather than assumed to be a single morpheme.
+ *
  * Offsets increase strictly along an edge, so the walk terminates.
  */
 function readingsOf(under, from, to) {
@@ -112,7 +117,10 @@ function readingsOf(under, from, to) {
       const text = path.join(' ');
       if (!seen.has(text)) {
         seen.add(text);
-        out.push(text);
+        out.push({
+          stem: path.filter((m) => !isTag(m)).join(' '),
+          tags: path.filter((m) => isTag(m)),
+        });
       }
       return;
     }

@@ -344,20 +344,31 @@ Words are coloured by what kind of claim the match is:
   analyses `xqzzy` as happily as `tractor`, so this is a weaker claim again;
 - **red** — the morphology cannot analyse it, so the grammar cannot parse it.
 
-Hovering a word says which of these applies and which stems XLE found: *saw* reports
-*see*, followed by every analysis the morphology offers for it.
+Hovering a word opens a small popup rather than a native tooltip, because the analyses
+are only half of what is worth having and the other half has to be clickable. It says
+which of the colours applies, then gives one row per analysis the morphology offers —
+the stem, its tags, and the entries the lexicon has under that stem:
+
+```
+train — a lexical entry matches
+train : +Verb +Pres +Non3sg          train V-S
+train : +Noun +Sg                    train V-S
+```
+
+Each entry opens on click, shift-click into a new pane, so a word with several — one
+per stem the morphology found, or several under one headword — is navigable rather than
+silently reduced to the first. `-unknown` is listed after a word's own entries rather
+than instead of them: a stem with an entry of its own can still take `-unknown` for a
+category that entry does not supply, so the two are not alternatives to choose between.
+
+The rows are deliberately unannotated. Both rows above point at the same entry, because
+the entry is for the *stem*; which of the two analyses it backs is not something the
+lexicon can say, and the category shown on the entry lets you pair them up anyway.
 
 Those analyses are worth reading, because the colour is one verdict for a word the
 morphology may read several ways. `train` shows green in *Kim sees a train*, which does
 not parse: the grammar has `train V-S XLE` and no noun entry at all, and the single stem
 edge XLE returns carries the `lexentry_found` the verb reading earns for both readings.
-Hovering gives the two apart:
-
-```
-train +Verb +Pres +Non3sg
-train +Noun +Sg
-```
-
 Nothing in the lexicon can decide which of those the sentence needed — that is the
 category the syntax would assign, and the bar does only lexical matching. Colouring by
 *some reading has no entry* was tried and does not work: over thirteen sentences it

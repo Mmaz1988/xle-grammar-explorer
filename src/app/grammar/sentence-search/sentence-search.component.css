@@ -64,3 +64,50 @@
 .box-head::before { content: "→ "; }
 .box-cat { font-size: 10px; color: #6b7a8f; }
 .none { font-size: 11px; color: #9aa7ba; }
+
+/* The word details popup.
+
+   Anchored to the word it describes, so the sentence line is the positioned ancestor
+   and a word's offsetLeft/offsetTop are the coordinates to draw at. */
+.sentence { position: relative; }
+.word.peeked { outline: 1px solid rgba(0, 0, 0, .25); }
+
+.peek {
+  position: absolute; z-index: 20; display: block; min-width: 200px; max-width: 460px;
+  background: #fff; border: 1px solid #cfd8e6; border-radius: 4px;
+  box-shadow: 0 4px 14px rgba(20, 32, 51, .16);
+  padding: 6px 8px; font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+  font-size: 11px; line-height: 1.5; color: #243247; white-space: normal;
+}
+.peek-head { display: block; margin-bottom: 4px; }
+.peek-head b { font-weight: 600; }
+.peek-why { color: #6b7a8f; }
+.peek-why::before { content: " — "; }
+
+.peek-rows { display: block; }
+.peek-row {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px;
+  padding: 2px 0; border-top: 1px solid #eef2f7;
+}
+.peek-analysis { flex: none; }
+.peek-stem { color: #14512f; }
+.peek-sep { color: #9aa7ba; padding: 0 2px; }
+.peek-tags { color: #6b7a8f; }
+
+.peek-hits { display: flex; flex-wrap: wrap; gap: 4px; margin-left: auto; }
+.peek-hit {
+  font: inherit; border: 1px solid #cfe4d7; background: #f2fbf6; color: #14512f;
+  border-radius: 3px; padding: 0 5px; cursor: pointer;
+}
+.peek-hit:hover { border-color: #63b985; background: #eafaf0; }
+.peek-cat { color: #6b7a8f; font-size: 10px; margin-left: 4px; }
+.peek-nohit { color: #9aa7ba; }
+.peek-none { color: #9aa7ba; }
+
+/* -unknown is not an alternative to the entries above it, it is the rule for stems
+   with none — so it is set apart rather than listed among them. */
+.peek-fallback { margin-top: 3px; border-top: 1px solid #e3e9f2; padding-top: 2px; }
+.peek-fallback .peek-stem { color: #7a5b00; }
+.peek-fallback .peek-hit {
+  border-style: dashed; border-color: #e8cf9a; background: #fdf6e8; color: #7a5b00;
+}

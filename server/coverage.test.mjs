@@ -69,15 +69,16 @@ test('a word is reported once per analysis the morphology offers', () => {
   // lexicon and earns the edge its `lexentry_found`, which the two `saw` analyses then
   // show as well — so the word is green whichever reading the sentence needed.
   assert.deepEqual(seen['saw'], [
-    'see +Verb +PastTense +123SP',
-    'saw +Verb +Pres +Non3sg',
-    'saw +Noun +Sg',
+    { stem: 'see', tags: ['+Verb', '+PastTense', '+123SP'] },
+    { stem: 'saw', tags: ['+Verb', '+Pres', '+Non3sg'] },
+    { stem: 'saw', tags: ['+Noun', '+Sg'] },
   ]);
-  // Ambiguity in the tags alone still makes separate readings.
+  // Ambiguity in the tags alone still makes separate readings, all on one stem — which
+  // is why a reading is a row of its own rather than the stems being listed.
   assert.deepEqual(seen['Kim'], [
-    'Kim +Prop +Giv +Fem +Sg',
-    'Kim +Prop +Giv +Masc +Sg',
-    'Kim +Prop +Fam +Sg',
+    { stem: 'Kim', tags: ['+Prop', '+Giv', '+Fem', '+Sg'] },
+    { stem: 'Kim', tags: ['+Prop', '+Giv', '+Masc', '+Sg'] },
+    { stem: 'Kim', tags: ['+Prop', '+Fam', '+Sg'] },
   ]);
   // Nothing to report rather than a bogus empty analysis.
   assert.deepEqual(seen['blurgy'], []);
@@ -89,16 +90,16 @@ test('readings survive a tokeniser that reports one span several ways', () => {
   // than per token edge, or the word they belong to may be the one reporting none.
   const seen = readings('pargram');
   assert.deepEqual(seen['saw'], [
-    'see +Verb +PastTense +123SP',
-    'saw +Verb +Pres +Non3sg',
-    'saw +Noun +Sg',
+    { stem: 'see', tags: ['+Verb', '+PastTense', '+123SP'] },
+    { stem: 'saw', tags: ['+Verb', '+Pres', '+Non3sg'] },
+    { stem: 'saw', tags: ['+Noun', '+Sg'] },
   ]);
   // A guessed word is still analysed, and the guess is what the reader needs to see.
   assert.ok(
-    seen['blurgy'].every((r) => r.includes('+Guessed')),
-    `expected every guessed reading tagged, got ${seen['blurgy'].join(' / ')}`,
+    seen['blurgy'].every((r) => r.tags.includes('+Guessed')),
+    `expected every guessed reading tagged, got ${JSON.stringify(seen['blurgy'])}`,
   );
-  assert.ok(seen['blurgy'].includes('blurgy +Noun +Sg +Guessed'));
+  assert.deepEqual(seen['blurgy'][2], { stem: 'blurgy', tags: ['+Noun', '+Sg', '+Guessed'] });
 });
 
 test('tag morphemes are not evidence that a word is covered', () => {

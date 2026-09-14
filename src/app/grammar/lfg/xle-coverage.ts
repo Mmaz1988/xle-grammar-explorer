@@ -13,7 +13,19 @@
  * never be ambiguous between "XLE says no" and "nothing asked XLE".
  */
 
-import type { LexiconIndex, SentenceToken } from './lexicon-lookup';
+import type { LexiconHit, LexiconIndex, SentenceToken } from './lexicon-lookup';
+
+/**
+ * One analysis the morphology offers for a word, stem and tags apart.
+ *
+ * They are looked up in different places: the stem is a headword the lexicon may have
+ * an entry for, the tags belong to the morphology. A stem can be several words, since
+ * a multiword headword such as `take` a` swim` analyses as one.
+ */
+export interface XleReading {
+  stem: string;
+  tags: string[];
+}
 
 /** XLE's verdict for one word, worst to best. */
 export type XleVerdict = 'unanalyzable' | 'no-entry' | 'guessed' | 'unknown-entry' | 'lexicon';
@@ -27,7 +39,7 @@ export interface XleToken {
   /** Stems the morphology produced: `saw` reports `see`. */
   stems: string[];
   /**
-   * Every analysis the morphology offers, as `see +Verb +PastTense +123SP`.
+   * Every analysis the morphology offers: `see` + `+Verb +PastTense +123SP`.
    *
    * The verdict above is one colour for the whole word, but a word is only in the
    * grammar *as something*: `train` is in the verb lexicon and has a noun reading
@@ -38,7 +50,7 @@ export interface XleToken {
    *
    * Optional because an older service will not send them.
    */
-  readings?: string[];
+  readings?: XleReading[];
 }
 
 /** Whether a word is covered at all, for the counts and the colouring. */
@@ -145,4 +157,46 @@ export function resolveXleHits(tokens: SentenceToken[], index: LexiconIndex): Se
     }
   }
   return tokens;
+}
+
+/**
+ * One row of a word's popup: an analysis, and the entries its stem has.
+ *
+ * The entries are *for the stem*, not for the reading. Saying which entry backs which
+ * analysis would mean knowing the sublexical category each tag demands, which is a
+ * question only XLE can answer and only by being asked again; and the category shown
+ * on each entry lets a reader pair them up at a glance anyway. So the rows report and
+ * do not judge — the same reason the colour cannot be fixed.
+ */
+export interface XleMatch {
+  reading: XleReading;
+  hits: LexiconHit[];
+}
+
+/**
+ * The rows for one word: every reading, with whatever the lexicon has under its stem.
+ *
+ * Several readings usually share a stem (`train +Verb …` and `train +Noun …`), and
+ * each stays a row of its own: the tags are what distinguishes them, and collapsing by
+ * stem would hide exactly the ambiguity worth seeing.
+ */
+export function matchesFor(token: SentenceToken, index: LexiconIndex): XleMatch[] {
+  const readings = token.xle?.readings ?? [];
+  return readings.map((reading) => ({
+    reading,
+    hits: index.get(reading.stem.toLowerCase().trim()) ?? [],
+  }));
+}
+
+/**
+ * The `-unknown` entry, offered alongside a word's own entries rather than instead.
+ *
+ * A word can be reached both ways at once — a stem with an entry of its own may still
+ * take `-unknown` for a category that entry does not supply — so the two are not
+ * alternatives to choose between. It is listed as what it is, the rule for unlisted
+ * stems, without claiming to apply to this word: deciding that needs the sublexical
+ * category, which is the same thing the colour cannot know.
+ */
+export function unknownEntry(index: LexiconIndex): LexiconHit[] {
+  return index.get(UNKNOWN_HEADWORD) ?? [];
 }

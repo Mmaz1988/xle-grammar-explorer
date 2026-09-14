@@ -10,12 +10,18 @@ import assert from 'node:assert/strict';
 import { tokenize, type SentenceToken } from './lexicon-lookup';
 import type { LexiconHit, LexiconIndex } from './lexicon-lookup';
 import {
-  applyXleVerdicts, isCovered, resolveXleHits, type XleToken, type XleVerdict,
+  applyXleVerdicts, isCovered, matchesFor, resolveXleHits, unknownEntry,
+  type XleReading, type XleToken, type XleVerdict,
 } from './xle-coverage';
 
-function reported(text: string, verdict: XleVerdict, stems: string[] = []): XleToken {
-  return { text, variants: [text], from: 0, to: 0, verdict, stems };
+function reported(
+  text: string, verdict: XleVerdict, stems: string[] = [], readings?: XleReading[],
+): XleToken {
+  return { text, variants: [text], from: 0, to: 0, verdict, stems, readings };
 }
+
+/** `train +Verb +Pres +Non3sg` as the service reports it. */
+const reading = (stem: string, ...tags: string[]): XleReading => ({ stem, tags });
 
 const wordsOf = (tokens: SentenceToken[]) => tokens.filter((t) => t.word && t.spans > 0);
 
@@ -148,5 +154,79 @@ describe('resolveXleHits', () => {
     applyXleVerdicts(tokens, [reported('tractor', 'unknown-entry', ['tractor'])]);
     resolveXleHits(tokens, new Map([['see', [hit('see', 'v.lfg', 1)]]]));
     assert.deepEqual(wordsOf(tokens)[0].hits, []);
+  });
+});
+
+describe('matchesFor', () => {
+  it('keeps one row per reading, even when they share a stem', () => {
+    // The whole point of the popup: `train` is one stem with two analyses, and the
+    // tags are what tells them apart. Collapsing by stem would hide the ambiguity
+    // that makes the word green in a sentence that does not parse.
+    const tokens = tokenize('Kim sees a train');
+    applyXleVerdicts(tokens, [
+      reported('Kim', 'lexicon'),
+      reported('sees', 'lexicon', ['see']),
+      reported('a', 'lexicon'),
+      reported('train', 'lexicon', ['train'], [
+        reading('train', '+Verb', '+Pres', '+Non3sg'),
+        reading('train', '+Noun', '+Sg'),
+      ]),
+    ]);
+    const index: LexiconIndex = new Map([
+      ['train', [hit('train', 'lexica/verblex.lfg.glue', 212)]],
+    ]);
+
+    const rows = matchesFor(wordsOf(tokens)[3], index);
+    assert.deepEqual(rows.map((r) => r.reading.tags.join(' ')), [
+      '+Verb +Pres +Non3sg',
+      '+Noun +Sg',
+    ]);
+    // Both rows reach the same entry, because the entry is for the stem. Which of the
+    // two analyses it actually backs is not something the lexicon can say.
+    assert.deepEqual(rows.map((r) => r.hits.map((h) => h.line)), [[212], [212]]);
+  });
+
+  it('reports a stem the lexicon does not have rather than dropping the row', () => {
+    const tokens = tokenize('Kim walks');
+    applyXleVerdicts(tokens, [
+      reported('Kim', 'lexicon'),
+      reported('walks', 'unknown-entry', ['walk'], [
+        reading('walk', '+Verb', '+Pres', '+3sg'),
+        reading('walk', '+Noun', '+Pl'),
+      ]),
+    ]);
+    const rows = matchesFor(wordsOf(tokens)[1], lexicon());
+    assert.equal(rows.length, 2);
+    assert.ok(rows.every((r) => r.hits.length === 0), 'walk is in no lexicon here');
+  });
+
+  it('finds the entry for a multiword stem', () => {
+    // A multiword headword analyses as one stem, so the lookup key has spaces in it.
+    const tokens = tokenize('Kim took a swim');
+    applyXleVerdicts(tokens, [
+      reported('Kim', 'lexicon'),
+      reported('took a swim', 'lexicon', ['take a swim'], [
+        reading('take a swim', '+Verb', '+PastTense'),
+      ]),
+    ]);
+    const index: LexiconIndex = new Map([
+      ['take a swim', [hit('take` a` swim', 'lexica/verblex.lfg.glue', 44)]],
+    ]);
+    assert.deepEqual(matchesFor(wordsOf(tokens)[1], index)[0].hits.map((h) => h.line), [44]);
+  });
+
+  it('has no rows when nothing asked XLE', () => {
+    const tokens = tokenize('Kim walks');
+    assert.deepEqual(matchesFor(wordsOf(tokens)[0], lexicon()), []);
+  });
+});
+
+describe('unknownEntry', () => {
+  it('finds the default entry, so it can be offered beside a word\'s own', () => {
+    assert.deepEqual(unknownEntry(lexicon()).map((h) => h.line), [74]);
+  });
+
+  it('is empty in a grammar without one', () => {
+    assert.deepEqual(unknownEntry(new Map()), []);
   });
 });

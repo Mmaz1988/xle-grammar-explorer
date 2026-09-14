@@ -4,7 +4,8 @@ import {
   type LexiconHit, type LexiconIndex, type SentenceToken,
 } from '../lfg/lexicon-lookup';
 import {
-  applyXleVerdicts, isCovered, resolveXleHits, UNKNOWN_HEADWORD, type XleVerdict,
+  applyXleVerdicts, isCovered, matchesFor, resolveXleHits, unknownEntry,
+  UNKNOWN_HEADWORD, type XleMatch, type XleVerdict,
 } from '../lfg/xle-coverage';
 import { XleOracleService } from '../workspace/xle-oracle.service';
 
@@ -13,6 +14,14 @@ export type WordState = 'covered' | 'defaulted' | 'guessed' | 'missing';
 
 /** How long to wait after a keystroke before asking XLE. */
 const ASK_AFTER_MS = 250;
+
+/**
+ * How long the details popup survives the pointer leaving a word.
+ *
+ * It has to outlive the gap between the word and the popup, or the popup would close
+ * on the way to clicking anything in it.
+ */
+const CLOSE_AFTER_MS = 160;
 
 /**
  * A sentence, checked against the grammar.
@@ -131,34 +140,92 @@ export class SentenceSearchComponent implements OnChanges {
   }
 
   /**
-   * What the word's colour means, spelled out on hover.
+   * What the word's colour means, shown as the popup's first line.
    *
-   * The colour answers "is this word in the grammar", which for a word the morphology
-   * reads two ways is genuinely ambiguous — `train` is in the verb lexicon, `walks`
-   * only in the noun default. Deciding between them needs the category the syntax
-   * would assign, so the readings are listed underneath instead and left to the
-   * reader: seeing `walk +Verb +Pres +3sg` next to a word that will not parse is the
-   * whole diagnosis.
+   * It explains the colour and nothing else. The readings below it are deliberately
+   * unannotated: the colour answers "is this word in the grammar", which for a word
+   * the morphology reads two ways is genuinely ambiguous — `train` is in the verb
+   * lexicon and has a noun reading nothing backs — and saying which reading failed
+   * would need the category the syntax would assign.
    */
-  explain(token: SentenceToken): string {
+  verdict(token: SentenceToken): string {
     const xle = token.xle;
     if (xle) {
-      const stems = xle.stems.length ? ` (${xle.stems.join(', ')})` : '';
       const reasons: Record<XleVerdict, string> = {
-        lexicon: `XLE: a lexical entry matches${stems}`,
-        'unknown-entry':
-          `XLE: no entry — -unknown supplies a default analysis${stems}` +
-          (token.viaUnknown ? ' · click to open -unknown' : ''),
-        guessed:
-          `XLE: the morphology guessed this word${stems}` +
-          (token.viaUnknown ? ' · click to open -unknown' : ''),
-        'no-entry': `XLE: analysed${stems} but no lexical entry matches`,
-        unanalyzable: 'XLE: the morphology cannot analyse this word',
+        lexicon: 'a lexical entry matches',
+        'unknown-entry': 'no entry of its own — -unknown supplies a default analysis',
+        guessed: 'the morphology guessed this word',
+        'no-entry': 'analysed, but no lexical entry matches',
+        unanalyzable: 'the morphology cannot analyse this word',
       };
-      const readings = xle.readings?.length ? `\n\n${xle.readings.join('\n')}` : '';
-      return reasons[xle.verdict] + readings;
+      return reasons[xle.verdict];
     }
-    return token.matched ? `lexicon: ${token.match} — ${token.matched}` : 'not in the lexicon';
+    return token.matched ? `${token.match} match on ${token.matched}` : 'not in the lexicon';
+  }
+
+  // ---- the word details popup -------------------------------------------------
+  //
+  // A native tooltip could show the readings but not let anyone act on them, and a
+  // word can have several entries worth opening: one per stem the morphology found,
+  // several under one headword, and `-unknown` besides. So the hover target is a real
+  // popup whose rows are the entries.
+
+  /** The word whose popup is open, if any. */
+  peeked?: SentenceToken;
+  /** Where to draw it, relative to the sentence line. */
+  peekLeft = 0;
+  peekTop = 0;
+  private closeTimer?: ReturnType<typeof setTimeout>;
+
+  /** Open the popup under a word. */
+  peek(token: SentenceToken, event: MouseEvent): void {
+    this.hold();
+    const word = event.currentTarget as HTMLElement;
+    this.peekLeft = word.offsetLeft;
+    this.peekTop = word.offsetTop + word.offsetHeight + 2;
+    this.peeked = token;
+  }
+
+  /** Keep it open — the pointer is on the word or in the popup. */
+  hold(): void {
+    if (this.closeTimer) clearTimeout(this.closeTimer);
+    this.closeTimer = undefined;
+  }
+
+  /** Let it close, unless the pointer arrives somewhere that holds it first. */
+  release(): void {
+    this.hold();
+    this.closeTimer = setTimeout(() => (this.peeked = undefined), CLOSE_AFTER_MS);
+  }
+
+  closePeek(): void {
+    this.hold();
+    this.peeked = undefined;
+  }
+
+  /** One row per analysis, with the entries the lexicon has under its stem. */
+  get peekedMatches(): XleMatch[] {
+    if (!this.peeked || !this.lexicon) return [];
+    return matchesFor(this.peeked, this.lexicon);
+  }
+
+  /**
+   * `-unknown`, listed after a word's own entries rather than instead of them.
+   *
+   * A stem with an entry of its own can still take `-unknown` for a category that
+   * entry does not supply, so the two are not alternatives; it is offered as the rule
+   * for unlisted stems, reachable whether or not it applies here.
+   */
+  get peekedFallback(): LexiconHit[] {
+    if (!this.peeked || !this.lexicon) return [];
+    if (!this.peeked.xle || !isCovered(this.peeked.xle.verdict)) return [];
+    return unknownEntry(this.lexicon);
+  }
+
+  /** Open one entry from the popup. Shift puts it in a new pane, as elsewhere. */
+  openHit(hit: LexiconHit, event: MouseEvent): void {
+    this.openEntry.emit({ hit, newPane: event.shiftKey === true });
+    this.closePeek();
   }
 
   /**
