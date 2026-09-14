@@ -352,7 +352,7 @@ the stem, its tags, and the entries the lexicon has under that stem:
 ```
 train — a lexical entry matches
 train : +Verb +Pres +Non3sg          train V-S
-train : +Noun +Sg                    train V-S
+train : +Noun +Sg                    no entry under this stem
 ```
 
 Each entry opens on click, shift-click into a new pane, so a word with several — one
@@ -390,9 +390,15 @@ lower-cased index key therefore only narrows the search; the headword still has 
 as written, and the stemmer keeps the capital a word came with so `Laughs` suggests
 `Laugh` rather than `laugh`.
 
-The rows are deliberately unannotated. Both rows above point at the same entry, because
-the entry is for the *stem*; which of the two analyses it backs is not something the
-lexicon can say, and the category shown on the entry lets you pair them up anyway.
+A reading reaches an entry only if the entry supplies the category its part-of-speech
+tag asks for, so the rows above differ: `train V-S XLE` backs the verb reading and there
+is no `N-S` for the noun one. That is the whole reason *Kim sees a train* fails while
+the word shows green — and why `faster`, which analyses as `+Adj` and `+Adv` against a
+single `fast ADJ-S XLE`, stops reporting one entry as two findings.
+
+The rows still carry no verdict of their own. A row with no entry is not an error: it is
+an analysis the lexicon does not cover, which is worth seeing precisely because the
+colour cannot show it.
 
 Those analyses are worth reading, because the colour is one verdict for a word the
 morphology may read several ways. `train` shows green in *Kim sees a train*, which does

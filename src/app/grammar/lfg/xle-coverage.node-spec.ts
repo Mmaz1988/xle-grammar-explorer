@@ -178,7 +178,7 @@ describe('matchesFor', () => {
       ]),
     ]);
     const index: LexiconIndex = new Map([
-      ['train', [hit('train', 'lexica/verblex.lfg.glue', 212)]],
+      ['train', [{ ...hit('train', 'lexica/verblex.lfg.glue', 212), categories: ['V-S'] }]],
     ]);
 
     const rows = matchesFor(wordsOf(tokens)[3], index);
@@ -186,9 +186,42 @@ describe('matchesFor', () => {
       '+Verb +Pres +Non3sg',
       '+Noun +Sg',
     ]);
-    // Both rows reach the same entry, because the entry is for the stem. Which of the
-    // two analyses it actually backs is not something the lexicon can say.
-    assert.deepEqual(rows.map((r) => r.hits.map((h) => h.line)), [[212], [212]]);
+    // The entry backs the verb reading and only that one: `train V-S XLE` supplies no
+    // `N-S`. This is why `Kim sees a train` does not parse while the word shows green.
+    assert.deepEqual(rows.map((r) => r.hits.map((h) => h.line)), [[212], []]);
+  });
+
+  it('backs a reading only with an entry of the category it asks for', () => {
+    // `faster` analyses as both `+Adj` and `+Adv`, and the lexicon has one entry,
+    // `fast ADJ-S XLE`. Offering it under both made the same entry look like two
+    // findings; the adverb reading has no entry here and falls to -unknown's `ADV-S`.
+    const tokens = tokenize('faster than a train');
+    applyXleVerdicts(tokens, [
+      reported('faster', 'lexicon', ['fast'], [
+        reading('fast', '+Adj', '+Comp'),
+        reading('fast', '+Adv', '+Comp'),
+      ]),
+    ]);
+    const index: LexiconIndex = new Map([
+      ['fast', [{
+        ...hit('fast', 'lexica/adj_adv_lex_fracas.lfg.glue', 70),
+        categories: ['ADJ-S'],
+      }]],
+    ]);
+    const rows = matchesFor(wordsOf(tokens)[0], index);
+    assert.deepEqual(rows.map((r) => r.hits.map((h) => h.line)), [[70], []]);
+  });
+
+  it('keeps an entry that declares no category it could be judged by', () => {
+    const tokens = tokenize('a train');
+    applyXleVerdicts(tokens, [
+      reported('a', 'lexicon'),
+      reported('train', 'lexicon', ['train'], [reading('train', '+Noun', '+Sg')]),
+    ]);
+    const index: LexiconIndex = new Map([
+      ['train', [hit('train', 'lexica/verblex.lfg.glue', 212)]],
+    ]);
+    assert.deepEqual(matchesFor(wordsOf(tokens)[1], index)[0].hits.map((h) => h.line), [212]);
   });
 
   it('reports a stem the lexicon does not have rather than dropping the row', () => {

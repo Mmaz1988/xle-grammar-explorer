@@ -220,7 +220,7 @@ export function matchesFor(token: SentenceToken, index: LexiconIndex): XleMatch[
     : (token.xle?.stems ?? []).map((stem) => ({ stem, tags: [] }));
   const readings = analyses.map((reading) => ({
     reading,
-    hits: hitsFor(index, reading.stem).filter((hit) => hit.morphcode !== '*'),
+    hits: backing(hitsFor(index, reading.stem), reading),
   }));
   return [
     ...fullForm,
@@ -264,6 +264,31 @@ const STEM_CATEGORY: Record<string, string> = {
 
 /** `N-S_BASE` and `N-S` are the same category; the suffix is XLE's, not the grammar's. */
 const bareCategory = (category: string) => category.replace(/_BASE$/, '');
+
+/**
+ * Which of a stem's entries could back one reading.
+ *
+ * Two filters, both about what the morphology can reach. A full-form entry (`*`)
+ * supplies only the token, so no reading reaches it at all. And an entry supplies
+ * particular sublexical categories, so a reading reaches it only if one of them is the
+ * category its part-of-speech tag asks for: `fast ADJ-S XLE` backs `fast +Adj +Comp`
+ * and not `fast +Adv +Comp`, and `train V-S XLE` backs the verb reading of `train`
+ * while the noun reading it also has goes unbacked — which is the whole reason a
+ * sentence needing that noun fails while the word shows green.
+ *
+ * Conservative where it cannot tell, as everywhere else here: a reading whose tags
+ * name no category we know, or an entry that declares none, keeps the entry. Hiding a
+ * real entry is worse than showing one too many.
+ */
+function backing(hits: LexiconHit[], reading: XleReading): LexiconHit[] {
+  const usable = hits.filter((hit) => hit.morphcode !== '*');
+  const wanted = reading.tags.map((tag) => STEM_CATEGORY[tag]).find((c) => c !== undefined);
+  if (wanted === undefined) return usable;
+  return usable.filter((hit) => {
+    const declared = hit.categories ?? [];
+    return declared.length === 0 || declared.map(bareCategory).includes(wanted);
+  });
+}
 
 /**
  * `-unknown`, but only for a word whose analyses it could actually supply.
