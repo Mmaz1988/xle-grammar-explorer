@@ -1,4 +1,5 @@
 import { Component } from '@angular/core';
+import { PresenceService } from './grammar/workspace/presence.service';
 
 /**
  * Thin host around the grammar view.
@@ -27,4 +28,9 @@ import { Component } from '@angular/core';
     main { flex: 1; min-height: 0; }
   `],
 })
-export class AppComponent {}
+export class AppComponent {
+  // Injected for its side effect: it tells the launcher this window is open, so the
+  // launcher can stop when the last one closes. A root-provided service nothing asks
+  // for is never constructed, and the shell is the one thing always on screen.
+  constructor(_presence: PresenceService) {}
+}

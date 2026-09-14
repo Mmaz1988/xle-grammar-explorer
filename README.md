@@ -51,6 +51,27 @@ A port already in use is asked who it is: a second launch joins the explorer tha
 already running rather than starting a rival, and anything else on that port is
 reported instead of being mistaken for it.
 
+### Stopping it
+
+Closing the last explorer window stops the server and the XLE processes with it. Also
+Ctrl-C in the window the launcher opened, or `npm run app:stop` from anywhere.
+
+The browser cannot be watched for this — `open -a` returns in under a tenth of a second,
+before anyone has seen the page, and if the browser was already running it never owned
+the tab. So the page reports instead: each window says hello every few seconds and
+goodbye on `pagehide`, and the server stops when the last one has been gone for about
+eight seconds.
+
+That delay is the point rather than slack. A reload *is* a close — `pagehide` fires and
+a new page appears a moment later — so an empty set means "gone for now", and the wait
+is the gap a reload has to get back through. A background tab is the opposite problem:
+its timers are throttled to roughly once a minute, so a long silence is not evidence of
+anything, and it is the explicit goodbye that ends things promptly.
+
+Only the launcher asks for this. `npm run xle` beside `ng serve` serves pages from
+another origin that never check in, and exiting on that silence would stop a service
+somebody is using.
+
 For development the two halves still run apart — `ng serve` on 4200 with `npm run xle`
 beside it — and the app tries its own origin for the oracle before the fixed port, so
 the same build works both ways without being told which it is.

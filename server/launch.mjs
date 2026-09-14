@@ -121,6 +121,10 @@ const say = (line) => process.stdout.write(line + '\n');
 const fail = (line) => process.stderr.write(line + '\n');
 
 export async function main() {
+  // Read before the server module is loaded, which is where it is acted on. The
+  // standalone `npm run xle` must not inherit this: its pages come from `ng serve` and
+  // never check in, and exiting on that silence would kill a service in use.
+  process.env.XLE_EXIT_WHEN_IDLE = '1';
   const { start, status, url } = await import('./index.mjs');
   const { xle, bundle, port } = status();
 
@@ -177,7 +181,8 @@ export async function main() {
     say('           Put xle on your PATH, or set XLEPATH or XLE_COMMAND, and restart.');
   }
   say('');
-  say('Leave this window open while you work. Ctrl-C stops the explorer.');
+  say('Closing the last explorer window stops this too. So does Ctrl-C here,');
+  say('or `npm run app:stop` from anywhere.');
 
   const { command, args } = openCommand(browser, url());
   spawn(command, args, { stdio: 'ignore', detached: true }).unref();

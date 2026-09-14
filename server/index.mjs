@@ -19,6 +19,7 @@ import { coverageScript, classify } from './coverage.mjs';
 import { grammarRoots, listGrammars, resolveGrammar, grammarStamp } from './grammars.mjs';
 import { originFor } from './cors.mjs';
 import { findBundle, serveStatic } from './static.mjs';
+import { Presence } from './presence.mjs';
 
 const CONTROL = /[\u0000-\u001f]/;
 
@@ -31,6 +32,17 @@ const ROOTS = grammarRoots();
 // Present once `ng build` has run. Without it this is the oracle alone, which is what
 // `npm run xle` beside `ng serve` wants; with it, one process serves the whole app.
 const BUNDLE = findBundle(join(dirname(fileURLToPath(import.meta.url)), '..', 'dist'));
+
+/**
+ * Stop when the last window closes — but only when something started us for a browser.
+ *
+ * `npm run xle` beside `ng serve` is the other way to run this, and there the pages
+ * come from another server and never check in; exiting on that silence would kill a
+ * service somebody is using. So the launcher asks for this and nothing else does.
+ */
+const EXIT_WHEN_IDLE = process.env.XLE_EXIT_WHEN_IDLE === '1';
+const presence = new Presence();
+let watchdog;
 
 function send(response, status, body, origin = 'null') {
   response.writeHead(status, {
@@ -56,6 +68,26 @@ async function readJson(request) {
 const server = createServer(async (request, response) => {
   const origin = originFor(request.headers.origin);
   if (request.method === 'OPTIONS') return send(response, 204, {}, origin);
+
+  // A page saying it is still open, or that it is going. Kept cheap: these are the
+  // only requests that arrive on a timer.
+  if (request.url === '/alive' && request.method === 'POST') {
+    const { id } = await readJson(request).catch(() => ({}));
+    if (typeof id === 'string') presence.seen(id);
+    return send(response, 204, {}, origin);
+  }
+  if (request.url === '/bye' && request.method === 'POST') {
+    const { id } = await readJson(request).catch(() => ({}));
+    if (typeof id === 'string') presence.gone(id);
+    return send(response, 204, {}, origin);
+  }
+
+  // The explicit way out, for when the window that started it is gone or was never
+  // watched. Loopback-only like the rest, and less powerful than /coverage already is.
+  if (request.url === '/shutdown' && request.method === 'POST') {
+    send(response, 200, { stopping: true }, origin);
+    return setTimeout(() => stop('asked to'), 50);
+  }
 
   if (request.url === '/health') {
     return send(response, 200, {
@@ -120,6 +152,16 @@ const server = createServer(async (request, response) => {
   send(response, 404, { error: 'Not found' });
 });
 
+/** Close XLE and the socket, then leave. */
+export function stop(why) {
+  if (watchdog) clearInterval(watchdog);
+  if (why) console.log('Stopping (' + why + ').');
+  pool?.closeAll();
+  server.close(() => process.exit(0));
+  // XLE processes are already gone; do not wait on a browser holding a socket open.
+  setTimeout(() => process.exit(0), 1500).unref();
+}
+
 export const url = () => 'http://127.0.0.1:' + PORT;
 export const status = () => ({ xle, bundle: BUNDLE, port: PORT });
 
@@ -127,7 +169,15 @@ export const status = () => ({ xle, bundle: BUNDLE, port: PORT });
 export function start(port = PORT) {
   return new Promise((resolve, reject) => {
     server.once('error', reject);
-    server.listen(port, '127.0.0.1', () => resolve(server));
+    server.listen(port, '127.0.0.1', () => {
+      if (EXIT_WHEN_IDLE) {
+        watchdog = setInterval(() => {
+          if (presence.check() === 'exit') stop('the last window closed');
+        }, 2000);
+        watchdog.unref();
+      }
+      resolve(server);
+    });
   });
 }
 
@@ -143,9 +193,6 @@ if (process.argv[1] && import.meta.url === new URL(process.argv[1], 'file:').hre
   });
 }
 
-for (const signal of ['SIGINT', 'SIGTERM']) {
-  process.on(signal, () => {
-    pool?.closeAll();
-    server.close(() => process.exit(0));
-  });
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+  process.on(signal, () => stop(signal));
 }

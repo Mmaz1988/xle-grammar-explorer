@@ -14,6 +14,7 @@ import { join, resolve } from 'node:path';
 
 import { findBundle, fileFor, typeFor } from './static.mjs';
 import { findBrowser, openCommand, portInUse, oracleAt } from './launch.mjs';
+import { Presence } from './presence.mjs';
 
 const scratch = () => mkdtempSync(join(tmpdir(), 'xle-launch-'));
 
@@ -119,4 +120,73 @@ test('recognises its own service on a taken port', async () => {
   await new Promise((done) => ours.listen(0, '127.0.0.1', done));
   assert.equal(await oracleAt(ours.address().port), true, 'a second launch should join it');
   await new Promise((done) => ours.close(done));
+});
+
+test('never stops before a window has ever opened', () => {
+  // The browser takes a second or two to start. Exiting on that silence would stop
+  // the server between the launcher printing its address and anyone reaching it.
+  let clock = 0;
+  const presence = new Presence({ emptyMs: 8000, now: () => clock });
+  for (clock = 0; clock < 60_000; clock += 2000) {
+    assert.equal(presence.check(), 'wait');
+  }
+});
+
+test('stops once the last window says goodbye', () => {
+  let clock = 0;
+  const presence = new Presence({ emptyMs: 8000, now: () => clock });
+  presence.seen('tab-1');
+  assert.equal(presence.check(), 'wait');
+
+  presence.gone('tab-1');
+  clock += 2000;
+  assert.equal(presence.check(), 'wait', 'not instantly — a reload gets this long');
+  clock += 8000;
+  assert.equal(presence.check(), 'exit');
+});
+
+test('survives a reload, which looks exactly like a close', () => {
+  // `pagehide` fires and a new instance appears under a new id a moment later. The
+  // gap is the whole reason the decision waits instead of counting to zero.
+  let clock = 0;
+  const presence = new Presence({ emptyMs: 8000, now: () => clock });
+  presence.seen('tab-1');
+  presence.gone('tab-1');
+
+  clock += 900;
+  assert.equal(presence.check(), 'wait');
+  presence.seen('tab-2');
+  clock += 30_000;
+  assert.equal(presence.check(), 'wait', 'the reloaded page is holding it open');
+});
+
+test('keeps running while any other window is open', () => {
+  let clock = 0;
+  const presence = new Presence({ emptyMs: 8000, now: () => clock });
+  presence.seen('tab-1');
+  presence.seen('tab-2');
+  presence.gone('tab-1');
+  clock += 20_000;
+  assert.equal(presence.check(), 'wait');
+  assert.equal(presence.size, 1);
+
+  presence.gone('tab-2');
+  clock += 20_000;
+  assert.equal(presence.check(), 'exit');
+});
+
+test('does not mistake a background tab for a closed one', () => {
+  // Browsers throttle a hidden tab's timers to roughly once a minute, so a page that
+  // is merely not in front checks in far less often than one in front.
+  let clock = 0;
+  const presence = new Presence({ staleMs: 90_000, emptyMs: 8000, now: () => clock });
+  presence.seen('tab-1');
+  clock += 61_000;
+  assert.equal(presence.check(), 'wait', 'a throttled tab is still a tab');
+
+  presence.seen('tab-1');
+  clock += 91_000;
+  assert.equal(presence.check(), 'wait', 'gone silent, but the grace has not elapsed');
+  clock += 9000;
+  assert.equal(presence.check(), 'exit', 'silent past both windows: the tab is gone');
 });

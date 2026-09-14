@@ -19,7 +19,8 @@
     "xle": "node server/index.mjs",
     "test:xle": "node --test 'server/*.test.mjs'",
     "app": "npm run build && node server/launch.mjs",
-    "app:quick": "node server/launch.mjs"
+    "app:quick": "node server/launch.mjs",
+    "app:stop": "node server/stop.mjs"
   },
   "devDependencies": {
     "@angular-devkit/build-angular": "^16.1.3",
