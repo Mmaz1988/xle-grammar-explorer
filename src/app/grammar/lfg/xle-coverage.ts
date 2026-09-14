@@ -145,21 +145,12 @@ export function resolveXleHits(tokens: SentenceToken[], index: LexiconIndex): Se
     if (!token.xle) continue;
 
     const rows = matchesFor(token, index).filter((row) => row.hits.length > 0);
-    if (rows.length > 0) {
-      token.hits = rows.flatMap((row) => row.hits);
-      token.matched = rows[0].reading.stem;
-      token.viaUnknown = false;
-      continue;
-    }
+    if (rows.length === 0) continue;
 
-    // Covered, but by the default analysis rather than by an entry of its own — and
-    // only when `-unknown` supplies a category this word's readings actually ask for.
-    const unknown = unknownEntryFor(token, index);
-    if (unknown.hits.length > 0) {
-      token.hits = unknown.hits;
-      token.matched = UNKNOWN_HEADWORD;
-      token.viaUnknown = true;
-    }
+    token.hits = rows.flatMap((row) => row.hits);
+    // Analysed by default rather than by design when that is all there is.
+    token.viaUnknown = token.hits.every((hit) => hit.headword === UNKNOWN_HEADWORD);
+    token.matched = token.viaUnknown ? UNKNOWN_HEADWORD : rows[0].reading.stem;
   }
   return tokens;
 }
@@ -220,7 +211,7 @@ export function matchesFor(token: SentenceToken, index: LexiconIndex): XleMatch[
     : (token.xle?.stems ?? []).map((stem) => ({ stem, tags: [] }));
   const readings = analyses.map((reading) => ({
     reading,
-    hits: backing(hitsFor(index, reading.stem), reading),
+    hits: backing(reading, index),
   }));
   return [
     ...fullForm,
@@ -266,70 +257,42 @@ const STEM_CATEGORY: Record<string, string> = {
 const bareCategory = (category: string) => category.replace(/_BASE$/, '');
 
 /**
- * Which of a stem's entries could back one reading.
+ * What backs one reading.
  *
- * Two filters, both about what the morphology can reach. A full-form entry (`*`)
- * supplies only the token, so no reading reaches it at all. And an entry supplies
- * particular sublexical categories, so a reading reaches it only if one of them is the
- * category its part-of-speech tag asks for: `fast ADJ-S XLE` backs `fast +Adj +Comp`
- * and not `fast +Adv +Comp`, and `train V-S XLE` backs the verb reading of `train`
- * while the noun reading it also has goes unbacked — which is the whole reason a
- * sentence needing that noun fails while the word shows green.
+ * Three things decide it, all of them about what the morphology can reach.
  *
- * Conservative where it cannot tell, as everywhere else here: a reading whose tags
- * name no category we know, or an entry that declares none, keeps the entry. Hiding a
- * real entry is worse than showing one too many.
+ * A full-form entry (`*`) supplies only the token, so no reading reaches it.
+ *
+ * An entry supplies particular sublexical categories, so a reading reaches it only if
+ * one of them is the category its part-of-speech tag asks for: `fast ADJ-S XLE` backs
+ * `fast +Adj +Comp` and not `fast +Adv +Comp`.
+ *
+ * And `-unknown` supplies an analysis for a stem that has no sublexical entry *at
+ * all* — not per word, per stem, and regardless of category. `print-lex-entry train`
+ * answers `train V-S_BASE XLE` and nothing else, so the noun reading of `train` is
+ * backed by nothing and `Kim sees a train` does not parse; `print-lex-entry faster`
+ * answers with the four categories `-unknown` declares, because no entry lists that
+ * stem. A `*` entry does not count as listing it: `right N *` is a full-form entry, so
+ * `right` picks up `-unknown`'s categories too, exactly as XLE reports.
+ *
+ * `-unknown` is offered only where its category can be checked. Elsewhere here the
+ * conservative move is to show a link rather than hide one, but this is the link that
+ * says *the grammar analysed this word by default*, and saying that wrongly is the
+ * claim the bar exists to get right. The verdict line still says it in words.
  */
-function backing(hits: LexiconHit[], reading: XleReading): LexiconHit[] {
-  const usable = hits.filter((hit) => hit.morphcode !== '*');
+function backing(reading: XleReading, index: LexiconIndex): LexiconHit[] {
   const wanted = reading.tags.map((tag) => STEM_CATEGORY[tag]).find((c) => c !== undefined);
-  if (wanted === undefined) return usable;
-  return usable.filter((hit) => {
-    const declared = hit.categories ?? [];
-    return declared.length === 0 || declared.map(bareCategory).includes(wanted);
-  });
-}
+  const supplies = (hit: LexiconHit) => {
+    const declared = (hit.categories ?? []).map(bareCategory);
+    return wanted === undefined || declared.length === 0 || declared.includes(wanted);
+  };
 
-/**
- * `-unknown`, but only for a word whose analyses it could actually supply.
- *
- * `-unknown` is not a general fallback: it lists the sublexical categories it covers,
- * four in the fracas grammar (`ADJ-S`, `NUMBER-S`, `ADV-S`, `N-S`) and no verb among
- * them. Offering it for a word analysed only as a verb points at a rule that cannot
- * have applied. So the entry's own categories are checked against the categories this
- * word's readings ask for.
- *
- * Conservative where it cannot tell: if the entry declares no categories, or the word
- * has no readings, or none of its tags is one we know a stem category for, the entry
- * is offered rather than suppressed. Hiding a real link is the worse failure — it is
- * the one that leaves someone hunting for where a word got its analysis.
- */
-export function unknownEntryFor(
-  token: SentenceToken,
-  index: LexiconIndex,
-): { hits: LexiconHit[]; categories: string[] } {
-  const none = { hits: [], categories: [] };
-  const xle = token.xle;
-  if (!xle || !usesUnknownEntry(xle.verdict)) return none;
-
-  const hits = unknownEntry(index);
-  if (hits.length === 0) return none;
-
-  const supplies = new Set(
-    hits.flatMap((hit) => (hit.categories ?? []).map(bareCategory)),
+  const own = hitsFor(index, reading.stem).filter((hit) => hit.morphcode !== '*');
+  if (own.length > 0) return own.filter(supplies);
+  if (wanted === undefined) return [];
+  return unknownEntry(index).filter(
+    (hit) => (hit.categories ?? []).map(bareCategory).includes(wanted),
   );
-  const wanted = [
-    ...new Set(
-      (xle.readings ?? [])
-        .flatMap((reading) => reading.tags)
-        .map((tag) => STEM_CATEGORY[tag])
-        .filter((category): category is string => category !== undefined),
-    ),
-  ];
-  if (supplies.size === 0 || wanted.length === 0) return { hits, categories: [] };
-
-  const matched = wanted.filter((category) => supplies.has(category));
-  return matched.length > 0 ? { hits, categories: matched } : none;
 }
 
 /**

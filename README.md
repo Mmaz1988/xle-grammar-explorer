@@ -361,15 +361,18 @@ silently reduced to the first. `-unknown` is listed after a word's own entries, 
 on a word it actually covered: showing it beside an entry XLE says matched claims the
 grammar analysed the word by default when it did not.
 
-It is also only offered for a reading it could have supplied. `-unknown` is not a
-general fallback — it declares the sublexical categories it covers, four in the fracas
-grammar (`ADJ-S`, `NUMBER-S`, `ADV-S`, `N-S`) with no verb among them — so a word
-analysed only as a verb cannot have come from it. Those categories are read off the
-entry rather than assumed, and the one shown on the row is whichever the word's readings
-ask for, not the first one written. Where the check cannot decide — the entry declares
-no categories, or the tags are ones we know no stem category for — the entry is offered
-rather than suppressed: hiding a real link leaves you hunting for where a word got its
-analysis, which is the worse failure.
+It declares the sublexical categories it covers — four in the fracas grammar (`ADJ-S`,
+`NUMBER-S`, `ADV-S`, `N-S`), with no verb among them — read off the entry rather than
+assumed, which is why the parser keeps every category block of an entry and not just the
+first. A reading whose category is not among them is backed by nothing, which is what
+`Kim walks` shows: `walk +Noun +Pl` reaches `-unknown`, `walk +Verb +Pres +3sg` reaches
+nothing, and the sentence does not parse.
+
+This is the one place the popup withholds a link it cannot verify rather than showing
+it. Everywhere else an unverifiable link is shown, on the grounds that hiding a real one
+leaves you hunting; but this link says *the grammar analysed this word by default*, and
+saying that wrongly is the claim the bar exists to get right. The verdict line still says
+it in words.
 
 **The two kinds of entry do not mix.** A morphological reading can only be backed by an
 entry that defers to the morphology (`XLE`); a full-form entry (`*`) supplies just the
@@ -395,6 +398,16 @@ tag asks for, so the rows above differ: `train V-S XLE` backs the verb reading a
 is no `N-S` for the noun one. That is the whole reason *Kim sees a train* fails while
 the word shows green — and why `faster`, which analyses as `+Adj` and `+Adv` against a
 single `fast ADJ-S XLE`, stops reporting one entry as two findings.
+
+`-unknown` belongs to a **stem**, not to a word: it supplies an analysis for a stem no
+entry lists, whatever category is asked for, and for none at all once some entry lists
+it. `print-lex-entry train` answers `train V-S_BASE XLE` and nothing else, which is why
+the noun reading above is backed by nothing; `print-lex-entry faster` answers with all
+four categories `-unknown` declares, because no entry lists that stem — and `faster` is
+a word whose *other* stem, `fast`, does. A full-form entry does not count as listing a
+stem: `right N *` is matched as a token, so `right` picks up `-unknown`'s categories
+too, exactly as XLE reports. So `-unknown` appears as a row against the reading it
+supplies, drawn with a dashed border, rather than as one claim about the whole word.
 
 The rows still carry no verdict of their own. A row with no entry is not an error: it is
 an analysis the lexicon does not cover, which is worth seeing precisely because the

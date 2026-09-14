@@ -11,8 +11,7 @@ import { hitsFor, tokenize, type SentenceToken } from './lexicon-lookup';
 import type { LexiconHit, LexiconIndex } from './lexicon-lookup';
 import {
   applyXleVerdicts, isCovered, matchesFor, resolveXleHits, surfaceMatches,
-  unknownEntry, unknownEntryFor, usesUnknownEntry,
-  type XleReading, type XleToken, type XleVerdict,
+  unknownEntry, usesUnknownEntry, type XleReading, type XleToken, type XleVerdict,
 } from './xle-coverage';
 
 function reported(
@@ -104,7 +103,10 @@ function hit(headword: string, path: string, line: number, morphcode = 'XLE'): L
 function lexicon(): LexiconIndex {
   return new Map([
     ['see', [hit('see', 'lexica/verblex.lfg.glue', 196)]],
-    ['-unknown', [hit('-unknown', 'morph.lfg.glue', 74)]],
+    ['-unknown', [{
+      ...hit('-unknown', 'morph.lfg.glue', 74),
+      categories: ['ADJ-S', 'NUMBER-S', 'ADV-S', 'N-S'],
+    }]],
   ]);
 }
 
@@ -129,7 +131,7 @@ describe('resolveXleHits', () => {
     const tokens = tokenize('a tractor');
     applyXleVerdicts(tokens, [
       reported('a', 'lexicon'),
-      reported('tractor', 'unknown-entry', ['tractor']),
+      reported('tractor', 'unknown-entry', ['tractor'], [reading('tractor', '+Noun', '+Sg')]),
     ]);
     resolveXleHits(tokens, lexicon());
 
@@ -141,7 +143,9 @@ describe('resolveXleHits', () => {
 
   it('does the same for a guessed word, which is covered the same way', () => {
     const tokens = tokenize('blurgy');
-    applyXleVerdicts(tokens, [reported('blurgy', 'guessed', ['blurgy'])]);
+    applyXleVerdicts(tokens, [reported('blurgy', 'guessed', ['blurgy'], [
+      reading('blurgy', '+Noun', '+Sg', '+Guessed'),
+    ])]);
     resolveXleHits(tokens, lexicon());
     assert.equal(wordsOf(tokens)[0].viaUnknown, true);
   });
@@ -156,7 +160,9 @@ describe('resolveXleHits', () => {
   it('offers nothing when the grammar has no -unknown entry', () => {
     // Not every grammar guesses; inventing a target would send the click nowhere.
     const tokens = tokenize('tractor');
-    applyXleVerdicts(tokens, [reported('tractor', 'unknown-entry', ['tractor'])]);
+    applyXleVerdicts(tokens, [
+      reported('tractor', 'unknown-entry', ['tractor'], [reading('tractor', '+Noun', '+Sg')]),
+    ]);
     resolveXleHits(tokens, new Map([['see', [hit('see', 'v.lfg', 1)]]]));
     assert.deepEqual(wordsOf(tokens)[0].hits, []);
   });
@@ -234,8 +240,12 @@ describe('matchesFor', () => {
       ]),
     ]);
     const rows = matchesFor(wordsOf(tokens)[1], lexicon());
-    assert.equal(rows.length, 2);
-    assert.ok(rows.every((r) => r.hits.length === 0), 'walk is in no lexicon here');
+    assert.equal(rows.length, 2, 'both analyses get a row');
+    // No entry lists `walk`, so `-unknown` supplies what it declares: `N-S` for the
+    // noun reading, nothing for the verb one. That split is why `Kim walks` shows
+    // amber and still does not parse.
+    assert.deepEqual(rows[0].hits, [], '+Verb: -unknown declares no V-S');
+    assert.deepEqual(rows[1].hits.map((h) => h.headword), ['-unknown']);
   });
 
   it('finds the entry for a multiword stem', () => {
@@ -336,7 +346,10 @@ describe('words matched by a `*` entry, which have no stem at all', () => {
         hit('The', 'lexica/detpronlex_fracas.lfg.glue', 248, '*'),
       ]],
       ['pc-6082', [hit('PC-6082', 'lexica/nounlex_fracas.lfg.glue', 133, '*')]],
-      ['-unknown', [hit('-unknown', 'morph_fracas.lfg.glue', 74)]],
+      ['-unknown', [{
+        ...hit('-unknown', 'morph_fracas.lfg.glue', 74),
+        categories: ['ADJ-S', 'NUMBER-S', 'ADV-S', 'N-S'],
+      }]],
     ]);
   }
 
@@ -401,81 +414,96 @@ describe('usesUnknownEntry', () => {
     const tokens = tokenize('Kim');
     applyXleVerdicts(tokens, [reported('Kim', 'lexicon')]);
     resolveXleHits(tokens, new Map([
-      ['-unknown', [hit('-unknown', 'morph_fracas.lfg.glue', 74)]],
+      ['-unknown', [{
+        ...hit('-unknown', 'morph_fracas.lfg.glue', 74),
+        categories: ['ADJ-S', 'NUMBER-S', 'ADV-S', 'N-S'],
+      }]],
     ]));
     assert.deepEqual(wordsOf(tokens)[0].hits, []);
     assert.ok(!wordsOf(tokens)[0].viaUnknown);
   });
 });
 
-describe('unknownEntryFor', () => {
+describe('-unknown, which belongs to a stem and not to a word', () => {
   /** The fracas `-unknown`: four sublexical categories in one entry, no verb. */
-  function defaults(): LexiconIndex {
+  const defaultEntry = {
+    headword: '-unknown',
+    category: 'ADJ-S',
+    categories: ['ADJ-S', 'NUMBER-S', 'ADV-S', 'N-S'],
+    morphcode: 'XLE',
+    path: 'morph_fracas.lfg.glue',
+    line: 74,
+    span: { start: 0, end: 1 },
+  };
+
+  /** `fast ADJ-S XLE` listed, `faster` not — which is what `faster` analyses as. */
+  function lex(): LexiconIndex {
     return new Map([
-      ['-unknown', [{
-        headword: '-unknown',
-        category: 'ADJ-S',
-        categories: ['ADJ-S', 'NUMBER-S', 'ADV-S', 'N-S'],
-        morphcode: 'XLE',
-        path: 'morph_fracas.lfg.glue',
-        line: 74,
-        span: { start: 0, end: 1 },
-      }]],
+      ['fast', [{ ...hit('fast', 'lexica/adj_adv_lex_fracas.lfg.glue', 70), categories: ['ADJ-S'] }]],
+      ['train', [{ ...hit('train', 'lexica/verblex_fracas.lfg.glue', 212), categories: ['V-S'] }]],
+      ['-unknown', [defaultEntry]],
     ]);
   }
 
-  function word(verdict: XleVerdict, readings: XleReading[]) {
+  function rowsFor(readings: XleReading[], verdict: XleVerdict = 'lexicon') {
     const tokens = tokenize('x');
     applyXleVerdicts(tokens, [reported('x', verdict, [], readings)]);
-    return wordsOf(tokens)[0];
+    return matchesFor(wordsOf(tokens)[0], lex());
   }
 
-  it('offers it for a noun reading, and names the category that matched', () => {
-    const out = unknownEntryFor(
-      word('unknown-entry', [reading('walk', '+Noun', '+Pl')]), defaults(),
+  it('reaches a stem no entry lists', () => {
+    // `print-lex-entry faster` answers with -unknown's four categories: nothing lists
+    // that stem. The word is still verdict `lexicon` because its other stem, `fast`,
+    // matched — so a word-level test misses this reading entirely.
+    const rows = rowsFor([reading('faster', '+Noun', '+Sg')]);
+    assert.deepEqual(rows[0].hits.map((h) => h.headword), ['-unknown']);
+  });
+
+  it('does not reach a stem that has a sublexical entry, whatever the category', () => {
+    // `print-lex-entry train` answers `train V-S_BASE XLE` and nothing else. So the
+    // noun reading is backed by nothing, and `Kim sees a train` does not parse — if
+    // -unknown supplied `N-S` here, it would.
+    const rows = rowsFor([reading('train', '+Noun', '+Sg')]);
+    assert.deepEqual(rows[0].hits, []);
+  });
+
+  it('does not supply a category it does not declare', () => {
+    // No `V-S` among the four, so a verb reading of an unlisted stem stays unbacked.
+    assert.deepEqual(rowsFor([reading('walk', '+Verb', '+Pres')])[0].hits, []);
+    assert.deepEqual(
+      rowsFor([reading('walk', '+Noun', '+Pl')])[0].hits.map((h) => h.headword),
+      ['-unknown'],
     );
-    assert.deepEqual(out.hits.map((h) => h.line), [74]);
-    // Not `ADJ-S`, which is merely the first category the entry happens to write.
-    assert.deepEqual(out.categories, ['N-S']);
   });
 
-  it('withholds it from a word analysed only as a verb', () => {
-    // `-unknown` supplies no `V-S`, so it cannot be where a verb-only reading came
-    // from — linking to it would send someone to a rule that never applied.
-    const out = unknownEntryFor(
-      word('unknown-entry', [reading('walk', '+Verb', '+Pres', '+3sg')]), defaults(),
-    );
-    assert.deepEqual(out.hits, []);
+  it('is withheld when its category cannot be checked', () => {
+    // Elsewhere the conservative move is to show a link; not here. This link says the
+    // grammar analysed the word by default, and saying that wrongly is the claim the
+    // bar exists to get right.
+    assert.deepEqual(rowsFor([reading('a', '+LCLet', '+Sg')])[0].hits, []);
   });
 
-  it('offers it when any one reading is covered', () => {
-    const out = unknownEntryFor(word('unknown-entry', [
-      reading('walk', '+Verb', '+Pres', '+3sg'),
-      reading('walk', '+Noun', '+Pl'),
-    ]), defaults());
-    assert.deepEqual(out.categories, ['N-S']);
-  });
-
-  it('offers it when the tags say nothing we can check', () => {
-    // Conservative on purpose: hiding a real link leaves someone hunting for where a
-    // word got its analysis, which is worse than one link too many.
-    const out = unknownEntryFor(
-      word('guessed', [reading('blurgy', '+Frobnicate')]), defaults(),
-    );
-    assert.deepEqual(out.hits.map((h) => h.line), [74]);
-    assert.deepEqual(out.categories, []);
-  });
-
-  it('offers it when the entry declares no categories', () => {
-    const bare: LexiconIndex = new Map([
-      ['-unknown', [hit('-unknown', 'morph.lfg.glue', 74)]],
+  it('marks a word covered only by default', () => {
+    const tokens = tokenize('tractor');
+    applyXleVerdicts(tokens, [
+      reported('tractor', 'unknown-entry', ['tractor'], [reading('tractor', '+Noun', '+Sg')]),
     ]);
-    const out = unknownEntryFor(word('unknown-entry', [reading('x', '+Verb')]), bare);
-    assert.deepEqual(out.hits.map((h) => h.line), [74]);
+    resolveXleHits(tokens, lex());
+    assert.equal(wordsOf(tokens)[0].matched, '-unknown');
+    assert.ok(wordsOf(tokens)[0].viaUnknown);
   });
 
-  it('withholds it from a word that matched an entry of its own', () => {
-    assert.deepEqual(unknownEntryFor(word('lexicon', [reading('x', '+Noun')]), defaults()).hits, []);
+  it('does not mark a word that also reached an entry of its own', () => {
+    const tokens = tokenize('faster');
+    applyXleVerdicts(tokens, [
+      reported('faster', 'lexicon', ['fast'], [
+        reading('fast', '+Adj', '+Comp'),
+        reading('faster', '+Noun', '+Sg'),
+      ]),
+    ]);
+    resolveXleHits(tokens, lex());
+    assert.ok(!wordsOf(tokens)[0].viaUnknown, 'fast ADJ-S is an entry of its own');
+    assert.deepEqual(wordsOf(tokens)[0].hits.map((h) => h.headword), ['fast', '-unknown']);
   });
 });
 
@@ -488,7 +516,10 @@ describe('case, which the grammar cares about and the index does not', () => {
         hit('The', 'lexica/detpronlex_fracas.lfg.glue', 248, '*'),
       ]],
       ['kim', [hit('Kim', 'lexica/nounlex_fracas.lfg.glue', 31, '*')]],
-      ['-unknown', [hit('-unknown', 'morph_fracas.lfg.glue', 74)]],
+      ['-unknown', [{
+        ...hit('-unknown', 'morph_fracas.lfg.glue', 74),
+        categories: ['ADJ-S', 'NUMBER-S', 'ADV-S', 'N-S'],
+      }]],
     ]);
   }
 

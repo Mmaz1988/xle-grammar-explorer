@@ -4,7 +4,7 @@ import {
 } from '../lfg/lexicon-lookup';
 import {
   applyXleVerdicts, isCovered, matchesFor, resolveXleHits, surfaceMatches,
-  unknownEntryFor, type XleMatch, type XleVerdict,
+  UNKNOWN_HEADWORD, type XleMatch, type XleVerdict,
 } from '../lfg/xle-coverage';
 import { XleOracleService } from '../workspace/xle-oracle.service';
 
@@ -201,17 +201,9 @@ export class SentenceSearchComponent implements OnChanges {
     return surfaceMatches(this.peeked, this.lexicon);
   }
 
-  /**
-   * `-unknown`, listed after a word's own entries when it is what covered the word.
-   *
-   * Offering it beside an entry XLE says matched would claim the grammar analysed the
-   * word by default when it did not — `than` has `than CComp *` and needs no default
-   * at all. And `-unknown` covers only the categories it lists, so a word analysed
-   * only as a verb cannot have come from it either.
-   */
-  get peekedFallback(): { hits: LexiconHit[]; categories: string[] } {
-    if (!this.peeked || !this.lexicon) return { hits: [], categories: [] };
-    return unknownEntryFor(this.peeked, this.lexicon);
+  /** Drawn apart: it stands for the rule about unlisted stems, not an entry. */
+  isDefault(hit: LexiconHit): boolean {
+    return hit.headword === UNKNOWN_HEADWORD;
   }
 
   /** Open one entry from the popup. Shift puts it in a new pane, as elsewhere. */

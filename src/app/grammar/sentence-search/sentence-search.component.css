@@ -84,10 +84,8 @@
 .peek-nohit { color: #9aa7ba; }
 .peek-none { color: #9aa7ba; }
 
-/* -unknown is not an alternative to the entries above it, it is the rule for stems
-   with none — so it is set apart rather than listed among them. */
-.peek-fallback { margin-top: 3px; border-top: 1px solid #e3e9f2; padding-top: 2px; }
-.peek-fallback .peek-stem { color: #7a5b00; }
-.peek-fallback .peek-hit {
+/* -unknown stands for the rule about unlisted stems, not an entry written for this
+   word, so it is drawn as the weaker claim it is. */
+.peek-hit.is-default {
   border-style: dashed; border-color: #e8cf9a; background: #fdf6e8; color: #7a5b00;
 }
