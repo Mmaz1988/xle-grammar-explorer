@@ -376,6 +376,15 @@ A word matched by a `*` entry has no reading at all, because that entry matches 
 covered with nothing underneath. The row for those is the form itself, which is how the
 entry is keyed.
 
+**Case folds one way.** The index is keyed lower-case so a lookup stays one map hit, but
+the grammar is not case-insensitive. A capitalized form reaches a lower-case entry —
+*Kim sees The tractor* parses, so `The` really is covered by `the D *`, mid-sentence as
+well as first — while nothing reaches an entry with capitals the form lacks: *kim sees a
+tractor* gives no parse, and `print-lex-entry kim` falls through to `-unknown` where
+`print-lex-entry The` answers `The D *`. So an entry covers a form when it is that form
+exactly, or that form lower-cased, and a lower-case word never borrows a capitalized
+entry it cannot use.
+
 The rows are deliberately unannotated. Both rows above point at the same entry, because
 the entry is for the *stem*; which of the two analyses it backs is not something the
 lexicon can say, and the category shown on the entry lets you pair them up anyway.

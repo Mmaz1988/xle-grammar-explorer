@@ -7,7 +7,7 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { tokenize, type SentenceToken } from './lexicon-lookup';
+import { hitsFor, tokenize, type SentenceToken } from './lexicon-lookup';
 import type { LexiconHit, LexiconIndex } from './lexicon-lookup';
 import {
   applyXleVerdicts, isCovered, matchesFor, resolveXleHits, surfaceMatches,
@@ -371,5 +371,49 @@ describe('unknownEntryFor', () => {
 
   it('withholds it from a word that matched an entry of its own', () => {
     assert.deepEqual(unknownEntryFor(word('lexicon', [reading('x', '+Noun')]), defaults()).hits, []);
+  });
+});
+
+describe('case, which the grammar cares about and the index does not', () => {
+  /** `the D *` and `Kim N *` — one lower-case entry, one capitalized. */
+  function cased(): LexiconIndex {
+    return new Map([
+      ['the', [hit('the', 'lexica/detpronlex_fracas.lfg.glue', 242)]],
+      ['kim', [hit('Kim', 'lexica/nounlex_fracas.lfg.glue', 31)]],
+      ['-unknown', [hit('-unknown', 'morph_fracas.lfg.glue', 74)]],
+    ]);
+  }
+
+  it('lets a capitalized form reach a lower-case entry', () => {
+    // XLE's tokenizer decapitalizes: `Kim sees The tractor` parses, first word or not.
+    assert.deepEqual(hitsFor(cased(), 'The').map((h) => h.line), [242]);
+    assert.deepEqual(hitsFor(cased(), 'the').map((h) => h.line), [242]);
+  });
+
+  it('does not let a lower-case form reach a capitalized entry', () => {
+    // The fold runs one way only. `kim sees a tractor` gives no parse, and
+    // `print-lex-entry kim` falls through to -unknown — so claiming `Kim N *` covers
+    // it says the grammar has an entry for a word it cannot read.
+    assert.deepEqual(hitsFor(cased(), 'kim'), []);
+    assert.deepEqual(hitsFor(cased(), 'Kim').map((h) => h.line), [31]);
+  });
+
+  it('does not attach a capitalized entry to a lower-case word', () => {
+    const tokens = tokenize('kim sees a tractor');
+    applyXleVerdicts(tokens, [reported('kim', 'unknown-entry', ['kim'], [
+      reading('kim', '+Noun', '+Sg'),
+    ])]);
+    resolveXleHits(tokens, cased());
+    const word = wordsOf(tokens)[0];
+    // -unknown is what covered it, which is exactly what XLE reports.
+    assert.equal(word.matched, '-unknown');
+    assert.ok(word.viaUnknown);
+  });
+
+  it('keeps the row for a capitalized word pointing at the entry that covers it', () => {
+    const tokens = tokenize('The tractor');
+    applyXleVerdicts(tokens, [reported('The', 'lexicon')]);
+    resolveXleHits(tokens, cased());
+    assert.deepEqual(wordsOf(tokens)[0].hits.map((h) => h.headword), ['the']);
   });
 });

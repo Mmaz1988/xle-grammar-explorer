@@ -13,6 +13,7 @@
  * never be ambiguous between "XLE says no" and "nothing asked XLE".
  */
 
+import { hitsFor } from './lexicon-lookup';
 import type { LexiconHit, LexiconIndex, SentenceToken } from './lexicon-lookup';
 
 /**
@@ -147,8 +148,8 @@ export function resolveXleHits(tokens: SentenceToken[], index: LexiconIndex): Se
     const hits = [];
     let matched: string | undefined;
     for (const stem of xle.stems) {
-      const found = index.get(stem.toLowerCase().trim());
-      if (!found?.length) continue;
+      const found = hitsFor(index, stem);
+      if (found.length === 0) continue;
       if (!matched) matched = stem;
       hits.push(...found);
     }
@@ -158,8 +159,8 @@ export function resolveXleHits(tokens: SentenceToken[], index: LexiconIndex): Se
     // The headword is then the form itself, which is the one place left to look.
     if (hits.length === 0) {
       for (const surface of [xle.text, token.text]) {
-        const found = index.get(surface.toLowerCase().trim());
-        if (!found?.length) continue;
+        const found = hitsFor(index, surface);
+        if (found.length === 0) continue;
         matched = surface;
         hits.push(...found);
         break;
@@ -210,7 +211,7 @@ export function matchesFor(token: SentenceToken, index: LexiconIndex): XleMatch[
   const readings = token.xle?.readings ?? [];
   return readings.map((reading) => ({
     reading,
-    hits: index.get(reading.stem.toLowerCase().trim()) ?? [],
+    hits: hitsFor(index, reading.stem),
   }));
 }
 

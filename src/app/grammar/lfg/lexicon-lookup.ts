@@ -192,14 +192,41 @@ export function analyseSentence(sentence: string, index: LexiconIndex): Sentence
   return tokens;
 }
 
+/**
+ * Entries that can cover a form, folding case the way XLE's tokenizer does.
+ *
+ * The index is keyed lower-case so a lookup stays one map hit, but the grammar is not
+ * case-insensitive and the fold runs one way only. A capitalized form reaches a
+ * lower-case entry — `The` is covered by `the D *`, mid-sentence as well as first —
+ * while nothing reaches an entry with capitals the form does not have: `kim` does not
+ * find `Kim N *`, and a sentence written that way returns no parse at all.
+ *
+ * Measured against the grammar rather than assumed. `parse-sentence` gives one parse
+ * for *Kim sees The tractor* and none for *kim sees a tractor*, and `print-lex-entry
+ * kim` falls through to `-unknown` while `print-lex-entry The` answers `The D *`.
+ *
+ * So an entry matches when it is the form exactly, or the form lower-cased.
+ */
+export function hitsFor(index: LexiconIndex, form: string): LexiconHit[] {
+  const wanted = form.trim();
+  const lower = wanted.toLowerCase();
+  const candidates = index.get(lower);
+  if (!candidates) return [];
+  const usable = candidates.filter((hit) => {
+    const headword = unescapeHeadword(hit.headword).trim();
+    return headword === wanted || headword === lower;
+  });
+  return usable;
+}
+
 /** Match one word or phrase, preferring the least speculative reading. */
 function lookup(phrase: string, index: LexiconIndex): { kind: MatchKind; hits: LexiconHit[] } | undefined {
-  const exact = index.get(phrase.toLowerCase());
-  if (exact) return { kind: 'exact', hits: exact };
+  const exact = hitsFor(index, phrase);
+  if (exact.length > 0) return { kind: 'exact', hits: exact };
 
   for (const candidate of lemmaCandidates(phrase)) {
-    const hits = index.get(candidate);
-    if (!hits) continue;
+    const hits = hitsFor(index, candidate);
+    if (hits.length === 0) continue;
     // The morphology supplies inflections only for entries that defer to it.
     const kind = hits.some((h) => h.morphcode === 'XLE') ? 'inflected' : 'base-only';
     return { kind, hits };
