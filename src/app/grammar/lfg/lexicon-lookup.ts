@@ -25,6 +25,8 @@ export interface LexiconHit {
   category?: string;
   /** Every category the entry defines; `-unknown` supplies four in one entry. */
   categories?: string[];
+  /** `ETC.` closes the entry, so `-unknown` applies to this headword as well. */
+  etc?: boolean;
   morphcode?: string;
   path: string;
   line: number;
@@ -92,6 +94,7 @@ function add(index: LexiconIndex, file: LfgFile, entry: LfgEntry): void {
     headword: entry.name,
     category: entry.category,
     categories: entry.categories,
+    etc: entry.etc,
     morphcode: entry.morphcode,
     path: file.path,
     line: entry.line,

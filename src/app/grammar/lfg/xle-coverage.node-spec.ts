@@ -483,6 +483,63 @@ describe('-unknown, which belongs to a stem and not to a word', () => {
     assert.deepEqual(rowsFor([reading('a', '+LCLet', '+Sg')])[0].hits, []);
   });
 
+  it('is kept out by any entry at all, not only a morphological one', () => {
+    // `Kim N *` carries no ETC., so `print-lex-entry Kim` answers `Kim N *` and
+    // nothing else. A full-form entry lists the stem just as a sublexical one does.
+    const index: LexiconIndex = new Map([
+      ['kim', [hit('Kim', 'lexica/nounlex_fracas.lfg.glue', 98, '*')]],
+      ['-unknown', [defaultEntry]],
+    ]);
+    const tokens = tokenize('Kim');
+    applyXleVerdicts(tokens, [
+      reported('Kim', 'lexicon', ['Kim'], [reading('Kim', '+Prop', '+Giv', '+Sg')]),
+    ]);
+    const rows = matchesFor(wordsOf(tokens)[0], index);
+    assert.deepEqual(rows.map((r) => r.hits.map((h) => h.headword)), [['Kim']],
+      'one full-form row, and no -unknown row behind it');
+  });
+
+  it('is let back in by ETC. on the entry', () => {
+    // `hug V-S XLE @(TRANS-EV %stem);ETC.` against `train V-S XLE …`: same shape, one
+    // flag apart. `Kim sees a hug` parses and `Kim sees a train` does not.
+    const withEtc: LexiconIndex = new Map([
+      ['hug', [{
+        ...hit('hug', 'lexica/verblex_fracas.lfg.glue', 186),
+        categories: ['V-S'],
+        etc: true,
+      }]],
+      ['-unknown', [defaultEntry]],
+    ]);
+    const tokens = tokenize('hug');
+    applyXleVerdicts(tokens, [
+      reported('hug', 'lexicon', ['hug'], [
+        reading('hug', '+Verb', '+Pres'),
+        reading('hug', '+Noun', '+Sg'),
+      ]),
+    ]);
+    const rows = matchesFor(wordsOf(tokens)[0], withEtc);
+    assert.deepEqual(rows.map((r) => r.hits.map((h) => h.headword)), [['hug'], ['-unknown']]);
+  });
+
+  it('lets ETC. in on a full-form entry too', () => {
+    // `right N * …; ETC.` — the grammar even warns underneath that this makes
+    // spurious ambiguity with the UNKNOWN entry, which is the behaviour being read.
+    const index: LexiconIndex = new Map([
+      ['right', [{
+        ...hit('right', 'lexica/nounlex_fracas.lfg.glue', 156, '*'),
+        categories: ['N'],
+        etc: true,
+      }]],
+      ['-unknown', [defaultEntry]],
+    ]);
+    const tokens = tokenize('right');
+    applyXleVerdicts(tokens, [
+      reported('right', 'lexicon', ['right'], [reading('right', '+Noun', '+Sg')]),
+    ]);
+    const rows = matchesFor(wordsOf(tokens)[0], index);
+    assert.deepEqual(rows.map((r) => r.hits.map((h) => h.headword)), [['right'], ['-unknown']]);
+  });
+
   it('marks a word covered only by default', () => {
     const tokens = tokenize('tractor');
     applyXleVerdicts(tokens, [

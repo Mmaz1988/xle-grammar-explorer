@@ -342,6 +342,30 @@ sit  V-S XLE { (^ PRED)='sit<(^ SUBJ)>' ; (^ TENSE)=pres };
     assert.deepEqual(entries[1].categories, ['V-S', 'N-S']);
   });
 
+  it('records ETC., which decides whether -unknown still applies', () => {
+    // `hug` and `see` are the same shape one flag apart, and it changes what parses:
+    // `Kim sees a hug` goes through -unknown's N-S, `Kim sees a train` has nothing.
+    const entries = lexOf(`VERB ENGLISH LEXICON (1.0)
+
+hug V-S XLE @(TRANS-EV %stem);ETC.
+
+see V-S XLE @(TRANS-EV %stem).
+
+member NMod * ; ETC.
+
+sit V-S XLE @(INTRANS-EV %stem);ONLY.
+----
+`);
+    assert.deepEqual(entries.map((e) => [e.name, e.etc === true]), [
+      ['hug', true],
+      ['see', false],
+      // ETC. sits after a full-form entry just as happily.
+      ['member', true],
+      // ONLY. is the explicit form of the default, and must not read as ETC.
+      ['sit', false],
+    ]);
+  });
+
   it('does not read a stray `;` as a category block', () => {
     // The same failure the malformed-entry guard exists for, one level down: text
     // after a stray separator looks exactly like `CATEGORY MORPHCODE` unless the

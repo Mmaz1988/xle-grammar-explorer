@@ -108,8 +108,9 @@ function scanLexHead(chunk: string): { word: string; category: string; morphcode
  * MORPHCODE`, the headword being carried over; `ETC.` and `ONLY.` sit in the same
  * position but terminate the entry rather than opening a block.
  */
-function scanLexCategories(masked: string, first: string): string[] {
-  const out = [first];
+function scanLexBlocks(masked: string, first: string): { categories: string[]; etc: boolean } {
+  const categories = [first];
+  let etc = false;
   let depth = 0;
   for (let i = 0; i < masked.length; i++) {
     const c = masked[i];
@@ -118,13 +119,17 @@ function scanLexCategories(masked: string, first: string): string[] {
     else if (c === ')' || c === '}' || c === ']') depth--;
     else if (c === ';' && depth === 0) {
       const { tokens } = readTokens(masked.slice(i + 1), 2);
+      if (tokens.length === 0) continue;
+      // `;ETC.` and `;ONLY.` sit where a block would: terminators, not categories.
+      const lead = tokens[0].replace(/[;.]+$/, '');
+      if (lead === 'ETC') { etc = true; continue; }
+      if (lead === 'ONLY') continue;
       if (tokens.length < 2) continue;
-      const [category, morphcode] = tokens;
-      if (!MORPHCODES.has(morphcode.replace(/[;.]+$/, ''))) continue;
-      if (!out.includes(category)) out.push(category);
+      if (!MORPHCODES.has(tokens[1].replace(/[;.]+$/, ''))) continue;
+      if (!categories.includes(tokens[0])) categories.push(tokens[0]);
     }
   }
-  return out;
+  return { categories, etc };
 }
 
 /**
@@ -309,7 +314,7 @@ function nameEntry(
         kind: 'lex',
         name,
         category: lex.category,
-        categories: scanLexCategories(maskedChunk, lex.category),
+        ...scanLexBlocks(maskedChunk, lex.category),
         morphcode: lex.morphcode,
         suspect: suspectLexEntry(lex.category, lex.morphcode),
       };

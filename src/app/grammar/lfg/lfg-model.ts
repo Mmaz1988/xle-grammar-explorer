@@ -72,6 +72,12 @@ export interface LfgEntry extends Span {
    * all. `-unknown` supplies four at once, and the first of them is the least telling.
    */
   categories?: string[];
+  /**
+   * `ETC.` closes this entry, so `-unknown` still applies to the headword alongside it.
+   * Without it — or with the explicit `ONLY.` — listing the headword shuts `-unknown`
+   * out for that stem entirely, whatever categories either supplies.
+   */
+  etc?: boolean;
   morphcode?: string;
   /**
    * Why this entry looks wrong, when it does.

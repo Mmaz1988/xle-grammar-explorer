@@ -267,13 +267,17 @@ const bareCategory = (category: string) => category.replace(/_BASE$/, '');
  * one of them is the category its part-of-speech tag asks for: `fast ADJ-S XLE` backs
  * `fast +Adj +Comp` and not `fast +Adv +Comp`.
  *
- * And `-unknown` supplies an analysis for a stem that has no sublexical entry *at
- * all* — not per word, per stem, and regardless of category. `print-lex-entry train`
- * answers `train V-S_BASE XLE` and nothing else, so the noun reading of `train` is
- * backed by nothing and `Kim sees a train` does not parse; `print-lex-entry faster`
- * answers with the four categories `-unknown` declares, because no entry lists that
- * stem. A `*` entry does not count as listing it: `right N *` is a full-form entry, so
- * `right` picks up `-unknown`'s categories too, exactly as XLE reports.
+ * And `-unknown` belongs to a stem, not to a word. It supplies an analysis for a
+ * headword no entry lists — whatever category is asked for — and listing that headword
+ * shuts it out entirely unless the entry ends in `ETC.`.
+ *
+ * `hug V-S XLE @(TRANS-EV %stem);ETC.` and `train V-S XLE …` are the same entry one
+ * flag apart, and it decides a parse: *Kim sees a hug* parses through `-unknown`'s
+ * `N-S`, *Kim sees a train* does not. `print-lex-entry` shows the same split, `hug`
+ * answering with all four default categories beside its own and `train` with none.
+ * The flag is what counts and the morphcode is not: `Kim N *` carries no `ETC.` and
+ * gets no default analysis, while `right N * …; ETC.` gets all four — the grammar
+ * even warns underneath that this makes spurious ambiguity with the UNKNOWN entry.
  *
  * `-unknown` is offered only where its category can be checked. Elsewhere here the
  * conservative move is to show a link rather than hide one, but this is the link that
@@ -287,12 +291,17 @@ function backing(reading: XleReading, index: LexiconIndex): LexiconHit[] {
     return wanted === undefined || declared.length === 0 || declared.includes(wanted);
   };
 
-  const own = hitsFor(index, reading.stem).filter((hit) => hit.morphcode !== '*');
-  if (own.length > 0) return own.filter(supplies);
-  if (wanted === undefined) return [];
-  return unknownEntry(index).filter(
-    (hit) => (hit.categories ?? []).map(bareCategory).includes(wanted),
-  );
+  const listed = hitsFor(index, reading.stem);
+  const own = listed.filter((hit) => hit.morphcode !== '*').filter(supplies);
+
+  const defaulted = listed.length === 0 || listed.some((hit) => hit.etc === true);
+  if (!defaulted || wanted === undefined) return own;
+  return [
+    ...own,
+    ...unknownEntry(index).filter(
+      (hit) => (hit.categories ?? []).map(bareCategory).includes(wanted),
+    ),
+  ];
 }
 
 /**

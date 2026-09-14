@@ -399,15 +399,24 @@ is no `N-S` for the noun one. That is the whole reason *Kim sees a train* fails 
 the word shows green — and why `faster`, which analyses as `+Adj` and `+Adv` against a
 single `fast ADJ-S XLE`, stops reporting one entry as two findings.
 
-`-unknown` belongs to a **stem**, not to a word: it supplies an analysis for a stem no
-entry lists, whatever category is asked for, and for none at all once some entry lists
-it. `print-lex-entry train` answers `train V-S_BASE XLE` and nothing else, which is why
-the noun reading above is backed by nothing; `print-lex-entry faster` answers with all
-four categories `-unknown` declares, because no entry lists that stem — and `faster` is
-a word whose *other* stem, `fast`, does. A full-form entry does not count as listing a
-stem: `right N *` is matched as a token, so `right` picks up `-unknown`'s categories
-too, exactly as XLE reports. So `-unknown` appears as a row against the reading it
-supplies, drawn with a dashed border, rather than as one claim about the whole word.
+`-unknown` belongs to a **stem**, not to a word: it supplies an analysis for a headword
+no entry lists, whatever category is asked for, and listing that headword shuts it out —
+unless the entry ends in `ETC.`. That flag decides a parse:
+
+```
+hug V-S XLE @(TRANS-EV %stem);ETC.    Kim sees a hug     parses through -unknown's N-S
+train V-S XLE …                       Kim sees a train   0 parses
+```
+
+Two entries of the same shape, one flag apart, and `print-lex-entry` shows the same
+split — `hug` answering with all four default categories beside its own, `train` with
+none. The flag is what counts, not the morphcode: `Kim N *` carries no `ETC.` and gets
+no default analysis, while `right N * …; ETC.` gets all four, which the grammar itself
+warns about in a comment underneath ("Using ETC. with nouns leads to spurious ambiguity
+with UNKNOWN entry"). And because this is per stem, `faster` — whose *other* stem `fast`
+is listed — still reaches `-unknown` on its `faster +Noun +Sg` reading. So `-unknown`
+appears as a row against the reading it supplies, drawn with a dashed border, rather
+than as one claim about the whole word.
 
 The rows still carry no verdict of their own. A row with no entry is not an error: it is
 an analysis the lexicon does not cover, which is worth seeing precisely because the
