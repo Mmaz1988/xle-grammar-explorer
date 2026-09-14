@@ -1,0 +1,15 @@
+#!/bin/sh
+# The icon's executable. It hands off to the .command beside the bundle rather than
+# starting the server itself, so the work happens in a Terminal window: a launcher
+# whose whole job includes saying why it could not start needs somewhere to say it.
+#
+# The repository is the directory holding the bundle — Contents/MacOS is three deep.
+repo=$(cd "$(dirname "$0")/../../.." && pwd)
+script="$repo/XLE Grammar Explorer.command"
+
+if [ ! -x "$script" ]; then
+  osascript -e 'display alert "XLE Grammar Explorer" message "The launcher script is missing beside this app. Keep the app inside the repository folder."' >/dev/null 2>&1
+  exit 1
+fi
+
+open -a Terminal "$script"

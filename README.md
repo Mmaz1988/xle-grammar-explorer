@@ -23,10 +23,18 @@ and, of course, in the file.
 
 ## Running it
 
-Double-click **XLE Grammar Explorer.command** (macOS) or **XLE Grammar Explorer.cmd**
+Double-click **XLE Grammar Explorer.app** (macOS) or **XLE Grammar Explorer.cmd**
 (Windows). It builds the app if needed, serves it, starts the XLE oracle, and opens a
 browser. The window it opens stays open: Ctrl-C there stops the explorer, and anything
 that went wrong is written there rather than swallowed.
+
+The `.app` is a wrapper whose only job is to carry the icon and hand off to
+`XLE Grammar Explorer.command`, which is what actually runs — a launcher that has to be
+able to say why it could not start needs a Terminal window to say it in. Both must stay
+in the repository folder, since the bundle finds the script beside itself. The icon is
+built from the XLE+Glue logo by `node tools/make-icon.mjs`, which crops the mark out of
+its mostly-empty canvas, renders it through headless Chrome and packs the sizes with
+`iconutil`; rerun it if the logo changes.
 
 Equivalently, from a terminal:
 
