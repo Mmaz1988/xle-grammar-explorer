@@ -357,9 +357,14 @@ train : +Noun +Sg                    train V-S
 
 Each entry opens on click, shift-click into a new pane, so a word with several — one
 per stem the morphology found, or several under one headword — is navigable rather than
-silently reduced to the first. `-unknown` is listed after a word's own entries rather
-than instead of them: a stem with an entry of its own can still take `-unknown` for a
-category that entry does not supply, so the two are not alternatives to choose between.
+silently reduced to the first. `-unknown` is listed after a word's own entries, but only
+on a word it actually covered: showing it beside an entry XLE says matched claims the
+grammar analysed the word by default when it did not.
+
+A word matched by a `*` entry has no reading at all, because that entry matches the
+*token* and the morphology contributes no stem to it — `the` and `PC-6082` arrive
+covered with nothing underneath. The row for those is the form itself, which is how the
+entry is keyed.
 
 The rows are deliberately unannotated. Both rows above point at the same entry, because
 the entry is for the *stem*; which of the two analyses it backs is not something the

@@ -3,8 +3,8 @@ import {
   analyseSentence, type LexiconHit, type LexiconIndex, type SentenceToken,
 } from '../lfg/lexicon-lookup';
 import {
-  applyXleVerdicts, isCovered, matchesFor, resolveXleHits, unknownEntry,
-  type XleMatch, type XleVerdict,
+  applyXleVerdicts, isCovered, matchesFor, resolveXleHits, surfaceMatches,
+  unknownEntry, usesUnknownEntry, type XleMatch, type XleVerdict,
 } from '../lfg/xle-coverage';
 import { XleOracleService } from '../workspace/xle-oracle.service';
 
@@ -198,21 +198,19 @@ export class SentenceSearchComponent implements OnChanges {
     if (!this.peeked || !this.lexicon) return [];
     const rows = matchesFor(this.peeked, this.lexicon);
     if (rows.length > 0) return rows;
-    if (this.peeked.hits.length === 0) return [];
-    return [{ reading: { stem: this.peeked.matched ?? this.peeked.text, tags: [] },
-              hits: this.peeked.hits }];
+    return surfaceMatches(this.peeked, this.lexicon);
   }
 
   /**
-   * `-unknown`, listed after a word's own entries rather than instead of them.
+   * `-unknown`, listed after a word's own entries when it is what covered the word.
    *
-   * A stem with an entry of its own can still take `-unknown` for a category that
-   * entry does not supply, so the two are not alternatives; it is offered as the rule
-   * for unlisted stems, reachable whether or not it applies here.
+   * Offering it beside an entry XLE says matched would claim the grammar analysed the
+   * word by default when it did not — `than` has `than CComp *` and needs no default
+   * at all. So it appears only on the verdicts that went through it.
    */
   get peekedFallback(): LexiconHit[] {
     if (!this.peeked || !this.lexicon) return [];
-    if (!this.peeked.xle || !isCovered(this.peeked.xle.verdict)) return [];
+    if (!this.peeked.xle || !usesUnknownEntry(this.peeked.xle.verdict)) return [];
     return unknownEntry(this.lexicon);
   }
 

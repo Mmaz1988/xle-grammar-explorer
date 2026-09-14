@@ -59,6 +59,20 @@ export function isCovered(verdict: XleVerdict): boolean {
 }
 
 /**
+ * Whether `-unknown` is what covered this word.
+ *
+ * Narrower than `isCovered` on purpose. A word XLE reports as `lexicon` matched an
+ * entry of its own, and offering `-unknown` beside it says the grammar analysed the
+ * word by default when it did not — which is the claim the whole bar exists to get
+ * right. A stem *can* hold an entry and still take `-unknown` for a category that
+ * entry does not supply, but nothing here can tell when: that needs the sublexical
+ * category, and guessing wrongly is worse than not offering it.
+ */
+export function usesUnknownEntry(verdict: XleVerdict): boolean {
+  return verdict === 'unknown-entry' || verdict === 'guessed';
+}
+
+/**
  * Attach XLE's verdicts to the tokens we tokenised ourselves.
  *
  * The two tokenisers do not have to agree — XLE's is the grammar's own, and it may
@@ -139,6 +153,19 @@ export function resolveXleHits(tokens: SentenceToken[], index: LexiconIndex): Se
       hits.push(...found);
     }
 
+    // An entry with morphcode `*` matches the *token*, so the morphology contributes
+    // no stem to it: XLE reports `the` and `PC-6082` covered with nothing underneath.
+    // The headword is then the form itself, which is the one place left to look.
+    if (hits.length === 0) {
+      for (const surface of [xle.text, token.text]) {
+        const found = index.get(surface.toLowerCase().trim());
+        if (!found?.length) continue;
+        matched = surface;
+        hits.push(...found);
+        break;
+      }
+    }
+
     if (hits.length > 0) {
       token.hits = hits;
       token.matched = matched;
@@ -147,7 +174,7 @@ export function resolveXleHits(tokens: SentenceToken[], index: LexiconIndex): Se
     }
 
     // Covered, but by the default analysis rather than by an entry of its own.
-    if (isCovered(xle.verdict)) {
+    if (usesUnknownEntry(xle.verdict)) {
       const unknown = index.get(UNKNOWN_HEADWORD);
       if (unknown?.length) {
         token.hits = unknown;
@@ -199,4 +226,15 @@ export function matchesFor(token: SentenceToken, index: LexiconIndex): XleMatch[
  */
 export function unknownEntry(index: LexiconIndex): LexiconHit[] {
   return index.get(UNKNOWN_HEADWORD) ?? [];
+}
+
+/**
+ * The rows for a word the morphology gave no analysis of.
+ *
+ * A `*` entry matches the token itself, so `the` and `PC-6082` arrive covered with no
+ * stem and no reading. There is still an entry to open, and it is keyed by the form.
+ */
+export function surfaceMatches(token: SentenceToken, index: LexiconIndex): XleMatch[] {
+  if (token.hits.length === 0) return [];
+  return [{ reading: { stem: token.matched ?? token.text, tags: [] }, hits: token.hits }];
 }

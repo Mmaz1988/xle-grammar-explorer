@@ -10,8 +10,8 @@ import assert from 'node:assert/strict';
 import { tokenize, type SentenceToken } from './lexicon-lookup';
 import type { LexiconHit, LexiconIndex } from './lexicon-lookup';
 import {
-  applyXleVerdicts, isCovered, matchesFor, resolveXleHits, unknownEntry,
-  type XleReading, type XleToken, type XleVerdict,
+  applyXleVerdicts, isCovered, matchesFor, resolveXleHits, surfaceMatches,
+  unknownEntry, usesUnknownEntry, type XleReading, type XleToken, type XleVerdict,
 } from './xle-coverage';
 
 function reported(
@@ -228,5 +228,77 @@ describe('unknownEntry', () => {
 
   it('is empty in a grammar without one', () => {
     assert.deepEqual(unknownEntry(new Map()), []);
+  });
+});
+
+describe('words matched by a `*` entry, which have no stem at all', () => {
+  /** `the D *` and `PC-6082 N *` — matched as the token, keyed by the form. */
+  function starLexicon(): LexiconIndex {
+    return new Map([
+      ['the', [hit('the', 'lexica/detpronlex_fracas.lfg.glue', 242)]],
+      ['pc-6082', [hit('PC-6082', 'lexica/nounlex_fracas.lfg.glue', 133)]],
+      ['-unknown', [hit('-unknown', 'morph_fracas.lfg.glue', 74)]],
+    ]);
+  }
+
+  /**
+   * An entry with morphcode `*` matches the token, so the morphology's stem edges are
+   * dead and XLE returns the word covered with nothing under it. Looking only at the
+   * stems finds nothing and falls through to `-unknown`, which reports a word with a
+   * perfectly good entry as analysed by default.
+   */
+  it('finds the entry under the surface form', () => {
+    const tokens = tokenize('The PC-6082 is fast');
+    applyXleVerdicts(tokens, [
+      reported('The', 'lexicon'),
+      reported('PC-6082', 'lexicon'),
+      reported('is', 'lexicon', ['be']),
+      reported('fast', 'lexicon', ['fast']),
+    ]);
+    resolveXleHits(tokens, starLexicon());
+
+    const words = wordsOf(tokens);
+    assert.deepEqual(words[0].hits.map((h) => h.line), [242], 'The → the D *');
+    assert.deepEqual(words[1].hits.map((h) => h.line), [133], 'PC-6082 → N *');
+    assert.ok(!words[0].viaUnknown, 'the has an entry and must not read as defaulted');
+    assert.ok(!words[1].viaUnknown);
+  });
+
+  it('still gives the popup a row to show', () => {
+    const tokens = tokenize('The PC-6082 is fast');
+    applyXleVerdicts(tokens, [reported('The', 'lexicon')]);
+    resolveXleHits(tokens, starLexicon());
+
+    const word = wordsOf(tokens)[0];
+    // No reading, so no row from the analyses — the entry still has to be reachable.
+    assert.deepEqual(matchesFor(word, starLexicon()), []);
+    const rows = surfaceMatches(word, starLexicon());
+    assert.deepEqual(rows.map((r) => r.reading.tags), [[]]);
+    assert.deepEqual(rows[0].hits.map((h) => h.line), [242]);
+  });
+});
+
+describe('usesUnknownEntry', () => {
+  it('is false for a word that matched an entry of its own', () => {
+    // `than CComp *` needs no default analysis, and offering `-unknown` beside it
+    // reads as a second entry for the word — which is what it looked like in the bar.
+    assert.equal(usesUnknownEntry('lexicon'), false);
+    assert.equal(usesUnknownEntry('unknown-entry'), true);
+    assert.equal(usesUnknownEntry('guessed'), true);
+    assert.equal(usesUnknownEntry('no-entry'), false);
+    assert.equal(usesUnknownEntry('unanalyzable'), false);
+  });
+
+  it('leaves a word with no entry to open rather than blaming -unknown', () => {
+    // XLE says an entry matched; we cannot find it — ParGram ciphers its headwords, so
+    // this is the normal case there. Nothing was defaulted, so pointing at `-unknown`
+    // would invent a reason the grammar never used.
+    const tokens = tokenize('Kim');
+    applyXleVerdicts(tokens, [reported('Kim', 'lexicon')]);
+    resolveXleHits(tokens, new Map([
+      ['-unknown', [hit('-unknown', 'morph_fracas.lfg.glue', 74)]],
+    ]));
+    assert.deepEqual(wordsOf(tokens)[0].hits, []);
+    assert.ok(!wordsOf(tokens)[0].viaUnknown);
   });
 });
