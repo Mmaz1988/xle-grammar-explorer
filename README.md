@@ -376,14 +376,14 @@ A word matched by a `*` entry has no reading at all, because that entry matches 
 covered with nothing underneath. The row for those is the form itself, which is how the
 entry is keyed.
 
-**Case folds one way.** The index is keyed lower-case so a lookup stays one map hit, but
-the grammar is not case-insensitive. A capitalized form reaches a lower-case entry —
-*Kim sees The tractor* parses, so `The` really is covered by `the D *`, mid-sentence as
-well as first — while nothing reaches an entry with capitals the form lacks: *kim sees a
-tractor* gives no parse, and `print-lex-entry kim` falls through to `-unknown` where
-`print-lex-entry The` answers `The D *`. So an entry covers a form when it is that form
-exactly, or that form lower-cased, and a lower-case word never borrows a capitalized
-entry it cannot use.
+**Case has to match.** XLE folds none of it: *Kim laughs* parses and *Kim Laughs* does
+not, because the lexicon has `laugh V-S XLE` and no `Laugh`. A grammar that wants a
+sentence-initial capital writes the entry twice instead — this one has `the D *` and
+`The D *` on consecutive lines, 33 such pairs among 221 headwords — and those are
+separate entries a parse picks between, which need not carry the same schemata. The
+lower-cased index key therefore only narrows the search; the headword still has to match
+as written, and the stemmer keeps the capital a word came with so `Laughs` suggests
+`Laugh` rather than `laugh`.
 
 The rows are deliberately unannotated. Both rows above point at the same entry, because
 the entry is for the *stem*; which of the two analyses it backs is not something the

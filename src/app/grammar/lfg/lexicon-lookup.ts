@@ -112,8 +112,12 @@ function add(index: LexiconIndex, file: LfgFile, entry: LfgEntry): void {
 export function lemmaCandidates(token: string): string[] {
   const word = token.toLowerCase();
   const out = new Set<string>();
+  // Suffixes are matched lower-case, but a candidate keeps the capital it came with:
+  // the grammar is case-sensitive, so `Laughs` must suggest `Laugh` and not `laugh`.
+  const capital = /^[A-Z]/.test(token.trim());
   const add = (candidate: string) => {
-    if (candidate.length >= 2 && candidate !== word) out.add(candidate);
+    if (candidate.length < 2 || candidate === word) return;
+    out.add(capital ? candidate[0].toUpperCase() + candidate.slice(1) : candidate);
   };
 
   if (word.endsWith("'s") || word.endsWith('’s')) add(word.slice(0, -2));
@@ -193,30 +197,23 @@ export function analyseSentence(sentence: string, index: LexiconIndex): Sentence
 }
 
 /**
- * Entries that can cover a form, folding case the way XLE's tokenizer does.
+ * Entries that cover a form. Case has to match; the index only keys on case.
  *
- * The index is keyed lower-case so a lookup stays one map hit, but the grammar is not
- * case-insensitive and the fold runs one way only. A capitalized form reaches a
- * lower-case entry — `The` is covered by `the D *`, mid-sentence as well as first —
- * while nothing reaches an entry with capitals the form does not have: `kim` does not
- * find `Kim N *`, and a sentence written that way returns no parse at all.
+ * XLE folds no case at all — `Kim laughs` parses and `Kim Laughs` does not, because
+ * the lexicon has `laugh V-S XLE` and no `Laugh`. A grammar handles sentence-initial
+ * capitals by writing the entry twice instead: this one has `the D *` and `The D *` on
+ * consecutive lines, 33 such pairs among 221 headwords. The two are separate entries
+ * that a parse picks between, and they need not hold the same schemata.
  *
- * Measured against the grammar rather than assumed. `parse-sentence` gives one parse
- * for *Kim sees The tractor* and none for *kim sees a tractor*, and `print-lex-entry
- * kim` falls through to `-unknown` while `print-lex-entry The` answers `The D *`.
- *
- * So an entry matches when it is the form exactly, or the form lower-cased.
+ * So the lower-cased key only narrows the search; the headword has to match as
+ * written. Anything looser reports `Kim N *` as the entry for `kim`, which is a word
+ * this grammar cannot read.
  */
 export function hitsFor(index: LexiconIndex, form: string): LexiconHit[] {
   const wanted = form.trim();
-  const lower = wanted.toLowerCase();
-  const candidates = index.get(lower);
+  const candidates = index.get(wanted.toLowerCase());
   if (!candidates) return [];
-  const usable = candidates.filter((hit) => {
-    const headword = unescapeHeadword(hit.headword).trim();
-    return headword === wanted || headword === lower;
-  });
-  return usable;
+  return candidates.filter((hit) => unescapeHeadword(hit.headword).trim() === wanted);
 }
 
 /** Match one word or phrase, preferring the least speculative reading. */

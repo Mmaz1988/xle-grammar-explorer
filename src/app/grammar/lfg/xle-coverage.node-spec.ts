@@ -236,7 +236,11 @@ describe('words matched by a `*` entry, which have no stem at all', () => {
   /** `the D *` and `PC-6082 N *` — matched as the token, keyed by the form. */
   function starLexicon(): LexiconIndex {
     return new Map([
-      ['the', [hit('the', 'lexica/detpronlex_fracas.lfg.glue', 242)]],
+      // Both cases are written out in the grammar, on consecutive lines.
+      ['the', [
+        hit('the', 'lexica/detpronlex_fracas.lfg.glue', 242),
+        hit('The', 'lexica/detpronlex_fracas.lfg.glue', 248),
+      ]],
       ['pc-6082', [hit('PC-6082', 'lexica/nounlex_fracas.lfg.glue', 133)]],
       ['-unknown', [hit('-unknown', 'morph_fracas.lfg.glue', 74)]],
     ]);
@@ -259,7 +263,7 @@ describe('words matched by a `*` entry, which have no stem at all', () => {
     resolveXleHits(tokens, starLexicon());
 
     const words = wordsOf(tokens);
-    assert.deepEqual(words[0].hits.map((h) => h.line), [242], 'The → the D *');
+    assert.deepEqual(words[0].hits.map((h) => h.line), [248], 'The → The D *, not the');
     assert.deepEqual(words[1].hits.map((h) => h.line), [133], 'PC-6082 → N *');
     assert.ok(!words[0].viaUnknown, 'the has an entry and must not read as defaulted');
     assert.ok(!words[1].viaUnknown);
@@ -275,7 +279,7 @@ describe('words matched by a `*` entry, which have no stem at all', () => {
     assert.deepEqual(matchesFor(word, starLexicon()), []);
     const rows = surfaceMatches(word, starLexicon());
     assert.deepEqual(rows.map((r) => r.reading.tags), [[]]);
-    assert.deepEqual(rows[0].hits.map((h) => h.line), [242]);
+    assert.deepEqual(rows[0].hits.map((h) => h.line), [248]);
   });
 });
 
@@ -378,24 +382,29 @@ describe('case, which the grammar cares about and the index does not', () => {
   /** `the D *` and `Kim N *` — one lower-case entry, one capitalized. */
   function cased(): LexiconIndex {
     return new Map([
-      ['the', [hit('the', 'lexica/detpronlex_fracas.lfg.glue', 242)]],
+      ['the', [
+        hit('the', 'lexica/detpronlex_fracas.lfg.glue', 242),
+        hit('The', 'lexica/detpronlex_fracas.lfg.glue', 248),
+      ]],
       ['kim', [hit('Kim', 'lexica/nounlex_fracas.lfg.glue', 31)]],
       ['-unknown', [hit('-unknown', 'morph_fracas.lfg.glue', 74)]],
     ]);
   }
 
-  it('lets a capitalized form reach a lower-case entry', () => {
-    // XLE's tokenizer decapitalizes: `Kim sees The tractor` parses, first word or not.
-    assert.deepEqual(hitsFor(cased(), 'The').map((h) => h.line), [242]);
+  it('picks the entry written in the case asked for', () => {
+    // The grammar writes both, on consecutive lines, and a parse picks between them —
+    // here they carry the same schemata, but nothing says they have to.
     assert.deepEqual(hitsFor(cased(), 'the').map((h) => h.line), [242]);
+    assert.deepEqual(hitsFor(cased(), 'The').map((h) => h.line), [248]);
   });
 
-  it('does not let a lower-case form reach a capitalized entry', () => {
-    // The fold runs one way only. `kim sees a tractor` gives no parse, and
-    // `print-lex-entry kim` falls through to -unknown — so claiming `Kim N *` covers
-    // it says the grammar has an entry for a word it cannot read.
+  it('does not let a form borrow an entry written in another case', () => {
+    // XLE folds nothing: `Kim laughs` parses, `Kim Laughs` does not, and
+    // `print-lex-entry kim` falls through to -unknown. Claiming `Kim N *` covers
+    // `kim` says the grammar has an entry for a word it cannot read.
     assert.deepEqual(hitsFor(cased(), 'kim'), []);
     assert.deepEqual(hitsFor(cased(), 'Kim').map((h) => h.line), [31]);
+    assert.deepEqual(hitsFor(cased(), 'THE'), []);
   });
 
   it('does not attach a capitalized entry to a lower-case word', () => {
@@ -410,10 +419,10 @@ describe('case, which the grammar cares about and the index does not', () => {
     assert.ok(word.viaUnknown);
   });
 
-  it('keeps the row for a capitalized word pointing at the entry that covers it', () => {
+  it('points a capitalized word at the capitalized entry', () => {
     const tokens = tokenize('The tractor');
     applyXleVerdicts(tokens, [reported('The', 'lexicon')]);
     resolveXleHits(tokens, cased());
-    assert.deepEqual(wordsOf(tokens)[0].hits.map((h) => h.headword), ['the']);
+    assert.deepEqual(wordsOf(tokens)[0].hits.map((h) => h.headword), ['The']);
   });
 });

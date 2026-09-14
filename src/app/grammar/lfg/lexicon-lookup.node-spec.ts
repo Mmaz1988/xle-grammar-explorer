@@ -51,6 +51,15 @@ describe('lemmaCandidates', () => {
   it('leaves a word that is already a base form alone', () => {
     assert.ok(!lemmaCandidates('eat').includes('eat'));
   });
+
+  it('keeps the capital a word came with', () => {
+    // Suffixes are matched lower-case, but the grammar is not case-insensitive:
+    // `Kim Laughs` does not parse against `laugh V-S XLE`, so suggesting `laugh` for
+    // `Laughs` would send the fallback to an entry the grammar will not use here.
+    assert.ok(lemmaCandidates('Laughs').includes('Laugh'));
+    assert.ok(!lemmaCandidates('Laughs').includes('laugh'));
+    assert.ok(lemmaCandidates('laughs').includes('laugh'));
+  });
 });
 
 describe('analyseSentence', () => {
@@ -89,8 +98,19 @@ describe('analyseSentence', () => {
     assert.equal(tokens[1].match, 'missing');
   });
 
-  it('ignores case when matching', () => {
-    assert.deepEqual(marks('THE', index('the D * @A.')), ['THE:exact']);
+  it('matches case, because the grammar does', () => {
+    // `Kim laughs` parses and `Kim Laughs` does not: XLE folds no case, and a grammar
+    // that wants a sentence-initial capital writes the entry twice. This one has
+    // `the D *` and `The D *` on consecutive lines — separate entries a parse picks
+    // between, which need not carry the same schemata.
+    assert.deepEqual(marks('the', index('the D * @A.')), ['the:exact']);
+    assert.deepEqual(marks('THE', index('the D * @A.')), ['THE:missing']);
+    assert.deepEqual(marks('The', index('the D * @A.\nThe D * @B.')), ['The:exact']);
+  });
+
+  it('does not reach a lower-case entry through the stemmer either', () => {
+    assert.deepEqual(marks('laughs', index('laugh V-S XLE @A.')), ['laughs:inflected']);
+    assert.deepEqual(marks('Laughs', index('laugh V-S XLE @A.')), ['Laughs:missing']);
   });
 
   it('keeps punctuation out of the lookup but in the sentence', () => {
