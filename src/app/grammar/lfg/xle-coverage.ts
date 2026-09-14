@@ -60,20 +60,6 @@ export function isCovered(verdict: XleVerdict): boolean {
 }
 
 /**
- * Whether `-unknown` is what covered this word.
- *
- * Narrower than `isCovered` on purpose. A word XLE reports as `lexicon` matched an
- * entry of its own, and offering `-unknown` beside it says the grammar analysed the
- * word by default when it did not — which is the claim the whole bar exists to get
- * right. A stem *can* hold an entry and still take `-unknown` for a category that
- * entry does not supply, but nothing here can tell when: that needs the sublexical
- * category, and guessing wrongly is worse than not offering it.
- */
-export function usesUnknownEntry(verdict: XleVerdict): boolean {
-  return verdict === 'unknown-entry' || verdict === 'guessed';
-}
-
-/**
  * Attach XLE's verdicts to the tokens we tokenised ourselves.
  *
  * The two tokenisers do not have to agree — XLE's is the grammar's own, and it may

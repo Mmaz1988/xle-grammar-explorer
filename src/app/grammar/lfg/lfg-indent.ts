@@ -15,8 +15,6 @@
  * the `|` and `}` sit outboard of the alternatives they separate.
  */
 
-const UNIT = 2;
-
 /** Count `{`/`[` opens minus `}`/`]` closes on a line, ignoring comment contents. */
 export function netDelimiters(line: string): number {
   let net = 0;
@@ -49,17 +47,4 @@ export function hangingOutdent(line: string): number {
   const trimmed = line.replace(/^[ \t]*/, '');
   if (trimmed.startsWith('|') || trimmed.startsWith('}')) return 2;
   return 0;
-}
-
-/**
- * Indentation for the line starting at `lineStart`, given the text before it.
- *
- * Returns the column the line should start at, or `null` to leave it alone.
- */
-export function indentForLine(before: string, line: string, baseColumn = 3): number {
-  let column = baseColumn;
-  for (const previous of before.split('\n')) {
-    column += UNIT * netDelimiters(previous);
-  }
-  return Math.max(0, column - hangingOutdent(line));
 }

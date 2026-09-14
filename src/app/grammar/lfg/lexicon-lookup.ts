@@ -234,12 +234,3 @@ function lookup(phrase: string, index: LexiconIndex): { kind: MatchKind; hits: L
   return undefined;
 }
 
-/** One box per distinct headword found, in the order they appear. */
-export function foundHeadwords(tokens: SentenceToken[]): SentenceToken[] {
-  return tokens.filter((t) => t.word && t.spans > 0 && t.match !== 'missing');
-}
-
-/** Words the grammar has nothing for. */
-export function missingWords(tokens: SentenceToken[]): SentenceToken[] {
-  return tokens.filter((t) => t.word && t.match === 'missing');
-}

@@ -305,10 +305,6 @@ export interface FilterResult {
  * - **Order is by score**, not by position in the file: exact, then prefix, then word
  *   boundary, then plain substring, with containers ranked by their best descendant.
  */
-export function filterTree(nodes: GrammarNode[], query: string): GrammarNode[] {
-  return filterTreeDetailed(nodes, query).nodes;
-}
-
 export function filterTreeDetailed(nodes: GrammarNode[], query: string): FilterResult {
   const needle = query.trim().toLowerCase();
   if (needle === '') return { nodes, matches: 0 };

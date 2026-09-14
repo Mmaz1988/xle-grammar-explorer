@@ -20,9 +20,6 @@
  * handled by the tokeniser rather than by guessing at token runs.
  */
 
-/** How a word is covered, worst to best. */
-export const VERDICTS = ['unanalyzable', 'no-entry', 'guessed', 'unknown-entry', 'lexicon'];
-
 const EDGE = '@@@E';
 
 /** The Tcl that parses one sentence and dumps its lexical edges. */

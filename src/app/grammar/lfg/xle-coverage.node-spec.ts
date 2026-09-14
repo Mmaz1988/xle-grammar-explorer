@@ -11,7 +11,7 @@ import { hitsFor, tokenize, type SentenceToken } from './lexicon-lookup';
 import type { LexiconHit, LexiconIndex } from './lexicon-lookup';
 import {
   applyXleVerdicts, isCovered, matchesFor, resolveXleHits, surfaceMatches,
-  unknownEntry, usesUnknownEntry, type XleReading, type XleToken, type XleVerdict,
+  unknownEntry, type XleReading, type XleToken, type XleVerdict,
 } from './xle-coverage';
 
 function reported(
@@ -393,34 +393,6 @@ describe('words matched by a `*` entry, which have no stem at all', () => {
     word.hits = starLexicon().get('the') ?? [];
     word.matched = 'The';
     assert.deepEqual(surfaceMatches(word, starLexicon()).map((r) => r.reading.stem), ['The']);
-  });
-});
-
-describe('usesUnknownEntry', () => {
-  it('is false for a word that matched an entry of its own', () => {
-    // `than CComp *` needs no default analysis, and offering `-unknown` beside it
-    // reads as a second entry for the word — which is what it looked like in the bar.
-    assert.equal(usesUnknownEntry('lexicon'), false);
-    assert.equal(usesUnknownEntry('unknown-entry'), true);
-    assert.equal(usesUnknownEntry('guessed'), true);
-    assert.equal(usesUnknownEntry('no-entry'), false);
-    assert.equal(usesUnknownEntry('unanalyzable'), false);
-  });
-
-  it('leaves a word with no entry to open rather than blaming -unknown', () => {
-    // XLE says an entry matched; we cannot find it — ParGram ciphers its headwords, so
-    // this is the normal case there. Nothing was defaulted, so pointing at `-unknown`
-    // would invent a reason the grammar never used.
-    const tokens = tokenize('Kim');
-    applyXleVerdicts(tokens, [reported('Kim', 'lexicon')]);
-    resolveXleHits(tokens, new Map([
-      ['-unknown', [{
-        ...hit('-unknown', 'morph_fracas.lfg.glue', 74),
-        categories: ['ADJ-S', 'NUMBER-S', 'ADV-S', 'N-S'],
-      }]],
-    ]));
-    assert.deepEqual(wordsOf(tokens)[0].hits, []);
-    assert.ok(!wordsOf(tokens)[0].viaUnknown);
   });
 });
 
