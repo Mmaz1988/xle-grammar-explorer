@@ -1,673 +1,196 @@
 # XLE Grammar Explorer
 
-A visual two-pane view of an LFG grammar: a **working tree organised by grammar
-section** on the left, and the file an entry lives in — with XLE syntax highlighting —
-on the right.
+A two-pane editor for LFG grammars written for XLE:
+a **working tree organised by grammar section** on the left, and the file an entry lives
+in — with XLE syntax highlighting — on the right.
 
-An XLE grammar's logical structure is not file-shaped. `lfgxdrt_inference_grammar` is
-15 files across four directories, but what a grammar writer thinks in is sections:
-`SENTENCE ENGLISH RULES (1.0)`, `VERB ENGLISH LEXICON (1.0)`. This app inverts the
-usual view — sections are the tree, and the file becomes a tag on the entry.
+## About
 
-Rules are shown reduced to their phrase-structure skeleton (`S --> (ADVP) NP VP`),
-templates as their signature (`PASS(FRAME)`), lexical entries as their headword, and
-each is coloured with the same palette as the editor. Clicking an entry opens its file
-at that entry.
+An XLE grammar's logical structure is not file-shaped. A grammar of any size is spread
+over many files in several directories, but what a grammar writer thinks in is sections:
+`SENTENCE ENGLISH RULES (1.0)`, `VERB ENGLISH LEXICON (1.0)`. Which file a section
+happens to sit in is a detail of how the grammar was organised, and finding a lexical
+entry usually means grepping for it.
 
-Rule labels drop what makes a rule unreadable at a glance and is better seen in the
-editor pane: annotations, category subscripts (`VP[fin]` shows as `VP`, and
-`AP[_type $ {attributive predicative}]` as `AP`), and — once a label runs long — the
-tail of each disjunction, which collapses to `{ D N | ... }`. Innermost disjunctions
-collapse first, since those are usually the noise. The full form stays in the tooltip
-and, of course, in the file.
+This app inverts that view. Sections are the tree, and the file becomes a tag on the
+entry. Rules are shown reduced to their phrase-structure skeleton (`S --> (ADVP) NP VP`),
+templates as their signature (`PASS(FRAME)`), lexical entries as their headword. Clicking
+an entry opens its file at that entry.
 
-## Running it
+It runs entirely in the browser and talks to no server for its editing: grammars are read
+and written directly through the File System Access API. An optional local service adds
+the one thing a text editor cannot know on its own — what the grammar's own morphology
+makes of a word.
 
-Double-click **XLE Grammar Explorer.app** (macOS) or **XLE Grammar Explorer.cmd**
-(Windows). It builds the app if needed, serves it, starts the XLE oracle, and opens a
-browser. The window it opens stays open: Ctrl-C there stops the explorer, and anything
-that went wrong is written there rather than swallowed.
+### What it does
 
-The `.app` carries the icon and opens a Terminal window to run in, the way Jupyter does
-and for the same reason: a server with no visible window is one nobody can stop by hand
-when the browser does something unexpected — a tab that crashes, or closes without
-reporting it, leaves a process holding a port and an XLE session. Ctrl-C in that window
-always works, whatever the browser did.
+- **Browse by section**, across every file a CONFIG's `FILES` reaches, with grammars that
+  share a directory kept apart.
+- **Edit** with XLE highlighting and indentation ported from Emacs `lfg-mode`, multiple
+  panes, and per-pane saving.
+- **Go to definition** on a template call or a category, across files, with a Back that
+  survives edits to the file it left.
+- **Reindent** a rule, template or entry with `⌥Q`, the `M-q` rule from `lfg-mode`.
+- **Move entries** between sections by drag, and sort a section alphabetically.
+- **Check a sentence** against the lexicon, or against the grammar's real morphology when
+  XLE is available.
+- **See the structure**: a graph of sections, the files holding them, and which of them
+  the CONFIG actually declares — a section in an undeclared file is inert, and nothing
+  else shows that.
 
-Node gets the same treatment as the browser — a dialog with a link to nodejs.org rather
-than a silent failure — because a window opened from Finder inherits only
-`/usr/bin:/bin:/usr/sbin:/sbin`, where Homebrew, nvm and the official installer all put
-nothing. The runner looks in those places directly, and so does the search for XLE, or a
-Mac that has XLE would be told it has none.
+## Requirements
 
-The icon is
-built from the XLE+Glue logo by `node tools/make-icon.mjs`, which crops the mark out of
-its mostly-empty canvas, renders it through headless Chrome and packs the sizes with
-`iconutil`; rerun it if the logo changes.
+| | |
+|---|---|
+| **A Chromium browser** | Chrome, Edge, Chromium or Brave. Required, not preferred — see *Known issues*. |
+| **Node.js 18+** | Runs the local service and builds from source. |
+| **XLE** | Optional. Licensed separately; this is an editor for XLE grammars, not a way to install XLE. |
 
-Equivalently, from a terminal:
+Without XLE everything works except one thing: the sentence bar falls back to matching
+headwords itself, and says so in the page.
+
+## Install
+
+### A built app
+
+Ready-to-run builds live on two branches, so they can be downloaded and opened without
+anything to assemble:
+
+- **macOS** — the `macos` branch, `dist-app/XLE Grammar Explorer.app`
+- **Windows** — the `windows` branch, `dist-app-win/XLE Grammar Explorer/`
+
+Under 2 MB each: they carry the built page and the service, and nothing else is
+installed.
+
+On macOS, open the app — the first open has to be **right-click → Open**, because it is
+unsigned and macOS quarantines anything that arrives from elsewhere. On Windows,
+double-click **XLE Grammar Explorer.cmd**; `Create Desktop Shortcut.cmd` beside it puts
+the icon on the desktop.
+
+Either way a terminal window opens and the explorer runs in it. That window is
+deliberate: `Ctrl-C` there always stops the server, which matters when a browser tab
+crashes or closes without reporting it and an invisible process keeps holding a port.
+Closing the last explorer window stops it too, as does `npm run app:stop`.
+
+### From source
 
 ```
 npm install
-npm run app          # build, serve, open a browser
-npm run app:quick    # same without rebuilding
+npm run app          # build, serve, and open a browser
+npm run app:quick    # the same without rebuilding
 ```
 
-Three things are checked before anything starts, because each fails differently:
+For development the two halves run apart — `ng serve` on port 4200 with `npm run xle`
+beside it. The page tries its own origin for the service before the fixed port, so one
+build works either way.
 
-- **the app has to be built** — it is a static bundle, so a missing `dist/` is a
-  "run `npm run build`", not a crash;
-- **the browser has to be Chromium-based** — Chrome, Edge, Chromium or Brave. This is
-  not a preference: the explorer reads and writes your grammar files through the File
-  System Access API, which Firefox and Safari do not implement, so opening the default
-  browser would give a page that loads and then cannot open a folder;
-- **XLE is optional** — without it the sentence bar falls back to matching headwords
-  and says so in the page, so a missing XLE is reported and then carried on from.
-
-Nothing to do with XLE happens until something asks. The browser opens first and the
-search runs after, because finding XLE means running `xle -noTk -e exit` on each
-candidate and an XLE that is installed but wedged spends the full probe timeout on every
-one — a wait nobody should watch a blank screen for, over a question not yet asked. The
-XLE *process* was always this way: `create-parser` needs a grammar, so it cannot start
-before one is loaded, and the first sentence checked is what starts it.
-
-A port already in use is asked who it is: a second launch joins the explorer that is
-already running rather than starting a rival, and anything else on that port is
-reported instead of being mistaken for it.
-
-### Sending it to someone else
+Packaging:
 
 ```
-npm run app:bundle          # dist-app/XLE Grammar Explorer.app        (macOS)
-npm run app:bundle:win      # dist-app-win/XLE Grammar Explorer/       (Windows)
+npm run app:bundle       # dist-app/XLE Grammar Explorer.app
+npm run app:bundle:win   # dist-app-win/XLE Grammar Explorer/
 ```
 
-Built copies live on the `macos` and `windows` branches, so a download from GitHub runs
-without anything to assemble. Both are built from `main`: the platform-specific surface
-is about two hundred lines and all of it lives in `server/platform.mjs`, the two shell
-runners and the two bundlers, so the branches differ only in which app is committed and
-the parser, editor and sentence bar never fork.
+Both are built from `main`, where all the platform-specific code lives —
+`server/platform.mjs`, the shell runners and the bundlers. The branches differ only in
+which app is committed, so the parser, editor and sentence bar never fork.
 
-On Windows the entry point is `XLE Grammar Explorer.cmd`. Double-clicking a `.cmd` opens
-a console window and runs in it, which is the visible, interruptible process the Mac
-build opens Terminal by hand to get. `Create Desktop Shortcut.cmd` beside it puts the
-icon on the desktop — a `.cmd` cannot carry one and a shortcut holds an absolute path,
-so it has to be made on the machine that uses it.
+## Using it
 
-> **Windows is written but not yet run.** It was developed on macOS and no part of the
-> WSL path has been exercised. The three places to look first: `xle-session.mjs` spawns
-> its XLE in a Windows temp directory while the command is `wsl xle`, so the working
-> directory crosses the boundary untranslated; the session protocol frames replies with
-> `@@@XLE-DONE@@@` sentinels over stdin and stdout, where CRLF could contaminate both
-> that and the edge-label parsing; and only the grammar path goes through `toWslPath`,
-> so anything else handed to XLE is still a Windows path.
+Open a folder and the app finds the grammars inside it, one per CONFIG section, and lists
+them in a selector above the tree. A folder with no CONFIG in it is treated as one
+implicit grammar, so a lexicon directory can be opened on its own.
 
-**1.7 MB**, and it runs anywhere — the server imports nothing but Node builtins, so the
-whole runtime is the built page plus eight files of server code. The 400-odd megabytes
-under `node_modules` build it and are not needed to run it.
+**Glue grammars.** Where an `X.lfg.glue` exists, its generated `X.lfg` sibling is hidden
+and edits go to the `.glue`. The `.lfg` is regenerated by the glue compiler on the next
+load, so a stale sibling between an edit and that load is expected, not a fault.
 
-Three things do not travel, and are checked for rather than assumed:
+**Checking a sentence.** The Sentence bar colours each word by what kind of claim the
+match is: **green** for a real lexical entry, **amber** for a word that parses only
+because a default `-unknown` analysis covers it, amber italic for one the morphology
+merely *guessed*, and **red** for one it cannot analyse at all.
 
-- **Node.js** — a dialog with a download link if it is missing;
-- **a Chromium browser** — the same refusal as everywhere, for the File System Access
-  API the explorer edits through;
-- **XLE** — licensed separately. This is an editor for XLE grammars, not a way to
-  install XLE; without it the sentence bar matches headwords and says so in the page.
+Hovering a word opens its details: every analysis the morphology offers, as stem and
+tags, with the entries behind each. A word is only ever in a grammar *as something* — an
+entry for the verb reading says nothing about the noun reading — so the rows report what
+is there and leave the judgement to you. Each entry opens on click.
 
-A copy has no `grammars` symlink beside it and inherits no environment, so it does not
-know where the grammars are. It does not ask, either — not at startup, in front of a
-blank screen about a folder before anything has happened, and not mid-sentence. When the
-sentence bar finds that XLE cannot reach the open grammar it says so and offers a
-**Choose folder…** button, and the answer is remembered in
-`~/Library/Application Support/XLE Grammar Explorer/roots`.
+**Saving** is per pane, with a *Save all* when more than one pane is dirty. The picked
+directory, open files, expanded rows and layout are remembered between visits; on the
+next visit the app offers to reopen the workspace rather than doing it silently, because
+the directory permission usually has to be granted again and that needs a gesture.
 
-The dialog belongs to the service rather than the page because the browser cannot name a
-folder: its own picker hands out a handle and withholds the path, which is exactly what
-`create-parser` needs. Never answering is a fine outcome — everything but that one check
-works without it.
+## Known issues and limitations
 
-The bundle is unsigned, so macOS quarantines it on arrival and the first open has to be
-right-click → **Open**. Signing needs a paid Developer ID and is not set up here.
+**Chromium browsers only.** The explorer reads and writes grammar files through the
+[File System Access API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_API),
+which Firefox and Safari do not implement. The launcher refuses rather than opening the
+default browser, because the page would load and then be unable to open a folder.
 
-### Stopping it
+**The Windows build has not been run on Windows.** It was developed on macOS. Everything
+that does not touch WSL is shared with the macOS build and covered by its tests; nothing
+on the WSL path has been executed. XLE is expected under WSL there, as LiGER runs it. The
+three places to look first are on the `windows` branch README.
 
-Closing the last explorer window stops the server and the XLE processes with it. Also
-Ctrl-C in the window the launcher opened, or `npm run app:stop` from anywhere.
+**No Linux package yet.** `npm run app` works; what is missing is a `.desktop` entry and
+picking among the terminal emulators. The platform seam already has its Linux cases.
 
-The browser cannot be watched for this — `open -a` returns in under a tenth of a second,
-before anyone has seen the page, and if the browser was already running it never owned
-the tab. So the page reports instead: each window says hello every few seconds and
-goodbye on `pagehide`, and the server stops when the last one has been gone for about
-eight seconds.
+**The apps are unsigned.** Both trip their system's "unidentified developer" warning on
+first open. Signing needs a paid developer account.
 
-That delay is the point rather than slack. A reload *is* a close — `pagehide` fires and
-a new page appears a moment later — so an empty set means "gone for now", and the wait
-is the gap a reload has to get back through. A background tab is the opposite problem:
-its timers are throttled to roughly once a minute, so a long silence is not evidence of
-anything, and it is the explicit goodbye that ends things promptly.
+**XLE reads the compiled `.lfg`, never the `.lfg.glue`.** So a glue grammar is checked as
+of its last compile. The page says when it has spotted `.glue` edits the service has not
+seen.
 
-Only the launcher asks for this. `npm run xle` beside `ng serve` serves pages from
-another origin that never check in, and exiting on that silence would stop a service
-somebody is using.
+**The service resolves grammars by filename.** The File System Access API deliberately
+never reveals a path, and `create-parser` takes nothing else, so the browser asks for a
+main file by name and the service searches the folders it knows. In a packaged copy that
+folder is unknown until you name it; the sentence bar offers a chooser when it needs one.
 
-For development the two halves still run apart — `ng serve` on 4200 with `npm run xle`
-beside it — and the app tries its own origin for the oracle before the fixed port, so
-the same build works both ways without being told which it is.
+**Encrypted lexica** — some distributed grammars cipher their wordlists — report almost
+everything missing in the fallback. Asking XLE gets the right answer anyway, since the
+cipher is XLE's own.
 
-## Verification
+## Development
 
-```sh
-npm test           # unit tests + tokenizer checks + the full-corpus harness
-npm run harness    # parse every file under grammars/ and assert every entry is named
-npm run test:tokens # tokenize every file, then re-check with CodeMirror's real parser
-npm run index -- grammars/dev [--entries]
-npm run build      # production build
+```
+npm test          # parser, tokenizer, service, and the corpus harness
+npm run test:ng   # Angular component specs (headless Chrome)
+npm run test:xle  # the local service alone; does not need XLE
+npm run build
 ```
 
-The harness is the check that matters. It parses all 71 grammar files (127 sections)
-and fails if any entry chunk yields no identifier. Current baseline: **3266/3266**.
-
-`npm run index` prints the working tree for a grammar without opening a browser, which
-is the quickest way to see what the UI will show.
-
-### Why there are two tokenizer checks
-
-`tools/tokenize-all-grammars.ts` drives the mode through a hand-written StringStream
-shim — fast, dependency-free, and only ever as faithful as the shim.
-`tools/parse-with-codemirror.mjs` runs CodeMirror's *real* parser over the same files
-in a child process under a wall-clock timeout.
-
-The second exists because the first once passed on all 71 files while the app hung on
-the first file it opened. CodeMirror's `StringStream.peek()` returns `undefined` past
-end of line; the shim returned `null`; the comment scanner looped on `!== null` and so
-never terminated on any line ending inside a `"..."` comment — which is every
-multi-line comment in every grammar here. A shim can always drift from the API it
-imitates, so the real parser gets a vote too. The timeout matters as much as the check:
-a tokenizer that loops inside one `token()` call never returns to CodeMirror, so its
-own parse budget never fires and the run just hangs.
-
-### Two test conventions
-
-- `*.node-spec.ts` — plain `node:test` specs for the Angular-free parser and layout
-  maths. Run by `npm test`; fast, no browser.
-- `*.spec.ts` — Karma/Jasmine component specs, run by `npm run test:ng`
-  (`npm run test:all` runs both).
-
-The component specs are not decoration. One class of bug here is invisible to
-everything else: the pane arrangement was once computed by a getter, so `*ngFor` saw
-new arrays on every change-detection pass, destroyed every pane and rebuilt its editor
-— and a rebuilt editor focuses itself, which schedules the next pass. Inside Angular's
-zone that is an infinite loop that freezes the tab on the first click; outside it,
-where scripted browser testing runs, nothing happens at all. Only real change detection
-shows it, so `grammar-explorer.component.spec.ts` asserts that repeated passes leave
-the editor DOM node and the column arrays identical.
-
-## Layout
+The corpus harness parses every grammar file it can find and asserts that every entry
+still yields a name — the check that catches lexing regressions without a browser. Node
+specs are named `*.node-spec.ts` and run headlessly; anything needing change detection is
+a Karma spec instead, because console-driven checks run outside `NgZone` and miss exactly
+the bugs those tests exist for.
 
 ```
 src/app/grammar/          the feature; self-contained, no routing, no app-level services
   lfg/                    parser and language support — plain TypeScript, no Angular
     lfg-lexer.ts            comment masking + depth-aware entry splitting
     lfg-parser.ts           sections, entries, CONFIG, MORPHOLOGY
-    lfg-model.ts            types
     lfg-stream-mode.ts      tokenizer, written CodeMirror-5-style so it runs in both 5 and 6
     lfg-language.ts         CodeMirror 6 wiring + the lfg-mode palette
     lfg-indent.ts           port of lfg-next-fill-col
-    lfg-commands.ts         port of lfg-comment-region
-  workspace/
-    fs-access.service.ts    File System Access API
-    grammar-index.service.ts  FILES resolution, .lfg shadowing
-    grammar-state.service.ts  session state
+  workspace/              File System Access, grammar index, session state
   grammar-tree/           the section tree
   grammar-editor/         the CodeMirror pane
   grammar-explorer/       the two-pane shell
-src/app/app.*             throwaway host shell
+server/                   the optional local service — Node builtins only, no dependencies
+tools/                    harnesses, the icon pipeline, the app bundlers
 ```
 
-## Notes on the format
-
-Two constructs defeat a naive parser, and both cost real accuracy:
-
-- **A single quote is not a string delimiter.** PRED values use it (`'walk<(^SUBJ)>'`),
-  but so do X-bar categories: `C'`, `I'`, `V'`. Treating it as a delimiter swallows
-  everything between them. The emacs mode agrees — `(modify-syntax-entry ?\' "w")`.
-- **A period only ends an entry at bracket depth 0.** Glue premises are full of lambda
-  dots (`:$ (\P.P) : ...`). Splitting on every period names 22% of lexical entries.
-
-Also: a backquote escapes the next character *including a space*, which is how
-multiword headwords are written (``New` York``); `"..."` comments nest by doubling the
-quote, not by escaping; `#` comments only inside MORPHOLOGY; and section headers and
-their `----` terminators may both be indented.
-
-### Grammars with several entry points
-
-A ParGram-style grammar ships more than one parser over one grammar: a base config
-holding the real file list, and small entry points that name it with `BASECONFIGFILE`
-and then adjust the list — `+file` adds, `-file` drops. The English ParGram grammar has
-three (`main.lfg`, `semtest.lfg`, `postags.lfg`), and each appears in the grammar
-selector with its full extent, not just its own handful of files.
-
-`.lfg.NOENCRYPT` files are read too. That is the plain-text counterpart of a file a
-grammar ships encrypted, and ParGram's three largest lexica are distributed under that
-name — skipping them left most of the vocabulary invisible.
-
-### `.lfg` vs `.lfg.glue`
-
-In a grammar containing `.lfg.glue` sources, the `.lfg` files are compiler output
-(`java -jar jars/liger.jar -glue2lfg`) and are **hidden** — they are regenerated on the
-next grammar load, so editing them would be lost.
-
-One wrinkle: a `.glue` grammar's own CONFIG `FILES` block still lists `.lfg` paths,
-because the compiler does not rewrite the names it emits. The explorer works around
-this by preferring an `X.lfg.glue` sibling whenever one exists. Fixing it upstream in
-LiGER would make that preference a no-op rather than break it.
-
-## Navigation and editing
-
-**Go to definition** — `F12` or ⌘-click on a template call jumps to its definition,
-across files; `← Back` returns. Hold **Shift** (⌘⇧-click, or `Shift-F12`) to open the
-definition in a pane beside the current file instead of replacing it, for reading a
-template and its call site together. A jump that opens beside pushes nothing onto the
-back stack, since where you came from is still on screen.
-
-`← Back` is in the pane toolbar, beside Rows/Grid, and it remembers the *text* it left
-rather than only the offset. Following a call is usually the prelude to editing what you
-land on, and any edit above the remembered spot would otherwise send Back a few lines
-off — which is worse than not offering it, because it looks like it worked. So when the
-file has changed, the spot is found again by its text, nearest to where it used to be;
-if it has been deleted outright, Back opens the file and says so instead of scrolling to
-an offset that no longer means anything.
-
-A bare identifier also resolves, so a category in a
-rule's right-hand side jumps to the rule defining it. When a name is defined more than
-once the CONFIG `TEMPLATES`/`RULES` order decides which wins — exactly as it does for
-XLE — and the alternatives are named rather than silently dropped. (In
-`lfgxdrt_inference_grammar`, `CASE`, `PRED` and `OT-MARK` are each defined twice.)
-
-**Reindent** — `⌥Q` (lfg-mode's `M-q`) reindents the rule, template or lexical entry
-around the caret: two columns per open `{` or `[`, with `|` and `}` hanging back to the
-left, ported from `lfg-next-fill-col`. Newlines auto-indent by the same rule.
-
-The head line sits flush left — lfg-mode indents it to column 3 — so the thing being
-defined is the leftmost text on the line and a section stays scannable.
-
-Continuation lines align under the first daughter, wherever it is: on the head line,
-under whatever follows `-->` (or `=` for a template, the morphcode for a lexical
-entry); on a later line, under the indentation the author chose when they broke there.
-Only when that would leave the body flush left, level with the head, is a fixed indent
-of 8 used instead.
-
-Within a rule, a daughter's annotations indent to the column after its own `:`, so each
-daughter's schemata sit under that daughter rather than under the column its siblings
-share. The block ends where XLE ends it — at the `;`, or at the parenthesis that wrapped
-the daughter, as in `(NP: (^ SUBJ) = ! ... )` — and the next daughter returns to the
-shared column. This follows `lfg-format-rule-category`.
-
-Two departures from lfg-mode here. It aligns this way only for lexical entries
-(`(max 10 (current-column))`) and caps rules and templates at column 10
-(`(min 10 ...)`); all three are treated alike. And it outdents `| ` by two columns but
-a bare `|` by one, so the separators of one disjunction land in different columns
-depending on whether a space follows the pipe — invisible in emacs, which normalises
-the spacing first, but a ragged disjunction here, where line content is left alone.
-Every `|` and `}` hangs by two.
-
-Option shortcuts (`⌥Q`, and `⌥'` for go-to-definition) are matched on the physical key
-rather than the character produced. On macOS Option is the compose key — `⌥Q` *is* `œ`
-— so a binding written against the character can never fire and simply types the
-accented letter instead.
-
-Unlike the emacs command it changes *only* leading whitespace — lfg-mode's `M-q` also
-collapses runs of spaces and rewrites the inside of comments, and in grammars whose
-comments hold commented-out entries that is a way to lose work. A test asserts the
-no-content-change property across all 3266 entries in the corpus.
-
-**Completion** — typing `@` offers the grammar's template names with their parameter
-lists, `@(` inserts the parameters too. Matching is loose, so `dns` finds
-`DEFAULT-NOUN-SEM`.
-
-**Unresolved calls** — a call naming nothing the grammar defines is listed under the
-tree. This is usually a real defect: the bundled dev grammar calls `@INTRANS-OBL-EV`
-three times and defines it nowhere.
-
-**Moving entries** — drag an entry onto another section to move it there; hold ⌥ to
-copy instead. Only sections that can take it will accept the drop — a lexical entry has
-no business in a RULES section — and the rest dim while you drag.
-
-The entry travels with whatever comments sit above it, since that is what its parsed
-span covers, and it lands at the end of the target section. The edit is left **unsaved**
-in panes rather than written to disk: a drag is easy to do by accident, it rewrites two
-files at once, and there is no undo across files, so you get to read it and either save
-or revert. Moving in or out of a file with unsaved changes is refused, because the
-offsets driving the splice describe what is on disk.
-
-**Ordering** — the tree's **File order / A–Z / Category** control is a *view* setting:
-sorting to find something never touches a grammar. **Category** groups a lexicon by
-part of speech and orders each group by name — a pure category sort would leave dozens
-of entries per category in arbitrary order, so name is always the tie-breaker, and
-entries with no category (templates, rules) simply sort by name. It sorts both the
-entries inside a section and the sections themselves; the top-level groups keep their fixed order, since CONFIG →
-RULES → TEMPLATES → LEXICON → MORPHOLOGY is the shape of a grammar rather than an
-alphabetical accident. Dragging an entry within its section moves it
-in the file, and is offered only in file order with no filter — in a sorted or filtered
-tree the rows either side of the pointer are not the entry's neighbours on disk, so
-"drop between these two" would name no real position. To write an order into a file, use
-**Sort A–Z in file** or **Sort by category in file** on a section's right-click menu.
-Both are offered whatever the view is set to — tying the command to the view control
-meant the category order could only be written while the tree happened to be showing
-it, with nothing on the menu saying so.
-
-Reordering is lossless by construction. A section's entry spans are contiguous — 3165
-adjacent pairs across the corpus with no gaps — so its entries are a partition of its
-body, and the separators between them stay put while only the entries move through
-them. That keeps blank-line grouping where the author left it and confines the diff to
-the lines that actually moved.
-
-**Multiple panes** — right-click a tree row (ctrl-click on a Mac) and choose **Open in
-split view** to open it in a pane of its own. `Rows` stacks the panes, `Grid` tiles them into roughly equal squares,
-and every divider drags. A split always gets its own pane even when the file is already
-open, since reading two places in one file is the main reason to ask for one. A plain
-click reuses the active pane, unless it has unsaved changes, in which case the file
-opens in a new pane rather than the click being refused.
-
-### The two meanings of `@`
-
-In a `.lfg.glue` file `@` is both a template call and function application inside a
-glue premise: `:$ (\V.([e],[]) + V@e)` applies `V` to `e`. Read naively, `V@e` looks
-like a call to a template named `e` — in the dev grammar that mistake accounts for 74
-of 77 apparently-unresolved calls. Since a call's `@` starts a schema it never directly
-follows a term, while application's always does, and that positional rule is what
-completion, go-to-definition, the unresolved-call list and the highlighter all use.
-
-## Saving and the session
-
-**Save is per pane.** ⌘S saves the pane with focus; each pane's Save button saves that
-pane alone. When more than one pane has unsaved changes a **Save all (n)** button
-appears, so an edit in a pane you are not looking at is not silently left behind.
-
-Saving re-parses the file and refreshes every grammar that includes it, which rebuilds
-the tree — but the tree keeps its expanded rows and your place in it, because nodes
-carry ids that survive the rebuild rather than being tracked by object identity.
-
-**The workspace is remembered.** The picked directory is stored in IndexedDB (a
-`FileSystemDirectoryHandle` is structured-cloneable, which is why this cannot be
-`localStorage`), along with the selected grammar, open files and their positions,
-expanded rows, filter and layout. On the next visit the app offers to reopen it.
-
-It has to be an offer, not a silent restore: the handle survives a reload but its
-permission usually does not, and asking for permission requires a user gesture. When
-permission does survive, the workspace comes back on its own.
-
-## Performance notes
-
-Parsing is not the bottleneck and never was: indexing the entire corpus (71 files,
-500 KB, 3444 entries) takes **21 ms**, and one grammar about 13 ms. The cost is all in
-rendering, and two things keep it bounded:
-
-- **Tree children are rendered lazily** (`*ngIf` on the outlet, not a CSS class).
-  Angular Material's nested tree renders children into the outlet as soon as the parent
-  renders — the usual examples merely hide them with CSS — so a grammar with ~1300
-  entries instantiated every node at once and froze the tab. Only expanded subtrees are
-  built now: opening a grammar renders 2-6 nodes, and expanding a 200-entry section
-  costs ~100 ms.
-- **Filter expansion is capped** at 300 entries. A filter matching most of a grammar
-  would otherwise re-create the same freeze; past the cap the tree expands to section
-  level and says so.
-
-## Checking a sentence
-
-**Sentence** on the toolbar opens a bar across the top: type a sentence and see which of
-its words the grammar already knows — the question you ask before adding anything to it.
-Hovering a word opens its details, and every entry listed there opens on click —
-shift-click puts it in a pane beside what is already there, the same gesture as ⇧ on a
-go-to-definition, and the way to line several words of a sentence up at once.
-
-### Asking XLE
-
-The lexicon cannot actually answer "will this word parse". A word in no lexicon may
-still parse, because the `-unknown` entry supplies a default analysis for any stem the
-morphology knows; and an inflection the lexicon seems to imply may not be analysable at
-all. Which of the two happens differs per grammar — the fracas grammar's transducer is
-closed-vocabulary, ParGram's guesses at anything.
-
-So if XLE is installed, ask it:
-
-```
-npm run xle        # a local oracle on 127.0.0.1:8085
-```
-
-It finds XLE on `PATH` or at `XLEPATH`, and on Windows through `wsl`, translating paths
-the way LiGER's `XLEStarter` does. It keeps one warm XLE process per grammar, because
-`create-parser` costs 0.4s for the fracas grammar and 2.3s for ParGram while a lookup
-after that is milliseconds. Grammars are found under `XLE_GRAMMAR_ROOTS` (colon
-separated; the bundled `grammars` symlink by default), matched by the main file's name —
-the File System Access API never reveals a path, so a name is all the browser has.
-
-The service is optional and the explorer still needs no backend: without it the bar
-falls back to matching headwords itself and says so, because a red word must never be
-ambiguous between *XLE rejected it* and *nothing asked XLE*.
-
-Words are coloured by what kind of claim the match is:
-
-- **green** — a real lexical entry matches;
-- **amber** — it parses, but only because `-unknown` supplies a default analysis for a
-  stem the morphology knows. `tractor` is not in the fracas lexicon, yet
-  `@(DEFAULT-NOUN-SEM %stem)` gives it a PRED;
-- **amber, italic** — it parses only because the morphology *guessed* it. ParGram
-  analyses `xqzzy` as happily as `tractor`, so this is a weaker claim again;
-- **red** — the morphology cannot analyse it, so the grammar cannot parse it.
-
-Hovering a word opens a small popup rather than a native tooltip, because the analyses
-are only half of what is worth having and the other half has to be clickable. It says
-which of the colours applies, then gives one row per analysis the morphology offers —
-the stem, its tags, and the entries the lexicon has under that stem:
-
-```
-train — a lexical entry matches
-train : +Verb +Pres +Non3sg          train V-S
-train : +Noun +Sg                    no entry under this stem
-```
-
-Each entry opens on click, shift-click into a new pane, so a word with several — one
-per stem the morphology found, or several under one headword — is navigable rather than
-silently reduced to the first. `-unknown` is listed after a word's own entries, but only
-on a word it actually covered: showing it beside an entry XLE says matched claims the
-grammar analysed the word by default when it did not.
-
-It declares the sublexical categories it covers — four in the fracas grammar (`ADJ-S`,
-`NUMBER-S`, `ADV-S`, `N-S`), with no verb among them — read off the entry rather than
-assumed, which is why the parser keeps every category block of an entry and not just the
-first. A reading whose category is not among them is backed by nothing, which is what
-`Kim walks` shows: `walk +Noun +Pl` reaches `-unknown`, `walk +Verb +Pres +3sg` reaches
-nothing, and the sentence does not parse.
-
-This is the one place the popup withholds a link it cannot verify rather than showing
-it. Everywhere else an unverifiable link is shown, on the grounds that hiding a real one
-leaves you hunting; but this link says *the grammar analysed this word by default*, and
-saying that wrongly is the claim the bar exists to get right. The verdict line still says
-it in words.
-
-**The two kinds of entry do not mix.** A morphological reading can only be backed by an
-entry that defers to the morphology (`XLE`); a full-form entry (`*`) supplies just the
-form written and sits outside the morphology, where no sublexical rule reaches it. So a
-word covered by a `*` entry gets one row carrying no tags — the form and its entry —
-even when the analyser does have readings for that form. `than CComp *` is the case
-that shows why: the analyser offers `than +Conj +Subord` and `than +Prep`, and listing
-the entry under each claims two readings the grammar cannot have. Like `PC-6082`, `than`
-has one entry and one row. The same goes the other way: `is` is covered by
-`is AUX[fin] *`, not by `be AUX[base] *` via the stem the analyser reports.
-
-**Case has to match.** XLE folds none of it: *Kim laughs* parses and *Kim Laughs* does
-not, because the lexicon has `laugh V-S XLE` and no `Laugh`. A grammar that wants a
-sentence-initial capital writes the entry twice instead — this one has `the D *` and
-`The D *` on consecutive lines, 33 such pairs among 221 headwords — and those are
-separate entries a parse picks between, which need not carry the same schemata. The
-lower-cased index key therefore only narrows the search; the headword still has to match
-as written, and the stemmer keeps the capital a word came with so `Laughs` suggests
-`Laugh` rather than `laugh`.
-
-A reading reaches an entry only if the entry supplies the category its part-of-speech
-tag asks for, so the rows above differ: `train V-S XLE` backs the verb reading and there
-is no `N-S` for the noun one. That is the whole reason *Kim sees a train* fails while
-the word shows green — and why `faster`, which analyses as `+Adj` and `+Adv` against a
-single `fast ADJ-S XLE`, stops reporting one entry as two findings.
-
-`-unknown` belongs to a **stem**, not to a word: it supplies an analysis for a headword
-no entry lists, whatever category is asked for, and listing that headword shuts it out —
-unless the entry ends in `ETC.`. That flag decides a parse:
-
-```
-hug V-S XLE @(TRANS-EV %stem);ETC.    Kim sees a hug     parses through -unknown's N-S
-train V-S XLE …                       Kim sees a train   0 parses
-```
-
-Two entries of the same shape, one flag apart, and `print-lex-entry` shows the same
-split — `hug` answering with all four default categories beside its own, `train` with
-none. The flag is what counts, not the morphcode: `Kim N *` carries no `ETC.` and gets
-no default analysis, while `right N * …; ETC.` gets all four, which the grammar itself
-warns about in a comment underneath ("Using ETC. with nouns leads to spurious ambiguity
-with UNKNOWN entry"). And because this is per stem, `faster` — whose *other* stem `fast`
-is listed — still reaches `-unknown` on its `faster +Noun +Sg` reading. So `-unknown`
-appears as a row against the reading it supplies, drawn with a dashed border, rather
-than as one claim about the whole word.
-
-The rows still carry no verdict of their own. A row with no entry is not an error: it is
-an analysis the lexicon does not cover, which is worth seeing precisely because the
-colour cannot show it.
-
-Those analyses are worth reading, because the colour is one verdict for a word the
-morphology may read several ways. `train` shows green in *Kim sees a train*, which does
-not parse: the grammar has `train V-S XLE` and no noun entry at all, and the single stem
-edge XLE returns carries the `lexentry_found` the verb reading earns for both readings.
-Nothing in the lexicon can decide which of those the sentence needed — that is the
-category the syntax would assign, and the bar does only lexical matching. Colouring by
-*some reading has no entry* was tried and does not work: over thirteen sentences it
-flagged eleven words, of which two were real and nine were ordinary — every verb in this
-lexicon lacks a plural-noun entry, and every `-unknown` noun lacks a verb entry, so
-`laughs` in a sentence that parses is split exactly the way `walks` in one that does not
-is. The readings are therefore reported rather than judged. Recovering them is free:
-XLE lays a token's morphemes out as a chart over character positions inside the token's
-own span, so each analysis is already a path across the dump the bar fetches anyway.
-
-The rows follow XLE's stem rather than our own guess at one, which is what makes
-irregular forms work: nothing in a suffix stripper gets from *saw* to *see*, but XLE
-reports the stem it used, so the entry is one lookup away. `-unknown` is drawn with a
-dashed border, since it stands for a rule about unlisted stems rather than an entry
-written for that word.
-
-The popup is the only way in, so there is no click-to-open on the word itself. That is
-deliberate: opening "the" entry meant opening `hits[0]`, which silently picked one of
-several — and picking one is exactly what a word with two readings, two stems or an
-entry plus `-unknown` does not let you do.
-
-Without the oracle the same four colours are driven by headword matching alone, where
-green means the lexicon lists the form or defers it to `XLE`, amber means a `*` entry
-supplies only the form written, and red means nothing matched. Base forms then come from
-a small English stemmer, good enough to say where to look and no more. Multiword
-headwords are matched across tokens, longest first, so `At least three` finds the entry
-`At` least` rather than leaving *At* and *least* to fail separately.
-
-Note that a grammar shipping encrypted headwords — ParGram's lexica cipher the wordlist
-while leaving the structure readable — will report almost everything missing *in the
-fallback*. Asking XLE gets the right answer anyway, since the cipher is XLE's own.
-
-Because XLE loads `.lfg` and never `.lfg.glue`, a glue grammar is checked as of its last
-compile, not as of the editor buffer.
-
-### Warnings are places, not prose
-
-Unresolved template calls and parse warnings are listed under the tree, and every row is
-a link: clicking one opens the file and highlights what was complained about — the `@NAME`
-itself for a call, not merely the line it sits on. Locations are carried as structured
-fields rather than written into the message text, which is what makes that possible.
-
-An unresolved call is usually a real defect. The dev grammar has three, all to
-`@INTRANS-OBL-EV`, which no file defines. Telling those from the false alarms takes
-knowing that `@` means two things in a `.lfg.glue` file — a template call, and function
-application inside a glue premise (`V@e`) — and in that grammar the distinction accounts
-for 74 of 77 apparently-unresolved calls.
-
-### Malformed entries
-
-An entry is `HEADWORD CATEGORY MORPHCODE`, and there are only two morphcodes: `*` supplies
-the form written, `XLE` defers inflection to the morphology. Anything else in that
-position means the line does not start an entry at all — almost always a continuation
-stranded by a stray period:
-
-```
-than      CComp * (^PRED) = 'than<(^OBJ)>'.
-                  ((OBL-COMP ^) DEGREE) =c comparative.
-```
-
-The period ends the entry, so the constraint below it becomes an "entry" headed
-`((OBL-COMP`. XLE reads it exactly the same way — `print-lex-entry than` returns only the
-PRED — so the constraint had never applied to anything. Nothing reported it, because
-every surviving entry parsed perfectly well.
-
-Such entries are marked ⚠ in the tree with the reason in the tooltip, and **sorting a
-section containing one is refused**, naming the entry instead. Sorting is what makes this
-kind of defect destructive: it moves the fragment away from the entry it continues, and
-since fragments usually start with a bracket they sort to the top of the file, where they
-look like corruption. `npm run harness` lists every instance across a corpus.
-
-## Filtering
-
-Matching is a plain case-insensitive substring test — nothing is hidden — over each
-entry's **identifier** first (a rule's left-hand side, a template's name, a headword)
-and then its rendered label. Searching the identifier is what makes `VP` find the rule
-*named* VP rather than every rule that mentions one.
-
-Two rules decide what is presented:
-
-- **The finest match wins.** When a query matches entries inside a section, those
-  entries are the hits and the section is just their container. A section is offered as
-  a hit only when nothing inside it matched — so `VERB` lets you browse `VERB ENGLISH`
-  instead of reporting all 94 of its entries as results, and the tree leaves it closed.
-- **Order is by score, not by file position**: exact, then prefix, then word boundary
-  (a segment start in a name like `DEFAULT-NOUN-SEM`), then plain substring, with
-  containers ranked by their best descendant. `he` still finds everything containing
-  those letters, but leads with `He`, `he`, `Her`, `her`, `herself`.
-
-Still missing, and worth adding: restricting a search to one entry kind (lexical
-entries only, say), and searching entry *bodies* rather than identifiers.
-
-## Structure view
-
-A second tab beside the editor, drawing the grammar as a graph: the CONFIG, the files it
-includes, and the sections those files hold. It exists for a condition neither the tree
-nor the editor shows —
-
-> a section is live only if its file is listed in the CONFIG's `FILES` **and** its own
-> key is declared under the matching keyword, which is `LEXENTRIES` for a lexicon.
-
-Miss the second and XLE loads the file, parses the section, and applies none of it.
-Anything in that state is drawn dashed and counted in the toolbar.
-
-Right-click a node to **add a section** to a file, **rename** it, **remove it from the
-grammar** (undeclare, leaving it on disk) or **delete** it. **Add file…** creates a file
-pre-filled with its section headers, declares it, and lists it in `FILES`. Nodes drag
-freely and keep their positions; declaration edges are off by default, since the CONFIG
-declares nearly everything and those edges bury the containment structure.
-
-The working tree stays live while the structure view is showing, and clicking an entry
-there brings the editor back with it — a click that quietly updated an invisible pane
-would be worse than useless. Staging an edit from the structure view does *not* switch,
-so a sequence of structural changes is not interrupted.
-
-Every CONFIG change is staged unsaved like any other edit. A new file is written to disk
-at once while its config entries are staged — safe in that direction only, because an
-undeclared file is inert whereas a config naming a missing file will not load.
-
-## Planned work
-
-[`TODO.md`](TODO.md) lists what is left: authoring **skills** for XLE and the related
-notations. The structure view above is built; its design notes are in
-[`docs/structure-view.md`](docs/structure-view.md).
+The feature is kept free of app-level dependencies so it can be embedded elsewhere; the
+parser is kept free of Angular entirely, since it is the part most likely to be reused.
 
 ## Status
 
-v1 covers navigate, edit and save, with go-to-definition, completion, multiple panes,
-`M-q` reindenting and drag-and-drop moves. What is still open is listed under
-*Filtering* above: scoping a search to one entry kind, and searching entry bodies.
+Navigate, edit and save, with go-to-definition, completion, multiple panes, reindenting,
+drag-and-drop moves, a structure view and sentence checking. [`TODO.md`](TODO.md) lists
+what is left; the structure view's design notes are in
+[`docs/structure-view.md`](docs/structure-view.md).
 
 ---
 
