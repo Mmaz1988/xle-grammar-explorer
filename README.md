@@ -6,11 +6,11 @@ in — with XLE syntax highlighting — on the right.
 
 ## About
 
-An XLE grammar's logical structure is not file-shaped. A grammar of any size is spread
-over many files in several directories, but what a grammar writer thinks in is sections:
-`SENTENCE ENGLISH RULES (1.0)`, `VERB ENGLISH LEXICON (1.0)`. Which file a section
-happens to sit in is a detail of how the grammar was organised, and finding a lexical
-entry usually means grepping for it.
+An XLE grammar's logical structure is not file-shaped. A grammar may be spread over many
+files in several directories, or sit in one, but either way what a grammar writer thinks
+in is sections: `SENTENCE ENGLISH RULES (1.0)`, `VERB ENGLISH LEXICON (1.0)`. Which file
+a section happens to sit in is a detail of how the grammar was organised, and once it is
+more than a few, finding a lexical entry means grepping for it.
 
 This app inverts that view. Sections are the tree, and the file becomes a tag on the
 entry. Rules are shown reduced to their phrase-structure skeleton (`S --> (ADVP) NP VP`),
