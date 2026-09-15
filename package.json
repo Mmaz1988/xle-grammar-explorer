@@ -21,7 +21,8 @@
     "app": "npm run build && node server/launch.mjs",
     "app:quick": "node server/launch.mjs",
     "app:stop": "node server/stop.mjs",
-    "app:bundle": "npm run build && node tools/bundle-app.mjs"
+    "app:bundle": "npm run build && node tools/bundle-app.mjs",
+    "app:bundle:win": "npm run build && node tools/make-ico.mjs && node tools/bundle-app-win.mjs"
   },
   "devDependencies": {
     "@angular-devkit/build-angular": "^16.1.3",

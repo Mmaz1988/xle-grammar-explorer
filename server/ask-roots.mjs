@@ -13,28 +13,18 @@
  * sentence bar's XLE check works without it.
  */
 
-import { execFileSync } from 'node:child_process';
 import { saveRoots } from './grammars.mjs';
+import { chooseFolder } from './platform.mjs';
 
 const PROMPT =
   'Where are your XLE grammars? Pick the folder that holds them - subfolders are ' +
   'searched too. This is only needed to check sentences against the morphology.';
 
 /** Put the folder chooser on screen, returning what was picked. */
-export function chooseFolder() {
-  try {
-    const picked = execFileSync('/usr/bin/osascript', [
-      '-e', `POSIX path of (choose folder with prompt "${PROMPT}")`,
-    ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-    return picked ? picked.replace(/\/$/, '') : undefined;
-  } catch {
-    return undefined;  // Cancelled, or nothing here can ask.
-  }
-}
-
+export const askForFolder = () => chooseFolder(PROMPT);
 
 /** Ask, and remember the answer. Returns the roots now in force. */
-export function chooseGrammarRoots({ choose = chooseFolder, save = saveRoots, env = process.env } = {}) {
+export function chooseGrammarRoots({ choose = askForFolder, save = saveRoots, env = process.env } = {}) {
   const picked = choose();
   if (!picked) return undefined;
   save([picked], env);

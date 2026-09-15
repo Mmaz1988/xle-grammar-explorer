@@ -35,9 +35,14 @@ const BROWSERS = {
     { name: 'Brave Browser', bundle: 'com.brave.Browser', path: '/Applications/Brave Browser.app' },
   ],
   win32: [
+    // Chrome's installer defaults to *per user*, so this is the common case and was
+    // the one missing: a machine with Chrome would have been told it had none.
+    { name: 'Chrome', path: '%LOCALAPPDATA%\\Google\\Chrome\\Application\\chrome.exe' },
     { name: 'Chrome', path: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe' },
     { name: 'Chrome', path: 'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe' },
+    { name: 'Edge', path: 'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe' },
     { name: 'Edge', path: 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe' },
+    { name: 'Edge', path: '%LOCALAPPDATA%\\Microsoft\\Edge\\Application\\msedge.exe' },
   ],
   linux: [
     { name: 'google-chrome', command: 'google-chrome' },
@@ -71,6 +76,7 @@ export function findBrowser(platform = process.platform, probe = {}) {
   const exists = probe.exists ?? existsSync;
   const has = probe.onPath ?? onPath;
   const spotlight = probe.spotlight ?? installedOnMac;
+  const env = probe.env ?? process.env;
 
   for (const candidate of BROWSERS[platform] ?? []) {
     if (candidate.command && has(candidate.command)) return { ...candidate, found: candidate.command };
@@ -78,9 +84,15 @@ export function findBrowser(platform = process.platform, probe = {}) {
       const viaSpotlight = spotlight(candidate.bundle);
       if (viaSpotlight) return { ...candidate, found: viaSpotlight };
     }
-    if (candidate.path && exists(candidate.path)) return { ...candidate, found: candidate.path };
+    const path = candidate.path && expand(candidate.path, env);
+    if (path && exists(path)) return { ...candidate, found: path };
   }
   return undefined;
+}
+
+/** `%LOCALAPPDATA%\...` is a path only after Windows has filled the name in. */
+function expand(path, env) {
+  return path.replace(/%([^%]+)%/g, (whole, name) => env[name] ?? whole);
 }
 
 /** How to launch a browser at a URL, as command and arguments. */

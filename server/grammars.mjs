@@ -12,8 +12,8 @@
 
 import { readdirSync, statSync, readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve, dirname, basename } from 'node:path';
-import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { configDir } from './platform.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -30,10 +30,9 @@ const SKIP = new Set(['node_modules', '.git', 'tmp']);
  * inherits no environment worth reading. The folder its owner picked is kept here
  * instead — the one piece of state this program has.
  */
-export function rootsFile(env = process.env) {
+export function rootsFile(env = process.env, platform = process.platform) {
   if (env.XLE_GRAMMAR_ROOTS_FILE) return env.XLE_GRAMMAR_ROOTS_FILE;
-  const home = env.HOME || homedir();
-  return join(home, 'Library', 'Application Support', 'XLE Grammar Explorer', 'roots');
+  return join(configDir(env, platform), 'roots');
 }
 
 /** Remember where the grammars are, for the next launch. */

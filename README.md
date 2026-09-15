@@ -78,8 +78,29 @@ reported instead of being mistaken for it.
 ### Sending it to someone else
 
 ```
-npm run app:bundle      # dist-app/XLE Grammar Explorer.app
+npm run app:bundle          # dist-app/XLE Grammar Explorer.app        (macOS)
+npm run app:bundle:win      # dist-app-win/XLE Grammar Explorer/       (Windows)
 ```
+
+Built copies live on the `macos` and `windows` branches, so a download from GitHub runs
+without anything to assemble. Both are built from `main`: the platform-specific surface
+is about two hundred lines and all of it lives in `server/platform.mjs`, the two shell
+runners and the two bundlers, so the branches differ only in which app is committed and
+the parser, editor and sentence bar never fork.
+
+On Windows the entry point is `XLE Grammar Explorer.cmd`. Double-clicking a `.cmd` opens
+a console window and runs in it, which is the visible, interruptible process the Mac
+build opens Terminal by hand to get. `Create Desktop Shortcut.cmd` beside it puts the
+icon on the desktop — a `.cmd` cannot carry one and a shortcut holds an absolute path,
+so it has to be made on the machine that uses it.
+
+> **Windows is written but not yet run.** It was developed on macOS and no part of the
+> WSL path has been exercised. The three places to look first: `xle-session.mjs` spawns
+> its XLE in a Windows temp directory while the command is `wsl xle`, so the working
+> directory crosses the boundary untranslated; the session protocol frames replies with
+> `@@@XLE-DONE@@@` sentinels over stdin and stdout, where CRLF could contaminate both
+> that and the edge-label parsing; and only the grammar path goes through `toWslPath`,
+> so anything else handed to XLE is still a Windows path.
 
 **1.7 MB**, and it runs anywhere — the server imports nothing but Node builtins, so the
 whole runtime is the built page plus eight files of server code. The 400-odd megabytes

@@ -18,8 +18,11 @@ import { findBrowser, openCommand, portInUse, oracleAt } from './launch.mjs';
 import { Presence } from './presence.mjs';
 import { isMain } from './is-main.mjs';
 import { locateXle, lazyLocator } from './xle-locate.mjs';
+import { configDir, chooseFolder, notify } from './platform.mjs';
 import { grammarRoots, saveRoots } from './grammars.mjs';
 import { bundleApp } from '../tools/bundle-app.mjs';
+import { bundleWindowsApp } from '../tools/bundle-app-win.mjs';
+import { buildIco } from '../tools/make-ico.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -346,4 +349,124 @@ test('ships the same two scripts in the repository copy as in the package', () =
     readFileSync(join(repo, 'XLE Grammar Explorer.command'), 'utf8'),
     readFileSync(join(repo, 'assets', 'app-run.sh'), 'utf8'),
     'the repository runner has drifted from the canonical one');
+});
+
+test('keeps each system\'s state where that system keeps state', () => {
+  // The only state this program has is which folder the grammars are in, and a
+  // packaged copy that forgot it would ask again on every launch.
+  const mac = configDir({ HOME: '/Users/someone' }, 'darwin');
+  assert.equal(mac, '/Users/someone/Library/Application Support/XLE Grammar Explorer');
+
+  // Backslashes whatever machine asks the question, which is the point of asking a
+  // platform rather than joining with whatever separator happens to be local.
+  const win = configDir({ APPDATA: 'C:\\Users\\someone\\AppData\\Roaming' }, 'win32');
+  assert.equal(win, 'C:\\Users\\someone\\AppData\\Roaming\\XLE Grammar Explorer');
+
+  // XDG, whose default is ~/.config, and whose variable wins when set.
+  assert.equal(configDir({ HOME: '/home/someone' }, 'linux'), '/home/someone/.config/xle-grammar-explorer');
+  assert.equal(configDir({ HOME: '/home/someone', XDG_CONFIG_HOME: '/tmp/cfg' }, 'linux'),
+    '/tmp/cfg/xle-grammar-explorer');
+
+  // Windows has no HOME; USERPROFILE is what it does have.
+  assert.ok(configDir({ USERPROFILE: 'C:\\Users\\someone' }, 'win32').includes('someone'));
+});
+
+test('asks each system for a folder in the only way it can', () => {
+  const asked = [];
+  const record = (command, args) => {
+    asked.push(command);
+    return command === 'kdialog' ? '' : '/picked/here/\n';
+  };
+  assert.equal(chooseFolder('Where?', 'darwin', record), '/picked/here');
+  assert.deepEqual(asked, ['/usr/bin/osascript']);
+
+  asked.length = 0;
+  assert.equal(chooseFolder('Where?', 'win32', record), '/picked/here');
+  assert.deepEqual(asked, ['powershell']);
+
+  // Neither Linux chooser is certain to be installed, so both are tried.
+  asked.length = 0;
+  const noZenity = (command, args) => {
+    if (command === 'zenity') throw new Error('not installed');
+    return '/from/kdialog\n';
+  };
+  assert.equal(chooseFolder('Where?', 'linux', noZenity), '/from/kdialog');
+
+  // A cancel prints nothing, which is an answer and not a folder named ''.
+  assert.equal(chooseFolder('Where?', 'darwin', () => '\n'), undefined);
+  assert.equal(chooseFolder('Where?', 'darwin', () => { throw new Error('cancelled'); }), undefined);
+});
+
+test('finds a Chrome installed the way Chrome installs itself', () => {
+  // Chrome's installer defaults to per-user, so this is the common case on Windows —
+  // and the one that was missing, which would have refused on a machine that has it.
+  const env = { LOCALAPPDATA: 'C:\\Users\\someone\\AppData\\Local' };
+  const perUser = 'C:\\Users\\someone\\AppData\\Local\\Google\\Chrome\\Application\\chrome.exe';
+  const found = findBrowser('win32', {
+    env,
+    onPath: () => false,
+    exists: (path) => path === perUser,
+  });
+  assert.equal(found?.name, 'Chrome');
+  assert.equal(found?.found, perUser);
+
+  // An unexpanded %LOCALAPPDATA% must never be handed out as a path.
+  const none = findBrowser('win32', { env: {}, onPath: () => false, exists: () => false });
+  assert.equal(none, undefined);
+});
+
+test('never says a dialog failed, because there is nothing to do about it', () => {
+  // A machine with no way to show one is not a machine to crash on; the caller has
+  // already written the message wherever it can.
+  assert.doesNotThrow(() => notify('something', 'linux', () => { throw new Error('no zenity'); }));
+  assert.doesNotThrow(() => notify('something', 'win32', () => { throw new Error('no powershell'); }));
+});
+
+test('packages a Windows folder that runs by double-clicking', () => {
+  const from = mkdtempSync(join(tmpdir(), 'xle-src-win-'));
+  for (const dir of ['assets', 'server', 'dist']) mkdirSync(join(from, dir));
+  writeFileSync(join(from, 'assets', 'AppIcon.ico'), 'ico');
+  writeFileSync(join(from, 'XLE Grammar Explorer.cmd'), '@echo off\n');
+  writeFileSync(join(from, 'server', 'launch.mjs'), '// launcher');
+  writeFileSync(join(from, 'server', 'coverage.test.mjs'), '// a test');
+  writeFileSync(join(from, 'dist', 'index.html'), '<html>');
+
+  const app = bundleWindowsApp(from, mkdtempSync(join(tmpdir(), 'xle-out-win-')));
+  for (const part of ['XLE Grammar Explorer.cmd', 'Create Desktop Shortcut.cmd',
+    'app/AppIcon.ico', 'app/server/launch.mjs', 'app/dist/index.html']) {
+    assert.ok(existsSync(join(app, part)), `missing ${part}`);
+  }
+  // Same reason as the Mac bundle: index.mjs looks for the page at ../dist from the
+  // server directory, so the two have to sit side by side under app/.
+  assert.ok(!existsSync(join(app, 'app/server/coverage.test.mjs')), 'tests should not ship');
+
+  // A .cmd cannot carry an icon and a shortcut holds an absolute path, so the shortcut
+  // has to be made on the machine that uses it — pointing at itself, not at the build.
+  const shortcut = readFileSync(join(app, 'Create Desktop Shortcut.cmd'), 'utf8');
+  assert.match(shortcut, /%~dp0XLE Grammar Explorer\.cmd/);
+  assert.match(shortcut, /IconLocation.*%~dp0app/);
+  assert.ok(!shortcut.includes(from), 'the build machine\'s paths must not travel');
+});
+
+test('writes an .ico Windows can read', () => {
+  // Since Vista an .ico may hold PNGs whole, so no encoder is needed — but the
+  // directory in front of them has to be right or nothing shows the icon at all.
+  const png = Buffer.from('89504e470d0a1a0a', 'hex');
+  const ico = buildIco([{ size: 16, data: png }, { size: 256, data: png }]);
+
+  assert.equal(ico.readUInt16LE(0), 0, 'reserved');
+  assert.equal(ico.readUInt16LE(2), 1, '1 means icon, not cursor');
+  assert.equal(ico.readUInt16LE(4), 2, 'two images');
+
+  assert.equal(ico.readUInt8(6), 16, 'first is 16px');
+  // 256 does not fit in a byte; the format defines 0 as 256, and writing 256 would
+  // truncate to 0 by luck rather than by intent.
+  assert.equal(ico.readUInt8(22), 0, '256 is written as 0');
+
+  // Every offset must point at the image it claims.
+  for (const at of [6, 22]) {
+    const size = ico.readUInt32LE(at + 8);
+    const offset = ico.readUInt32LE(at + 12);
+    assert.deepEqual(ico.subarray(offset, offset + size), png);
+  }
 });
