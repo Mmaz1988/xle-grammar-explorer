@@ -14,6 +14,10 @@
  *  - **XLE**, which is licensed separately. This is an editor for XLE grammars, not a
  *    way to install XLE; without it the sentence bar matches headwords and says so.
  *
+ * The app opens a Terminal window and runs there. A browser-based tool whose server is
+ * invisible is one nobody can stop by hand when the browser does something unexpected,
+ * which is why Jupyter keeps its terminal too.
+ *
  * The result is unsigned, so macOS quarantines it when it arrives from elsewhere and
  * the first open has to be right-click - Open. Signing it needs a paid Developer ID.
  *
@@ -61,10 +65,15 @@ export function bundleApp(from, into, name = NAME) {
   writeFileSync(join(contents, 'PkgInfo'), 'APPL????');
   cpSync(join(from, 'assets', 'AppIcon.icns'), join(contents, 'Resources', 'AppIcon.icns'));
 
-  // The same launcher the repository copy uses; it works out which it is at run time.
+  // Both scripts are the same ones the repository copy uses; each works out which it
+  // is at run time. The launcher opens Terminal, the runner is what Terminal runs.
   const launcher = join(contents, 'MacOS', 'launch');
   cpSync(join(from, 'assets', 'app-launch.sh'), launcher);
   chmodSync(launcher, 0o755);
+
+  const runner = join(contents, 'Resources', 'app', 'run.command');
+  cpSync(join(from, 'assets', 'app-run.sh'), runner);
+  chmodSync(runner, 0o755);
 
   // `index.mjs` looks for the page at `../dist` from the server directory, so this
   // layout is the one it already expects.

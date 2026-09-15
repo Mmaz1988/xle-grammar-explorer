@@ -313,6 +313,7 @@ test('packages an app that carries its own code', () => {
   for (const dir of ['assets', 'server', 'dist']) mkdirSync(join(from, dir));
   writeFileSync(join(from, 'assets', 'AppIcon.icns'), 'icns');
   writeFileSync(join(from, 'assets', 'app-launch.sh'), '#!/bin/sh\n');
+  writeFileSync(join(from, 'assets', 'app-run.sh'), '#!/bin/sh\n');
   writeFileSync(join(from, 'server', 'launch.mjs'), '// launcher');
   writeFileSync(join(from, 'server', 'coverage.test.mjs'), '// a test');
   writeFileSync(join(from, 'dist', 'index.html'), '<html>');
@@ -328,13 +329,21 @@ test('packages an app that carries its own code', () => {
   assert.ok(existsSync(join(app, 'Contents/Resources/app/dist')));
   // Tests and fixtures are not worth shipping.
   assert.ok(!existsSync(join(app, 'Contents/Resources/app/server/coverage.test.mjs')));
-  // Finder will not run it otherwise.
+  // Terminal runs this one, and Finder the other; neither works without the bit.
   assert.ok(statSync(join(app, 'Contents/MacOS/launch')).mode & 0o111, 'launcher not executable');
+  assert.ok(statSync(join(app, 'Contents/Resources/app/run.command')).mode & 0o111,
+    'runner not executable');
 });
 
-test('ships the same launcher in the repository copy as in the package', () => {
-  // Two copies of a script drift; this is the cheapest way to notice.
-  const canonical = readFileSync(join(here, '..', 'assets', 'app-launch.sh'), 'utf8');
-  const inRepoApp = join(here, '..', 'XLE Grammar Explorer.app', 'Contents', 'MacOS', 'launch');
-  assert.equal(readFileSync(inRepoApp, 'utf8'), canonical);
+test('ships the same two scripts in the repository copy as in the package', () => {
+  // Four copies of two scripts drift; this is the cheapest way to notice.
+  const repo = join(here, '..');
+  assert.equal(
+    readFileSync(join(repo, 'XLE Grammar Explorer.app', 'Contents', 'MacOS', 'launch'), 'utf8'),
+    readFileSync(join(repo, 'assets', 'app-launch.sh'), 'utf8'),
+    'the repository app opens Terminal differently from the packaged one');
+  assert.equal(
+    readFileSync(join(repo, 'XLE Grammar Explorer.command'), 'utf8'),
+    readFileSync(join(repo, 'assets', 'app-run.sh'), 'utf8'),
+    'the repository runner has drifted from the canonical one');
 });

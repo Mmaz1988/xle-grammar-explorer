@@ -28,14 +28,17 @@ Double-click **XLE Grammar Explorer.app** (macOS) or **XLE Grammar Explorer.cmd*
 browser. The window it opens stays open: Ctrl-C there stops the explorer, and anything
 that went wrong is written there rather than swallowed.
 
-The `.app` carries the icon and runs the launcher itself. Nothing it does reaches a
-terminal, because a double-clicked app has none: output goes to
-`~/Library/Logs/XLE Grammar Explorer.log`, and anything that stops it from starting is
-said in a dialog offering to open that log. Node gets the same treatment as the browser
-— a dialog with a link to nodejs.org rather than a silent failure — because an app
-launched from Finder inherits only `/usr/bin:/bin:/usr/sbin:/sbin`, where Homebrew, nvm
-and the official installer all put nothing. The launcher looks in those places directly,
-and so does the search for XLE, or a Mac that has XLE would be told it has none.
+The `.app` carries the icon and opens a Terminal window to run in, the way Jupyter does
+and for the same reason: a server with no visible window is one nobody can stop by hand
+when the browser does something unexpected — a tab that crashes, or closes without
+reporting it, leaves a process holding a port and an XLE session. Ctrl-C in that window
+always works, whatever the browser did.
+
+Node gets the same treatment as the browser — a dialog with a link to nodejs.org rather
+than a silent failure — because a window opened from Finder inherits only
+`/usr/bin:/bin:/usr/sbin:/sbin`, where Homebrew, nvm and the official installer all put
+nothing. The runner looks in those places directly, and so does the search for XLE, or a
+Mac that has XLE would be told it has none.
 
 The icon is
 built from the XLE+Glue logo by `node tools/make-icon.mjs`, which crops the mark out of
@@ -90,12 +93,17 @@ Three things do not travel, and are checked for rather than assumed:
 - **XLE** — licensed separately. This is an editor for XLE grammars, not a way to
   install XLE; without it the sentence bar matches headwords and says so in the page.
 
-A copy has no `grammars` symlink beside it and inherits no environment, so on first run
-it asks once where the grammars live and remembers the answer in
-`~/Library/Application Support/XLE Grammar Explorer/roots`. The browser never reveals a
-path and `create-parser` takes nothing else, so that folder is what lets the two halves
-find the same file. Skipping the question leaves everything working except the sentence
-bar's XLE check.
+A copy has no `grammars` symlink beside it and inherits no environment, so it does not
+know where the grammars are. It does not ask, either — not at startup, in front of a
+blank screen about a folder before anything has happened, and not mid-sentence. When the
+sentence bar finds that XLE cannot reach the open grammar it says so and offers a
+**Choose folder…** button, and the answer is remembered in
+`~/Library/Application Support/XLE Grammar Explorer/roots`.
+
+The dialog belongs to the service rather than the page because the browser cannot name a
+folder: its own picker hands out a handle and withholds the path, which is exactly what
+`create-parser` needs. Never answering is a fine outcome — everything but that one check
+works without it.
 
 The bundle is unsigned, so macOS quarantines it on arrival and the first open has to be
 right-click → **Open**. Signing needs a paid Developer ID and is not set up here.

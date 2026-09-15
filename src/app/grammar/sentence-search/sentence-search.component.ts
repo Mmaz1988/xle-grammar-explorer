@@ -95,6 +95,11 @@ export class SentenceSearchComponent implements OnChanges {
     this.analyse();
   }
 
+  /** Name the folder the grammars are in, then check the sentence again. */
+  async chooseGrammarFolder(): Promise<void> {
+    if (await this.oracle.chooseGrammarFolder()) this.analyse();
+  }
+
   /** Retry after starting the service, without reloading the page. */
   async retryOracle(): Promise<void> {
     await this.oracle.recheck();

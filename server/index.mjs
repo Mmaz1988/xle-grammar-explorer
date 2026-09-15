@@ -20,6 +20,7 @@ import { grammarRoots, listGrammars, resolveGrammar, grammarStamp } from './gram
 import { originFor } from './cors.mjs';
 import { isMain } from './is-main.mjs';
 import { findBundle, serveStatic } from './static.mjs';
+import { chooseGrammarRoots } from './ask-roots.mjs';
 import { Presence } from './presence.mjs';
 
 const CONTROL = /[\u0000-\u001f]/;
@@ -48,7 +49,13 @@ function sessions() {
   return pool;
 }
 
-const ROOTS = grammarRoots();
+/**
+ * Where to look for grammars. Re-read rather than fixed, because a packaged copy may
+ * learn the answer part-way through a run — see `askForRoots`.
+ */
+let ROOTS = grammarRoots();
+
+
 
 // Present once `ng build` has run. Without it this is the oracle alone, which is what
 // `npm run xle` beside `ng serve` wants; with it, one process serves the whole app.
@@ -121,6 +128,20 @@ const server = createServer(async (request, response) => {
     }, origin);
   }
 
+  /**
+   * Put the folder chooser on screen, because someone pressed something.
+   *
+   * The browser hands out handles and never a path, and `create-parser` takes a path
+   * and nothing else, so a folder named by the operating system is the only thing the
+   * two halves can meet on. Nothing opens this by itself.
+   */
+  if (request.url === '/grammar-roots' && request.method === 'POST') {
+    const picked = chooseGrammarRoots();
+    if (!picked) return send(response, 200, { chosen: null, roots: ROOTS }, origin);
+    ROOTS = grammarRoots();
+    return send(response, 200, { chosen: picked, roots: ROOTS }, origin);
+  }
+
   if (request.url === '/grammars') {
     return send(response, 200, { roots: ROOTS, grammars: listGrammars(ROOTS) }, origin);
   }
@@ -147,9 +168,14 @@ const server = createServer(async (request, response) => {
         }
         const { wanted, matches } = resolveGrammar(mainPath, listGrammars(ROOTS));
         if (matches.length === 0) {
+          // Said apart from the other failures, because this one has a way out the
+          // page can offer: nobody has told the service where to look yet.
           return send(response, 404, {
-            error: `No ${wanted} under ${ROOTS.join(', ') || 'any configured root'}. ` +
-              'Set XLE_GRAMMAR_ROOTS to the folder holding this grammar.',
+            error: ROOTS.length === 0
+              ? 'This service has not been told where your grammars are.'
+              : `No ${wanted} under ${ROOTS.join(', ')}.`,
+            needsRoots: true,
+            roots: ROOTS,
           }, origin);
         }
         if (matches.length > 1) {

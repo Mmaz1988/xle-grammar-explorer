@@ -48,6 +48,15 @@ export class XleOracleService {
    */
   needsCompile = false;
 
+  /**
+   * True when the service cannot find this grammar because nobody has told it where
+   * to look. Distinct from other failures because it is the one with a way out: a
+   * folder the person can name, when they feel like naming it.
+   */
+  needsRoots = false;
+  /** Folders the service is searching, for saying what it looked at. */
+  roots: string[] = [];
+
   private probe?: Promise<OracleStatus>;
 
   /** Ask once whether the oracle is there; later calls reuse the answer. */
@@ -79,6 +88,29 @@ export class XleOracleService {
     return this.probe;
   }
 
+  /**
+   * Ask the service to put a folder chooser on screen, and say whether it was answered.
+   *
+   * Only ever called because someone pressed something. The dialog belongs to the
+   * service rather than the page because the browser cannot name a folder — its own
+   * picker hands out a handle and withholds the path, which is exactly the thing XLE
+   * needs.
+   */
+  async chooseGrammarFolder(): Promise<boolean> {
+    try {
+      const response = await fetch(`${this.baseUrl}/grammar-roots`, { method: 'POST' });
+      if (!response.ok) return false;
+      const body = await response.json();
+      if (!body?.chosen) return false;
+      this.roots = body.roots ?? [];
+      this.needsRoots = false;
+      this.error = '';
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   /** Forget the probe, so a service started after the page loaded is picked up. */
   recheck(): Promise<OracleStatus> {
     this.probe = undefined;
@@ -104,9 +136,12 @@ export class XleOracleService {
       const body = await response.json();
       if (!response.ok) {
         this.error = body?.error ?? `HTTP ${response.status}`;
+        this.needsRoots = body?.needsRoots === true;
+        this.roots = body?.roots ?? [];
         return undefined;
       }
       this.error = '';
+      this.needsRoots = false;
       this.needsCompile = body.needsCompile === true;
       return body.tokens as XleToken[];
     } catch (error) {

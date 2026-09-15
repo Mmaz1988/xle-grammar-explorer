@@ -77,6 +77,16 @@
     <button type="button" class="link" (click)="retryOracle()">Retry</button>
   </p>
 
+  <!--
+    The one failure with a way out: the service cannot see the folder this grammar is
+    in. Offered rather than forced — everything except this check works without it.
+  -->
+  <p class="notice" *ngIf="oracle.needsRoots">
+    XLE cannot find this grammar: the service has not been told which folder to search.
+    <span class="why" *ngIf="oracle.roots.length">Looked in {{ oracle.roots.join(', ') }}.</span>
+    <button type="button" class="link" (click)="chooseGrammarFolder()">Choose folder…</button>
+  </p>
+
   <!-- XLE reads the compiled .lfg, so an edited .lfg.glue has not reached it yet. -->
   <p class="notice" *ngIf="usingXle && oracle.needsCompile">
     Checked against the last compiled <code>.lfg</code> — this grammar has
