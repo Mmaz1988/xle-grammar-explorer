@@ -10,8 +10,9 @@
  * symlink is the default, which covers the grammars checked in beside it.
  */
 
-import { readdirSync, statSync, readFileSync, existsSync } from 'node:fs';
+import { readdirSync, statSync, readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve, dirname, basename } from 'node:path';
+import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -22,11 +23,39 @@ const CONFIG_HEADER = /^[ \t]*\S+[ \t]+\S+[ \t]+CONFIG[ \t]*\([\d.]+\)[ \t]*$/m;
 /** Caches and generated indexes XLE leaves beside a grammar; never worth walking. */
 const SKIP = new Set(['node_modules', '.git', 'tmp']);
 
-export function grammarRoots(env = process.env) {
+/**
+ * Where a copy with no grammars beside it remembers to look.
+ *
+ * A distributable app has no `grammars` symlink and is started by double-click, so it
+ * inherits no environment worth reading. The folder its owner picked is kept here
+ * instead — the one piece of state this program has.
+ */
+export function rootsFile(env = process.env) {
+  if (env.XLE_GRAMMAR_ROOTS_FILE) return env.XLE_GRAMMAR_ROOTS_FILE;
+  const home = env.HOME || homedir();
+  return join(home, 'Library', 'Application Support', 'XLE Grammar Explorer', 'roots');
+}
+
+/** Remember where the grammars are, for the next launch. */
+export function saveRoots(roots, env = process.env) {
+  const file = rootsFile(env);
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, roots.join('\n') + '\n');
+  return file;
+}
+
+export function grammarRoots(env = process.env, bundled = resolve(here, '..', 'grammars')) {
   const configured = env.XLE_GRAMMAR_ROOTS;
   if (configured) return configured.split(':').filter(Boolean).map((r) => resolve(r));
-  const bundled = resolve(here, '..', 'grammars');
-  return existsSync(bundled) ? [bundled] : [];
+  if (existsSync(bundled)) return [bundled];
+  // No environment and nothing beside us: a shared copy, reading what it was told.
+  try {
+    return readFileSync(rootsFile(env), 'utf8')
+      .split('\n').map((line) => line.trim()).filter(Boolean)
+      .filter((dir) => existsSync(dir)).map((dir) => resolve(dir));
+  } catch {
+    return [];
+  }
 }
 
 function walk(dir, out, depth) {

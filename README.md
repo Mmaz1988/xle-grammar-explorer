@@ -28,10 +28,16 @@ Double-click **XLE Grammar Explorer.app** (macOS) or **XLE Grammar Explorer.cmd*
 browser. The window it opens stays open: Ctrl-C there stops the explorer, and anything
 that went wrong is written there rather than swallowed.
 
-The `.app` is a wrapper whose only job is to carry the icon and hand off to
-`XLE Grammar Explorer.command`, which is what actually runs — a launcher that has to be
-able to say why it could not start needs a Terminal window to say it in. Both must stay
-in the repository folder, since the bundle finds the script beside itself. The icon is
+The `.app` carries the icon and runs the launcher itself. Nothing it does reaches a
+terminal, because a double-clicked app has none: output goes to
+`~/Library/Logs/XLE Grammar Explorer.log`, and anything that stops it from starting is
+said in a dialog offering to open that log. Node gets the same treatment as the browser
+— a dialog with a link to nodejs.org rather than a silent failure — because an app
+launched from Finder inherits only `/usr/bin:/bin:/usr/sbin:/sbin`, where Homebrew, nvm
+and the official installer all put nothing. The launcher looks in those places directly,
+and so does the search for XLE, or a Mac that has XLE would be told it has none.
+
+The icon is
 built from the XLE+Glue logo by `node tools/make-icon.mjs`, which crops the mark out of
 its mostly-empty canvas, renders it through headless Chrome and packs the sizes with
 `iconutil`; rerun it if the logo changes.
@@ -58,6 +64,34 @@ Three things are checked before anything starts, because each fails differently:
 A port already in use is asked who it is: a second launch joins the explorer that is
 already running rather than starting a rival, and anything else on that port is
 reported instead of being mistaken for it.
+
+### Sending it to someone else
+
+```
+npm run app:bundle      # dist-app/XLE Grammar Explorer.app
+```
+
+**1.7 MB**, and it runs anywhere — the server imports nothing but Node builtins, so the
+whole runtime is the built page plus eight files of server code. The 400-odd megabytes
+under `node_modules` build it and are not needed to run it.
+
+Three things do not travel, and are checked for rather than assumed:
+
+- **Node.js** — a dialog with a download link if it is missing;
+- **a Chromium browser** — the same refusal as everywhere, for the File System Access
+  API the explorer edits through;
+- **XLE** — licensed separately. This is an editor for XLE grammars, not a way to
+  install XLE; without it the sentence bar matches headwords and says so in the page.
+
+A copy has no `grammars` symlink beside it and inherits no environment, so on first run
+it asks once where the grammars live and remembers the answer in
+`~/Library/Application Support/XLE Grammar Explorer/roots`. The browser never reveals a
+path and `create-parser` takes nothing else, so that folder is what lets the two halves
+find the same file. Skipping the question leaves everything working except the sentence
+bar's XLE check.
+
+The bundle is unsigned, so macOS quarantines it on arrival and the first open has to be
+right-click → **Open**. Signing needs a paid Developer ID and is not set up here.
 
 ### Stopping it
 

@@ -23,6 +23,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isMain } from '../server/is-main.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const source = resolve(process.argv[2] ?? join(root, '..', 'xleplusglue', 'assets', 'xleplusglue-logo.svg'));
@@ -62,7 +63,7 @@ export function cropSvg(svg, content = CONTENT, padding = PADDING) {
   return out;
 }
 
-if (process.argv[1] && import.meta.url === new URL(process.argv[1], 'file:').href) {
+if (isMain(import.meta.url)) {
   const assets = join(root, 'assets');
   mkdirSync(assets, { recursive: true });
 

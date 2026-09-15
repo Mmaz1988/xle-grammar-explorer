@@ -18,6 +18,7 @@ import { XleSessionPool } from './xle-session.mjs';
 import { coverageScript, classify } from './coverage.mjs';
 import { grammarRoots, listGrammars, resolveGrammar, grammarStamp } from './grammars.mjs';
 import { originFor } from './cors.mjs';
+import { isMain } from './is-main.mjs';
 import { findBundle, serveStatic } from './static.mjs';
 import { Presence } from './presence.mjs';
 
@@ -182,7 +183,7 @@ export function start(port = PORT) {
 }
 
 // Started directly (`npm run xle`) rather than imported by the launcher.
-if (process.argv[1] && import.meta.url === new URL(process.argv[1], 'file:').href) {
+if (isMain(import.meta.url)) {
   start().then(() => {
     const where = xle ? xle.mode + ' (' + xle.command + ')' : 'not found - /coverage will refuse';
     console.log('XLE oracle on ' + url() + ' - XLE: ' + where);

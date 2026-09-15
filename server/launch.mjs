@@ -17,6 +17,8 @@
 import { execFileSync, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { createServer } from 'node:http';
+import { grammarRoots, saveRoots } from './grammars.mjs';
+import { isMain } from './is-main.mjs';
 
 /**
  * Browsers that implement the File System Access API, per platform.
@@ -117,6 +119,35 @@ export async function oracleAt(port) {
   }
 }
 
+/**
+ * Ask, once, where the grammars are.
+ *
+ * Only a distributable copy reaches this: in the repository the `grammars` symlink
+ * answers it, and a terminal can be told with XLE_GRAMMAR_ROOTS. A double-clicked app
+ * inherits no environment worth reading and has nothing beside it, so the question has
+ * to be asked in the only way a double-clicked app can ask anything.
+ *
+ * The explorer opens grammars through the browser, which never reveals a path, while
+ * XLE takes nothing else — so this is what lets the two halves find the same file. It
+ * is skippable: without it everything except the sentence bar's XLE check still works,
+ * and the page says as much.
+ */
+export function ensureGrammarRoots(env = process.env) {
+  if (grammarRoots(env).length > 0) return grammarRoots(env);
+  let chosen;
+  try {
+    chosen = execFileSync('/usr/bin/osascript', ['-e',
+      'POSIX path of (choose folder with prompt "Where are your XLE grammars? ' +
+      'Pick the folder that holds them - subfolders are searched too.")',
+    ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    return [];  // Cancelled, or no way to ask.
+  }
+  if (!chosen) return [];
+  saveRoots([chosen.replace(/\/$/, '')], env);
+  return grammarRoots(env);
+}
+
 const say = (line) => process.stdout.write(line + '\n');
 const fail = (line) => process.stderr.write(line + '\n');
 
@@ -125,6 +156,8 @@ export async function main() {
   // standalone `npm run xle` must not inherit this: its pages come from `ng serve` and
   // never check in, and exiting on that silence would kill a service in use.
   process.env.XLE_EXIT_WHEN_IDLE = '1';
+  // A packaged copy asks before the server reads its roots, which it does on import.
+  if (process.env.XLE_APP_BUNDLE === '1') ensureGrammarRoots();
   const { start, status, url } = await import('./index.mjs');
   const { xle, bundle, port } = status();
 
@@ -172,8 +205,10 @@ export async function main() {
     return 1;
   }
 
+  const roots = grammarRoots();
   say(`Explorer:  ${url()}`);
   say(`Browser:   ${browser.name}`);
+  say(`Grammars:  ${roots.length > 0 ? roots.join(', ') : 'nowhere configured — the sentence bar cannot reach XLE'}`);
   if (xle) {
     say(`XLE:       ${xle.mode} (${xle.command})`);
   } else {
@@ -189,7 +224,7 @@ export async function main() {
   return 0;
 }
 
-if (process.argv[1] && import.meta.url === new URL(process.argv[1], 'file:').href) {
+if (isMain(import.meta.url)) {
   main().then((code) => {
     // A non-zero code means nothing is running, so there is nothing to wait for.
     if (code !== 0) process.exit(code);
