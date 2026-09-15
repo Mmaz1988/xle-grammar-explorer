@@ -57,7 +57,10 @@ export class XleOracleService {
     this.probe = (async () => {
       for (const base of [this.baseUrl, XleOracleService.FALLBACK]) {
         try {
-          const response = await fetch(`${base}/health`);
+          // The service answers this by looking for XLE, which is fast when XLE is
+          // healthy and slow when it is wedged. A bounded wait degrades to the
+          // headword fallback instead of leaving the bar saying "checking" forever.
+          const response = await fetch(`${base}/health`, { signal: AbortSignal.timeout(20_000) });
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           this.health = await response.json();
           this.baseUrl = base;

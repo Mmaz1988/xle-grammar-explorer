@@ -17,7 +17,7 @@ import { findBundle, fileFor, typeFor } from './static.mjs';
 import { findBrowser, openCommand, portInUse, oracleAt } from './launch.mjs';
 import { Presence } from './presence.mjs';
 import { isMain } from './is-main.mjs';
-import { locateXle } from './xle-locate.mjs';
+import { locateXle, lazyLocator } from './xle-locate.mjs';
 import { grammarRoots, saveRoots } from './grammars.mjs';
 import { bundleApp } from '../tools/bundle-app.mjs';
 
@@ -196,6 +196,33 @@ test('does not mistake a background tab for a closed one', () => {
   assert.equal(presence.check(), 'wait', 'gone silent, but the grace has not elapsed');
   clock += 9000;
   assert.equal(presence.check(), 'exit', 'silent past both windows: the tab is gone');
+});
+
+test('looks for XLE only when something asks, and only once', () => {
+  // The search runs `xle -noTk -e exit` on each candidate, and an XLE that is installed
+  // but wedged takes the full probe timeout to say so — per candidate. Done at startup
+  // that is a launcher waiting before the browser opens, over a question nobody has
+  // asked yet. (The XLE *process* was always lazy: create-parser needs a grammar.)
+  let searches = 0;
+  const find = lazyLocator(() => {
+    searches += 1;
+    return { command: 'xle', mode: 'native' };
+  });
+
+  assert.equal(searches, 0, 'making the finder must not search');
+  assert.equal(find().command, 'xle');
+  assert.equal(searches, 1);
+  find();
+  find();
+  assert.equal(searches, 1, 'the answer is remembered, not searched for again');
+});
+
+test('remembers that XLE was not found, rather than looking again', () => {
+  let searches = 0;
+  const find = lazyLocator(() => { searches += 1; return undefined; });
+  assert.equal(find(), undefined);
+  assert.equal(find(), undefined);
+  assert.equal(searches, 1, 'a machine without XLE must not re-probe on every request');
 });
 
 test('knows it was run directly even through a symlinked path', () => {

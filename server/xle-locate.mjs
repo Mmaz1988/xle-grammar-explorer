@@ -34,9 +34,18 @@ export function toWslPath(path) {
   return `/mnt/${drive[1].toLowerCase()}/${drive[2].replace(/\\/g, '/')}`;
 }
 
+/**
+ * How long to let a candidate prove itself.
+ *
+ * A healthy `xle -noTk -e exit` returns in well under a tenth of a second, so this is
+ * two orders of magnitude of headroom. It matters because an XLE that is installed but
+ * wedged spends the whole of it, and there are several places to look.
+ */
+const PROBE_MS = 8000;
+
 function canRun(command, args) {
   try {
-    execFileSync(command, args, { stdio: 'ignore', timeout: 20000 });
+    execFileSync(command, args, { stdio: 'ignore', timeout: PROBE_MS });
     return true;
   } catch {
     return false;
@@ -79,4 +88,25 @@ export function locateXle(env = process.env, probe = {}) {
   }
 
   return undefined;
+}
+
+/**
+ * A finder that looks for XLE the first time it is called, and remembers.
+ *
+ * Separate from `locateXle` so that *when* the search happens is a decision something
+ * can hold and a test can check. Doing it at startup means a launcher that waits on
+ * `xle -noTk -e exit` for every candidate before the browser opens — and an XLE that is
+ * installed but wedged spends the whole probe timeout on each. Nothing needs the answer
+ * until a sentence is checked.
+ */
+export function lazyLocator(locate = locateXle) {
+  let value;
+  let done = false;
+  return () => {
+    if (!done) {
+      value = locate();
+      done = true;
+    }
+    return value;
+  };
 }

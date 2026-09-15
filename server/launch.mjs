@@ -158,8 +158,8 @@ export async function main() {
   process.env.XLE_EXIT_WHEN_IDLE = '1';
   // A packaged copy asks before the server reads its roots, which it does on import.
   if (process.env.XLE_APP_BUNDLE === '1') ensureGrammarRoots();
-  const { start, status, url } = await import('./index.mjs');
-  const { xle, bundle, port } = status();
+  const { start, status, url, findXle } = await import('./index.mjs');
+  const { bundle, port } = status();
 
   if (!bundle) {
     fail('The app has not been built yet.');
@@ -209,6 +209,15 @@ export async function main() {
   say(`Explorer:  ${url()}`);
   say(`Browser:   ${browser.name}`);
   say(`Grammars:  ${roots.length > 0 ? roots.join(', ') : 'nowhere configured — the sentence bar cannot reach XLE'}`);
+
+  // Open first, then look for XLE. Searching means running `xle -noTk -e exit` on each
+  // candidate, and an installed-but-wedged XLE takes twenty seconds per candidate to
+  // admit it — which nobody should watch a blank screen for. The page does not need
+  // the answer until a sentence is typed.
+  const { command, args } = openCommand(browser, url());
+  spawn(command, args, { stdio: 'ignore', detached: true }).unref();
+
+  const xle = findXle();
   if (xle) {
     say(`XLE:       ${xle.mode} (${xle.command})`);
   } else {
@@ -218,9 +227,6 @@ export async function main() {
   say('');
   say('Closing the last explorer window stops this too. So does Ctrl-C here,');
   say('or `npm run app:stop` from anywhere.');
-
-  const { command, args } = openCommand(browser, url());
-  spawn(command, args, { stdio: 'ignore', detached: true }).unref();
   return 0;
 }
 

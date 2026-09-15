@@ -13,7 +13,7 @@
 import { createServer } from 'node:http';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { locateXle } from './xle-locate.mjs';
+import { lazyLocator } from './xle-locate.mjs';
 import { XleSessionPool } from './xle-session.mjs';
 import { coverageScript, classify } from './coverage.mjs';
 import { grammarRoots, listGrammars, resolveGrammar, grammarStamp } from './grammars.mjs';
@@ -26,8 +26,28 @@ const CONTROL = /[\u0000-\u001f]/;
 
 const PORT = Number(process.env.XLE_SERVICE_PORT ?? 8085);
 
-const xle = locateXle();
-const pool = xle ? new XleSessionPool(xle) : undefined;
+/**
+ * Finding XLE, the first time anything needs to know.
+ *
+ * Deliberately not at startup. The search runs `xle -noTk -e exit` on each candidate,
+ * and an XLE that is installed but wedged takes the full 20-second timeout to say so —
+ * per candidate. Done eagerly that is a launcher sitting there for a minute before the
+ * browser opens, over a question nobody has asked yet.
+ *
+ * The XLE *process* was always lazy: `create-parser` needs a grammar, so it cannot run
+ * before one is loaded, and the pool builds it on the first sentence checked. This
+ * makes the search match — nothing to do with XLE happens until something asks.
+ */
+export const findXle = lazyLocator();
+
+let pool;
+function sessions() {
+  const xle = findXle();
+  if (!xle) return undefined;
+  if (!pool) pool = new XleSessionPool(xle);
+  return pool;
+}
+
 const ROOTS = grammarRoots();
 
 // Present once `ng build` has run. Without it this is the oracle alone, which is what
@@ -91,6 +111,9 @@ const server = createServer(async (request, response) => {
   }
 
   if (request.url === '/health') {
+    // The first caller pays for the search. That is the page asking whether the
+    // sentence bar can work, which is exactly when the answer starts to matter.
+    const xle = findXle();
     return send(response, 200, {
       xle: xle ? xle.mode : null,
       command: xle?.command ?? null,
@@ -103,7 +126,8 @@ const server = createServer(async (request, response) => {
   }
 
   if (request.url === '/coverage' && request.method === 'POST') {
-    if (!pool) return send(response, 503, { error: 'XLE is not installed on this machine.' }, origin);
+    const running = sessions();
+    if (!running) return send(response, 503, { error: 'XLE is not installed on this machine.' }, origin);
     try {
       const { grammar, mainPath, sentence } = await readJson(request);
       if (typeof sentence !== 'string') {
@@ -139,7 +163,7 @@ const server = createServer(async (request, response) => {
       // Reload if the grammar changed on disk, so adding an entry and re-checking
       // works without restarting the service.
       const { stamp, needsCompile } = grammarStamp(path);
-      const session = pool.get(path, stamp);
+      const session = running.get(path, stamp);
       const output = await session.run(coverageScript(sentence));
       return send(response, 200, { tokens: classify(output), path, needsCompile }, origin);
     } catch (error) {
@@ -164,7 +188,8 @@ export function stop(why) {
 }
 
 export const url = () => 'http://127.0.0.1:' + PORT;
-export const status = () => ({ xle, bundle: BUNDLE, port: PORT });
+/** What the launcher needs before it decides anything. Asks nothing of XLE. */
+export const status = () => ({ bundle: BUNDLE, port: PORT });
 
 /** Start listening. Resolves once the port is bound, or rejects if it cannot be. */
 export function start(port = PORT) {
@@ -185,8 +210,7 @@ export function start(port = PORT) {
 // Started directly (`npm run xle`) rather than imported by the launcher.
 if (isMain(import.meta.url)) {
   start().then(() => {
-    const where = xle ? xle.mode + ' (' + xle.command + ')' : 'not found - /coverage will refuse';
-    console.log('XLE oracle on ' + url() + ' - XLE: ' + where);
+    console.log('XLE oracle on ' + url());
     if (BUNDLE) console.log('Serving the app from ' + BUNDLE);
   }, (error) => {
     console.error('Could not listen on port ' + PORT + ': ' + error.message);

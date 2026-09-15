@@ -61,6 +61,13 @@ Three things are checked before anything starts, because each fails differently:
 - **XLE is optional** — without it the sentence bar falls back to matching headwords
   and says so in the page, so a missing XLE is reported and then carried on from.
 
+Nothing to do with XLE happens until something asks. The browser opens first and the
+search runs after, because finding XLE means running `xle -noTk -e exit` on each
+candidate and an XLE that is installed but wedged spends the full probe timeout on every
+one — a wait nobody should watch a blank screen for, over a question not yet asked. The
+XLE *process* was always this way: `create-parser` needs a grammar, so it cannot start
+before one is loaded, and the first sentence checked is what starts it.
+
 A port already in use is asked who it is: a second launch joins the explorer that is
 already running rather than starting a rival, and anything else on that port is
 reported instead of being mistaken for it.
