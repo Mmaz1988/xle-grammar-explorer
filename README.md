@@ -668,3 +668,42 @@ notations. The structure view above is built; its design notes are in
 v1 covers navigate, edit and save, with go-to-definition, completion, multiple panes,
 `M-q` reindenting and drag-and-drop moves. What is still open is listed under
 *Filtering* above: scoping a search to one entry kind, and searching entry bodies.
+
+---
+
+## This branch: the built Windows app
+
+`dist-app-win/XLE Grammar Explorer/` is committed here so it can be downloaded and run
+without building anything. Everything else is `main`, unchanged — the branch exists to
+carry the artifact, not a second copy of the program. The platform-specific code is on
+`main` too, in `server/platform.mjs`, the `.cmd` runner and `tools/bundle-app-win.mjs`,
+so fixing something here means fixing it once.
+
+Download the folder and double-click **XLE Grammar Explorer.cmd** inside it. A console
+window opens and the explorer runs in it; Ctrl-C there stops it, which matters when the
+browser does something unexpected and a server nobody can see keeps holding a port.
+**Create Desktop Shortcut.cmd** puts the icon on the desktop — a `.cmd` cannot carry one
+and a shortcut holds an absolute path, so it has to be made on the machine that uses it.
+
+It needs **Node.js** and a **Chromium browser** on the PC, both checked for and named if
+missing. **XLE** is expected under **WSL**, which is how LiGER runs it on Windows.
+
+### Not yet run on Windows
+
+This was written on macOS. Everything that does not touch WSL is shared with the Mac
+build and exercised by its tests; nothing on the WSL path has been executed at all.
+Three places to look first:
+
+1. **Working directory across the boundary.** `xle-session.mjs` starts XLE in a
+   directory from `mkdtempSync` — a Windows path — while the command is `wsl xle`. It
+   uses a scratch directory so no stray `xlerc` is picked up, which matters more here,
+   not less.
+2. **Line endings in the session protocol.** Replies are framed by `@@@XLE-READY@@@`
+   and `@@@XLE-DONE@@@` sentinels over stdin and stdout. A CRLF arriving through `wsl`
+   would break that framing, and separately the edge labels `coverage.mjs` parses.
+3. **Paths that are not the grammar.** Only the grammar path goes through `toWslPath`
+   in `xle-locate.mjs`. Anything else handed to XLE is still a Windows path.
+
+Start with `npm run test:xle` (which does not need XLE), then `XLE Grammar Explorer.cmd`
+to see the page, then a sentence — the first two work without WSL and narrow where a
+failure is.
