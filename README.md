@@ -668,3 +668,22 @@ notations. The structure view above is built; its design notes are in
 v1 covers navigate, edit and save, with go-to-definition, completion, multiple panes,
 `M-q` reindenting and drag-and-drop moves. What is still open is listed under
 *Filtering* above: scoping a search to one entry kind, and searching entry bodies.
+
+---
+
+## This branch: the built macOS app
+
+`dist-app/XLE Grammar Explorer.app` is committed here so it can be downloaded and run
+without building anything. Everything else is `main`, unchanged — the branch exists to
+carry the artifact, not a second copy of the program.
+
+Download the folder, move the app where you like, and open it. The first open has to be
+right-click → **Open**, because the app is unsigned and macOS quarantines anything that
+arrives from elsewhere.
+
+It needs **Node.js** and a **Chromium browser** (Chrome, Edge, Chromium or Brave) on the
+machine, and each is checked for and named if missing. **XLE** is separate: this is an
+editor for XLE grammars, not a way to install XLE, and without it the sentence bar
+matches headwords and says so in the page.
+
+Rebuild with `npm run app:bundle` on `main`, then bring the result here.

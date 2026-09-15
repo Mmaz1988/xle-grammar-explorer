@@ -1,0 +1,249 @@
+/**
+ * A local XLE oracle for the grammar explorer.
+ *
+ * The explorer is a browser app that talks to no backend, and that stays true: this
+ * service is optional. Without it the sentence bar falls back to matching headwords
+ * itself and says so. With it, the answer comes from the grammar's own morphology
+ * instead of from our guesses about English.
+ *
+ * It is deliberately local-only - it runs XLE over paths the caller names, so it
+ * binds to the loopback interface and nothing else.
+ */
+
+import { createServer } from 'node:http';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { lazyLocator } from './xle-locate.mjs';
+import { XleSessionPool } from './xle-session.mjs';
+import { coverageScript, classify } from './coverage.mjs';
+import { grammarRoots, listGrammars, resolveGrammar, grammarStamp } from './grammars.mjs';
+import { originFor } from './cors.mjs';
+import { isMain } from './is-main.mjs';
+import { findBundle, serveStatic } from './static.mjs';
+import { chooseGrammarRoots } from './ask-roots.mjs';
+import { Presence } from './presence.mjs';
+
+const CONTROL = /[\u0000-\u001f]/;
+
+const PORT = Number(process.env.XLE_SERVICE_PORT ?? 8085);
+
+/**
+ * Finding XLE, the first time anything needs to know.
+ *
+ * Deliberately not at startup. The search runs `xle -noTk -e exit` on each candidate,
+ * and an XLE that is installed but wedged takes the full 20-second timeout to say so —
+ * per candidate. Done eagerly that is a launcher sitting there for a minute before the
+ * browser opens, over a question nobody has asked yet.
+ *
+ * The XLE *process* was always lazy: `create-parser` needs a grammar, so it cannot run
+ * before one is loaded, and the pool builds it on the first sentence checked. This
+ * makes the search match — nothing to do with XLE happens until something asks.
+ */
+export const findXle = lazyLocator();
+
+let pool;
+function sessions() {
+  const xle = findXle();
+  if (!xle) return undefined;
+  if (!pool) pool = new XleSessionPool(xle);
+  return pool;
+}
+
+/**
+ * Where to look for grammars. Re-read rather than fixed, because a packaged copy may
+ * learn the answer part-way through a run — see `askForRoots`.
+ */
+let ROOTS = grammarRoots();
+
+
+
+// Present once `ng build` has run. Without it this is the oracle alone, which is what
+// `npm run xle` beside `ng serve` wants; with it, one process serves the whole app.
+const BUNDLE = findBundle(join(dirname(fileURLToPath(import.meta.url)), '..', 'dist'));
+
+/**
+ * Stop when the last window closes — but only when something started us for a browser.
+ *
+ * `npm run xle` beside `ng serve` is the other way to run this, and there the pages
+ * come from another server and never check in; exiting on that silence would kill a
+ * service somebody is using. So the launcher asks for this and nothing else does.
+ */
+const EXIT_WHEN_IDLE = process.env.XLE_EXIT_WHEN_IDLE === '1';
+const presence = new Presence();
+let watchdog;
+
+function send(response, status, body, origin = 'null') {
+  response.writeHead(status, {
+    'content-type': 'application/json',
+    'access-control-allow-origin': origin,
+    'access-control-allow-headers': 'content-type',
+    vary: 'origin',
+  });
+  response.end(JSON.stringify(body));
+}
+
+async function readJson(request) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of request) {
+    size += chunk.length;
+    if (size > 64 * 1024) throw new Error('Request too large');
+    chunks.push(chunk);
+  }
+  return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+}
+
+const server = createServer(async (request, response) => {
+  const origin = originFor(request.headers.origin);
+  if (request.method === 'OPTIONS') return send(response, 204, {}, origin);
+
+  // A page saying it is still open, or that it is going. Kept cheap: these are the
+  // only requests that arrive on a timer.
+  if (request.url === '/alive' && request.method === 'POST') {
+    const { id } = await readJson(request).catch(() => ({}));
+    if (typeof id === 'string') presence.seen(id);
+    return send(response, 204, {}, origin);
+  }
+  if (request.url === '/bye' && request.method === 'POST') {
+    const { id } = await readJson(request).catch(() => ({}));
+    if (typeof id === 'string') presence.gone(id);
+    return send(response, 204, {}, origin);
+  }
+
+  // The explicit way out, for when the window that started it is gone or was never
+  // watched. Loopback-only like the rest, and less powerful than /coverage already is.
+  if (request.url === '/shutdown' && request.method === 'POST') {
+    send(response, 200, { stopping: true }, origin);
+    return setTimeout(() => stop('asked to'), 50);
+  }
+
+  if (request.url === '/health') {
+    // The first caller pays for the search. That is the page asking whether the
+    // sentence bar can work, which is exactly when the answer starts to matter.
+    const xle = findXle();
+    return send(response, 200, {
+      xle: xle ? xle.mode : null,
+      command: xle?.command ?? null,
+      roots: ROOTS,
+    }, origin);
+  }
+
+  /**
+   * Put the folder chooser on screen, because someone pressed something.
+   *
+   * The browser hands out handles and never a path, and `create-parser` takes a path
+   * and nothing else, so a folder named by the operating system is the only thing the
+   * two halves can meet on. Nothing opens this by itself.
+   */
+  if (request.url === '/grammar-roots' && request.method === 'POST') {
+    const picked = chooseGrammarRoots();
+    if (!picked) return send(response, 200, { chosen: null, roots: ROOTS }, origin);
+    ROOTS = grammarRoots();
+    return send(response, 200, { chosen: picked, roots: ROOTS }, origin);
+  }
+
+  if (request.url === '/grammars') {
+    return send(response, 200, { roots: ROOTS, grammars: listGrammars(ROOTS) }, origin);
+  }
+
+  if (request.url === '/coverage' && request.method === 'POST') {
+    const running = sessions();
+    if (!running) return send(response, 503, { error: 'XLE is not installed on this machine.' }, origin);
+    try {
+      const { grammar, mainPath, sentence } = await readJson(request);
+      if (typeof sentence !== 'string') {
+        return send(response, 400, { error: 'Expected {sentence}.' }, origin);
+      }
+      // A newline would end the Tcl command early and run whatever followed it.
+      if (CONTROL.test(sentence)) {
+        return send(response, 400, { error: 'Control characters are not allowed.' }, origin);
+      }
+
+      // The browser knows a grammar by name, never by path; resolve it against the
+      // roots. An explicit `grammar` path is honoured as-is, for scripts and tests.
+      let path = typeof grammar === 'string' ? grammar : undefined;
+      if (!path) {
+        if (typeof mainPath !== 'string') {
+          return send(response, 400, { error: 'Expected {grammar} or {mainPath}.' }, origin);
+        }
+        const { wanted, matches } = resolveGrammar(mainPath, listGrammars(ROOTS));
+        if (matches.length === 0) {
+          // Said apart from the other failures, because this one has a way out the
+          // page can offer: nobody has told the service where to look yet.
+          return send(response, 404, {
+            error: ROOTS.length === 0
+              ? 'This service has not been told where your grammars are.'
+              : `No ${wanted} under ${ROOTS.join(', ')}.`,
+            needsRoots: true,
+            roots: ROOTS,
+          }, origin);
+        }
+        if (matches.length > 1) {
+          return send(response, 409, { error: `Several files named ${wanted}.`, matches }, origin);
+        }
+        path = matches[0];
+      }
+      if (CONTROL.test(path)) {
+        return send(response, 400, { error: 'Control characters are not allowed.' }, origin);
+      }
+      // Reload if the grammar changed on disk, so adding an entry and re-checking
+      // works without restarting the service.
+      const { stamp, needsCompile } = grammarStamp(path);
+      const session = running.get(path, stamp);
+      const output = await session.run(coverageScript(sentence));
+      return send(response, 200, { tokens: classify(output), path, needsCompile }, origin);
+    } catch (error) {
+      return send(response, 500, { error: String(error?.message ?? error) }, origin);
+    }
+  }
+
+  // Anything that is not the API is the app, when the app has been built.
+  if (BUNDLE && request.method === 'GET') return serveStatic(BUNDLE, request.url ?? '/', response);
+
+  send(response, 404, { error: 'Not found' });
+});
+
+/** Close XLE and the socket, then leave. */
+export function stop(why) {
+  if (watchdog) clearInterval(watchdog);
+  if (why) console.log('Stopping (' + why + ').');
+  pool?.closeAll();
+  server.close(() => process.exit(0));
+  // XLE processes are already gone; do not wait on a browser holding a socket open.
+  setTimeout(() => process.exit(0), 1500).unref();
+}
+
+export const url = () => 'http://127.0.0.1:' + PORT;
+/** What the launcher needs before it decides anything. Asks nothing of XLE. */
+export const status = () => ({ bundle: BUNDLE, port: PORT });
+
+/** Start listening. Resolves once the port is bound, or rejects if it cannot be. */
+export function start(port = PORT) {
+  return new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(port, '127.0.0.1', () => {
+      if (EXIT_WHEN_IDLE) {
+        watchdog = setInterval(() => {
+          if (presence.check() === 'exit') stop('the last window closed');
+        }, 2000);
+        watchdog.unref();
+      }
+      resolve(server);
+    });
+  });
+}
+
+// Started directly (`npm run xle`) rather than imported by the launcher.
+if (isMain(import.meta.url)) {
+  start().then(() => {
+    console.log('XLE oracle on ' + url());
+    if (BUNDLE) console.log('Serving the app from ' + BUNDLE);
+  }, (error) => {
+    console.error('Could not listen on port ' + PORT + ': ' + error.message);
+    process.exit(1);
+  });
+}
+
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+  process.on(signal, () => stop(signal));
+}
